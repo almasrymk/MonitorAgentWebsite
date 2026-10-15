@@ -6,13 +6,14 @@ namespace MonitorAgent.BuildingBlocks.Application;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers the dispatcher and the pipeline (logging outermost, then validation). Safe to call from every module.
+    /// Registers the dispatcher and the pipeline (logging outermost, then audit, then validation). Safe to call from every module.
     /// </summary>
     public static IServiceCollection AddCqrs(this IServiceCollection services)
     {
         if (services.Any(d => d.ServiceType == typeof(IDispatcher))) return services;
         services.AddScoped<IDispatcher, Dispatcher>();
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(AuditBehavior<,>));
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         return services;
     }

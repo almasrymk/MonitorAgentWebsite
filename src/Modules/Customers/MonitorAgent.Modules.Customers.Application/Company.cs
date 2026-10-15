@@ -14,7 +14,12 @@ public sealed record CompanyDto(Guid Id, string Name, MemberRole MyRole, IReadOn
 
 public sealed record CreateCompanyCommand(string Name) : ICommand<Result<CompanyDto>>;
 public sealed record GetMyCompanyQuery : IQuery<Result<CompanyDto>>;
-public sealed record RenameCompanyCommand(string Name) : ICommand<Result>;
+public sealed record RenameCompanyCommand(string Name) : ICommand<Result>, IAuditedCommand
+{
+    public string AuditAction => "company.rename";
+    public string AuditTarget => "company";
+    public string? AuditDetail => Name;
+}
 
 internal sealed class CompanyNameValidator : AbstractValidator<CreateCompanyCommand>
 {

@@ -13,7 +13,12 @@ namespace MonitorAgent.Modules.Commerce.Application;
 public sealed record HandlePaymentNotificationCommand(string Provider, IReadOnlyDictionary<string, string> Headers, string Body) : ICommand<Result>;
 
 /// <summary>Staff mark an order paid for money received outside the website. The license is issued right after.</summary>
-public sealed record RecordManualPaymentCommand(Guid OrderId, string Reference) : ICommand<Result<OrderDto>>;
+public sealed record RecordManualPaymentCommand(Guid OrderId, string Reference) : ICommand<Result<OrderDto>>, IAuditedCommand
+{
+    public string AuditAction => "order.manual-payment";
+    public string AuditTarget => $"order:{OrderId}";
+    public string? AuditDetail => Reference;
+}
 
 /// <summary>Issues licenses for paid orders whose fulfilment didn't finish (LicensingPlatform was down). Run on a timer.</summary>
 public sealed record FulfillPaidOrdersCommand : ICommand<Result<int>>;

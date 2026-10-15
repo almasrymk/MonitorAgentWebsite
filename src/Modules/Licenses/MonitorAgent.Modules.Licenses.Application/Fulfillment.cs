@@ -9,7 +9,12 @@ using MonitorAgent.SharedKernel;
 namespace MonitorAgent.Modules.Licenses.Application;
 
 /// <summary>Issues the license an order paid for. Commerce calls it after payment; staff call it for manual payments.</summary>
-public sealed record FulfillLicenseCommand(Guid CompanyId, Guid PlanId, string OrderReference) : ICommand<Result<FulfilledLicense>>;
+public sealed record FulfillLicenseCommand(Guid CompanyId, Guid PlanId, string OrderReference) : ICommand<Result<FulfilledLicense>>, IAuditedCommand
+{
+    public string AuditAction => "license.issue";
+    public string AuditTarget => $"company:{CompanyId}";
+    public string? AuditDetail => $"plan {PlanId}, reference {OrderReference}";
+}
 
 internal sealed class FulfillLicenseValidator : AbstractValidator<FulfillLicenseCommand>
 {

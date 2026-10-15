@@ -18,7 +18,11 @@ public sealed record InvoiceDto(Guid Id, string Number, Guid OrderId, string Com
 
 public sealed record PlaceOrderCommand(Guid PlanId) : ICommand<Result<OrderDto>>;
 public sealed record PayOrderCommand(Guid OrderId, string Provider) : ICommand<Result<CheckoutDto>>;
-public sealed record CancelOrderCommand(Guid OrderId) : ICommand<Result>;
+public sealed record CancelOrderCommand(Guid OrderId) : ICommand<Result>, IAuditedCommand
+{
+    public string AuditAction => "order.cancel";
+    public string AuditTarget => $"order:{OrderId}";
+}
 public sealed record ListMyOrdersQuery : IQuery<Result<IReadOnlyList<OrderDto>>>;
 public sealed record GetMyOrderQuery(Guid OrderId) : IQuery<Result<OrderDto>>;
 public sealed record ListMyInvoicesQuery : IQuery<Result<IReadOnlyList<InvoiceDto>>>;
