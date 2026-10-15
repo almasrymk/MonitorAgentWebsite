@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- The single deployable host: wires the modules together and owns HTTP concerns (ADR-001). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\MonitorAgent.BuildingBlocks.Application\MonitorAgent.BuildingBlocks.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MonitorAgent.Tests" />
+  </ItemGroup>
+</Project>
