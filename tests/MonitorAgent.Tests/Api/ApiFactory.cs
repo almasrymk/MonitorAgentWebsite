@@ -13,6 +13,7 @@ using MonitorAgent.Modules.Identity.Infrastructure.Persistence;
 using MonitorAgent.Modules.Licenses.Application;
 using MonitorAgent.Modules.Licenses.Infrastructure.Persistence;
 using MonitorAgent.Modules.Releases.Infrastructure.Persistence;
+using MonitorAgent.Modules.Support.Infrastructure.Persistence;
 
 namespace MonitorAgent.Tests.Api;
 
@@ -54,6 +55,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         ["Commerce:FulfillmentRetrySeconds"] = "0",
         ["Commerce:Sandbox:WebhookSecret"] = SandboxSecret,
         ["Releases:DatabaseInitialization"] = "EnsureCreated",
+        ["Support:DatabaseInitialization"] = "EnsureCreated",
         ["Releases:PublicKey"] = Convert.ToBase64String(ReleaseKey.ExportSubjectPublicKeyInfo()),
         ["Identity:SessionValidationSeconds"] = "0",
         ["Portal:Url"] = "https://portal.test",
@@ -84,6 +86,9 @@ public class ApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<DbContextOptions<ReleasesDb>>();
             services.RemoveAll<IDbContextOptionsConfiguration<ReleasesDb>>();
             services.AddDbContext<ReleasesDb>(o => o.UseSqlite(Database("releases")));
+            services.RemoveAll<DbContextOptions<SupportDb>>();
+            services.RemoveAll<IDbContextOptionsConfiguration<SupportDb>>();
+            services.AddDbContext<SupportDb>(o => o.UseSqlite(Database("support")));
             services.RemoveAll<ILicensingPlatform>();
             services.AddSingleton<ILicensingPlatform>(Platform);
             services.RemoveAll<IEmailSender>();

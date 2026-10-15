@@ -1,4 +1,4 @@
-import { ACCOUNT_TEXTS, Dictionary } from 'shared';
+import { ACCOUNT_TEXTS, Dictionary, SUPPORT_TEXTS } from 'shared';
 
 const en = {
   'nav.label': 'Portal',
@@ -6,6 +6,8 @@ const en = {
   'nav.licenses': 'Licenses',
   'nav.orders': 'Orders',
   'nav.invoices': 'Invoices',
+  'nav.support': 'Support',
+  'nav.suggestions': 'Suggestions',
   'nav.company': 'Company & team',
   'nav.account': 'Account & security',
   'nav.signOut': 'Sign out',
@@ -129,6 +131,8 @@ const ar: Record<keyof typeof en, string> = {
   'nav.licenses': 'التراخيص',
   'nav.orders': 'الطلبات',
   'nav.invoices': 'الفواتير',
+  'nav.support': 'الدعم',
+  'nav.suggestions': 'الاقتراحات',
   'nav.company': 'الشركة والفريق',
   'nav.account': 'الحساب والأمان',
   'nav.signOut': 'تسجيل الخروج',
@@ -247,6 +251,6 @@ const ar: Record<keyof typeof en, string> = {
 };
 
 export const PORTAL_TEXTS: Dictionary = {
-  en: { ...ACCOUNT_TEXTS.en, ...en },
-  ar: { ...ACCOUNT_TEXTS.ar, ...ar },
+  en: { ...ACCOUNT_TEXTS.en, ...SUPPORT_TEXTS.en, ...en },
+  ar: { ...ACCOUNT_TEXTS.ar, ...SUPPORT_TEXTS.ar, ...ar },
 };
