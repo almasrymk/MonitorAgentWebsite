@@ -158,8 +158,12 @@
 }
 
 .checkbox input {
-  width: auto;
+  // At least 24px so it meets the WCAG 2.2 target size whatever font the browser falls back to.
+  width: 1.5rem;
+  height: 1.5rem;
   min-height: auto;
+  flex: none;
+  margin: 0;
 }
 
 .dl {
