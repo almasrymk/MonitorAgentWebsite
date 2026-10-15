@@ -31,6 +31,14 @@ public sealed partial class TestClient(HttpClient http, CapturedEmails emails)
         return await http.SendAsync(request);
     }
 
+    public async Task<HttpResponseMessage> PutAsync(string path, object body)
+    {
+        if (_csrf is null) await RefreshCsrfAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Put, path) { Content = JsonContent.Create(body) };
+        request.Headers.Add("X-XSRF-TOKEN", _csrf);
+        return await http.SendAsync(request);
+    }
+
     public Task<HttpResponseMessage> GetAsync(string path) => http.GetAsync(path);
 
     /// <summary>Adds the CSRF header to a hand-built request (PUT, DELETE).</summary>

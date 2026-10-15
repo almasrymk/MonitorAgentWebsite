@@ -19,6 +19,11 @@
     <Project Path="src/Modules/Releases/MonitorAgent.Modules.Releases.Domain/MonitorAgent.Modules.Releases.Domain.csproj" />
     <Project Path="src/Modules/Releases/MonitorAgent.Modules.Releases.Infrastructure/MonitorAgent.Modules.Releases.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Content/">
+    <Project Path="src/Modules/Content/MonitorAgent.Modules.Content.Application/MonitorAgent.Modules.Content.Application.csproj" />
+    <Project Path="src/Modules/Content/MonitorAgent.Modules.Content.Domain/MonitorAgent.Modules.Content.Domain.csproj" />
+    <Project Path="src/Modules/Content/MonitorAgent.Modules.Content.Infrastructure/MonitorAgent.Modules.Content.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Support/">
     <Project Path="src/Modules/Support/MonitorAgent.Modules.Support.Application/MonitorAgent.Modules.Support.Application.csproj" />
     <Project Path="src/Modules/Support/MonitorAgent.Modules.Support.Domain/MonitorAgent.Modules.Support.Domain.csproj" />

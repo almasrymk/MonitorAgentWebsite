@@ -260,3 +260,20 @@
 td select {
   min-width: 9rem;
 }
+
+/* Two columns side by side on wide screens (Arabic and English), stacked on phones. */
+.grid-2 {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 900px) {
+  .grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.section-gap {
+  margin-top: 2rem;
+}

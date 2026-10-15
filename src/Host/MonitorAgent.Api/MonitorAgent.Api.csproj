@@ -11,6 +11,7 @@
     <ProjectReference Include="..\..\Modules\Licenses\MonitorAgent.Modules.Licenses.Infrastructure\MonitorAgent.Modules.Licenses.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Commerce\MonitorAgent.Modules.Commerce.Infrastructure\MonitorAgent.Modules.Commerce.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Releases\MonitorAgent.Modules.Releases.Infrastructure\MonitorAgent.Modules.Releases.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Content\MonitorAgent.Modules.Content.Infrastructure\MonitorAgent.Modules.Content.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Support\MonitorAgent.Modules.Support.Infrastructure\MonitorAgent.Modules.Support.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
