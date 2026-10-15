@@ -131,6 +131,13 @@
   width: min(440px, 100%);
 }
 
+// Links under the sign-in form stand alone, so each gets a 24px touch target whatever font is installed (WCAG 2.2).
+.auth-card a {
+  display: inline-block;
+  min-height: 24px;
+  padding-block: 0.15rem;
+}
+
 .auth-card .logo {
   display: flex;
   align-items: center;
