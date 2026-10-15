@@ -51,6 +51,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         ["Identity:DatabaseInitialization"] = "EnsureCreated",
         ["Customers:DatabaseInitialization"] = "EnsureCreated",
         ["Licenses:DatabaseInitialization"] = "EnsureCreated",
+        ["Licenses:ExpiryReminderMinutes"] = "0",
         ["Commerce:DatabaseInitialization"] = "EnsureCreated",
         ["Commerce:FulfillmentRetrySeconds"] = "0",
         ["Commerce:Sandbox:WebhookSecret"] = SandboxSecret,

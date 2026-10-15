@@ -40,6 +40,10 @@ internal interface ILicenseStore
     void Add(PlatformCustomerLink link);
     Task<LicenseGrant?> GrantForOrderAsync(string orderReference, CancellationToken ct);
     Task<LicenseGrant?> GrantForLicenseAsync(Guid companyId, Guid platformLicenseId, CancellationToken ct);
+    /// <summary>Issued grants expiring between now and <paramref name="until"/>.</summary>
+    Task<IReadOnlyList<LicenseGrant>> ExpiringAsync(DateTimeOffset now, DateTimeOffset until, int take, CancellationToken ct);
+    /// <summary>Whether the company holds another issued license on the same plan that lasts longer: then it already renewed.</summary>
+    Task<bool> RenewedAsync(LicenseGrant grant, CancellationToken ct);
     void Add(LicenseGrant grant);
     Task SaveAsync(CancellationToken ct);
 }
