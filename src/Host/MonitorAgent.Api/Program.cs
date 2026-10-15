@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using MonitorAgent.Api.Web;
 using MonitorAgent.BuildingBlocks.Application;
+using MonitorAgent.Modules.Commerce.Infrastructure;
 using MonitorAgent.Modules.Customers.Infrastructure;
 using MonitorAgent.Modules.Identity.Infrastructure;
 using MonitorAgent.Modules.Licenses.Infrastructure;
@@ -35,6 +36,7 @@ builder.Services.AddSingleton(new PortalLinks(portalUrl));
 builder.Services.AddIdentityModule(builder.Configuration);
 builder.Services.AddCustomersModule(builder.Configuration);
 builder.Services.AddLicensesModule(builder.Configuration, builder.Environment);
+builder.Services.AddCommerceModule(builder.Configuration, builder.Environment);
 
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [])

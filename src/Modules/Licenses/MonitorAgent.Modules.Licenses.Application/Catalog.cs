@@ -46,6 +46,23 @@ internal sealed class CatalogCache(ILicensingPlatform platform, TimeProvider clo
     public void Dispose() => _lock.Dispose();
 }
 
+internal sealed class PlanCatalog(CatalogCache catalog) : MonitorAgent.Modules.Licenses.Contracts.IPlanCatalog
+{
+    public async Task<Result<MonitorAgent.Modules.Licenses.Contracts.PlanOffer>> OfferAsync(Guid planId, CancellationToken ct)
+    {
+        try
+        {
+            var plan = (await catalog.PlansAsync(ct)).SingleOrDefault(p => p.Id == planId);
+            if (plan is null) return LicensesErrors.PlanNotAvailable;
+            return new MonitorAgent.Modules.Licenses.Contracts.PlanOffer(plan.Id, plan.ProductName, plan.Name, plan.Price, plan.Currency, plan.DurationDays);
+        }
+        catch (PlatformUnavailableException)
+        {
+            return LicensesErrors.PlatformUnavailable;
+        }
+    }
+}
+
 internal sealed class GetCatalogHandler(CatalogCache catalog) : IQueryHandler<GetCatalogQuery, Result<IReadOnlyList<CatalogPlanDto>>>
 {
     public async Task<Result<IReadOnlyList<CatalogPlanDto>>> HandleAsync(GetCatalogQuery query, CancellationToken ct)
