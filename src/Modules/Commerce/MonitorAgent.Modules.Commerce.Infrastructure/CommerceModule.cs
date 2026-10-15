@@ -31,6 +31,7 @@ public static class CommerceModule
         services.AddDbContext<CommerceDb>(db => db.UseSqlServer(configuration.GetConnectionString("Default"),
             sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", CommerceDb.Schema)));
         services.AddScoped<ICommerceStore, CommerceStore>();
+        services.AddScoped<IPersonalDataSource, OrdersPersonalData>();
 
         if (!string.IsNullOrEmpty(options.Sandbox.WebhookSecret))
         {

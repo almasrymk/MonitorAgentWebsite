@@ -18,6 +18,7 @@ public enum SecurityEventType
     MfaDisabled,
     RecoveryCodesRegenerated,
     RecoveryCodeUsed,
+    AccountDeleted,
 }
 
 /// <summary>Append-only record of a security-relevant account action. Never holds passwords, tokens or codes.</summary>
@@ -29,6 +30,9 @@ public sealed class SecurityEvent : Entity
     public SecurityEventType Type { get; private set; }
     public DateTimeOffset OccurredAt { get; private set; }
     public string? IpAddress { get; private set; }
+
+    /// <summary>The account was deleted: the event stays, the address it came from doesn't.</summary>
+    public void ForgetIpAddress() => IpAddress = null;
 
     public static SecurityEvent Record(Guid? userId, SecurityEventType type, DateTimeOffset at, string? ipAddress) => new()
     {

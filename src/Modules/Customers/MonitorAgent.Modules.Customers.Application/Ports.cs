@@ -10,6 +10,8 @@ internal interface ICustomerAccounts
 {
     Task<CustomerAccount?> ForMemberAsync(Guid userId, CancellationToken ct);
     Task<CustomerAccount?> ByInvitationTokenAsync(string tokenHash, CancellationToken ct);
+    /// <summary>Companies holding an invitation to this email, for deleting that person's data only.</summary>
+    Task<IReadOnlyList<CustomerAccount>> WithInvitationsToAsync(string email, CancellationToken ct);
     void Add(CustomerAccount account);
     Task SaveAsync(CancellationToken ct);
 }

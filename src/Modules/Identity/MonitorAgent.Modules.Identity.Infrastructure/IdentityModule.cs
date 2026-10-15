@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using MonitorAgent.BuildingBlocks.Application;
 using MonitorAgent.Modules.Identity.Application;
 using MonitorAgent.Modules.Identity.Contracts;
 using MonitorAgent.Modules.Identity.Infrastructure.Persistence;
@@ -123,6 +124,7 @@ public static class IdentityModule
         services.AddScoped<ISecurityEventQueries>(sp => sp.GetRequiredService<SecurityLog>());
         services.AddScoped<IIdentityLinks, IdentityLinks>();
         services.AddScoped<IUserDirectory, UserDirectory>();
+        services.AddScoped<IPersonalDataSource, SecurityEventsPersonalData>();
         services.AddHostedService<IdentitySeeder>();
 
         services.AddIdentityApplication();

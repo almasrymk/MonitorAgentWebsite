@@ -1,3 +1,4 @@
+using MonitorAgent.BuildingBlocks.Application;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,7 @@ public static class SupportModule
         services.AddDbContext<SupportDb>(db => db.UseSqlServer(configuration.GetConnectionString("Default"),
             sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", SupportDb.Schema)));
         services.AddScoped<ISupportStore, SupportStore>();
+        services.AddScoped<IPersonalDataSource, SupportPersonalData>();
         services.AddHostedService<SupportDbInitializer>();
         services.AddSupportApplication();
         services.AddControllers().AddApplicationPart(typeof(SupportModule).Assembly);
