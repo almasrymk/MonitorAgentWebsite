@@ -1,1 +1,275 @@
-/* You can add global styles to this file, and also import other style files */
+@use '../../shared/styles/base';
+
+// Public site layout. Component styles stay empty so pages share one stylesheet.
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgb(255 255 255 / 0.95);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(6px);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  flex-wrap: wrap;
+  padding-block: 0.75rem;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 800;
+  font-size: 1.2rem;
+  text-decoration: none;
+}
+
+.site-header nav {
+  display: flex;
+  gap: 1.25rem;
+  flex: 1;
+  justify-content: center;
+}
+
+.site-header nav a {
+  text-decoration: none;
+  color: var(--ink-2);
+  padding-block: 0.3rem;
+  border-bottom: 2px solid transparent;
+}
+
+.site-header nav a.active {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--ink);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.lang {
+  padding: 0.5rem;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+@media (max-width: 760px) {
+  .site-header nav {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
+  .actions .btn:not(.secondary) {
+    display: none;
+  }
+}
+
+main:focus {
+  outline: none;
+}
+
+.hero {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding-block: clamp(2.5rem, 6vw, 5rem);
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 2.5rem;
+  align-items: center;
+}
+
+@media (max-width: 860px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lead {
+  font-size: 1.15rem;
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+.cta-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-block: 1.5rem;
+}
+
+.checks {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  color: var(--ink-2);
+}
+
+.checks li::before {
+  content: '✓';
+  margin-inline-end: 0.4rem;
+  font-weight: 700;
+}
+
+.plan .checks {
+  flex-direction: column;
+}
+
+.preview {
+  padding: 0;
+  overflow: hidden;
+}
+
+.preview-head {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.preview-head span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #cfcfcf;
+}
+
+.preview-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--line);
+  direction: ltr;
+}
+
+.section {
+  padding-block: clamp(2rem, 5vw, 4rem);
+}
+
+.section.alt {
+  background: var(--surface);
+  border-block: 1px solid var(--line);
+}
+
+.section-title {
+  margin-top: 2rem;
+}
+
+.narrow {
+  width: min(820px, 100% - 2rem);
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.steps {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.step-number {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.faq {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.25rem 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.faq summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding-block: 0.75rem;
+  min-height: 44px;
+}
+
+.final-cta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.plan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.plan .btn {
+  margin-top: auto;
+}
+
+.price strong {
+  font-size: 2rem;
+}
+
+.price span {
+  margin-inline-start: 0.4rem;
+}
+
+.note {
+  margin-top: 1.5rem;
+}
+
+.checksum {
+  white-space: normal;
+  display: inline-block;
+  max-width: 34ch;
+}
+
+.notes {
+  white-space: pre-line;
+}
+
+.site-footer {
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding-block: 1.5rem;
+}
+
+.site-footer .bar {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.site-footer nav {
+  display: flex;
+  gap: 1rem;
+}
