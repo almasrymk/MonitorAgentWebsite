@@ -1,9 +1,10 @@
 import { Component, computed, inject, input, output } from '@angular/core';
-import { errorText, I18n, TranslatePipe } from 'shared';
+import { I18n, TranslatePipe } from './i18n';
+import { errorText } from './session';
 
 /** The failed state of a page section, with a retry button. */
 @Component({
-  selector: 'portal-load-error',
+  selector: 'ma-load-error',
   imports: [TranslatePipe],
   template: `
     <div class="alert" role="alert">
@@ -21,7 +22,7 @@ export class LoadError {
 
 /** Placeholder rows while a section loads. */
 @Component({
-  selector: 'portal-skeleton',
+  selector: 'ma-skeleton',
   imports: [TranslatePipe],
   template: `
     <div class="card" aria-busy="true">
@@ -38,7 +39,7 @@ export class Skeleton {
 
 /** License and order states as a colored badge with text (never color alone). */
 @Component({
-  selector: 'portal-status',
+  selector: 'ma-status',
   imports: [TranslatePipe],
   template: `<span class="badge" [class.ok]="tone() === 'ok'" [class.warn]="tone() === 'warn'" [class.bad]="tone() === 'bad'">{{ prefix() + value() | t }}</span>`,
 })
