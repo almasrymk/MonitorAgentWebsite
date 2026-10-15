@@ -26,4 +26,10 @@ public static class AuthPolicies
 
     /// <summary>Staff with the Admin role, signed in with a second factor.</summary>
     public const string StaffAdmin = "Staff.Admin";
+
+    /// <summary>Finance or Admin, signed in with a second factor: orders, payments and money reports.</summary>
+    public const string StaffFinance = "Staff.Finance";
+
+    /// <summary>Admin, Support or Finance, signed in with a second factor: customer companies and their people.</summary>
+    public const string StaffCustomers = "Staff.Customers";
 }

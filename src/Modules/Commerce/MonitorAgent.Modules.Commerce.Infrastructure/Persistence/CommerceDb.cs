@@ -134,10 +134,11 @@ internal sealed class CommerceStore(CommerceDb db) : ICommerceStore
     public async Task<IReadOnlyList<Order>> OrdersOfAsync(Guid companyId, CancellationToken ct) =>
         await Orders.Where(o => o.CompanyId == companyId).OrderByDescending(o => o.PlacedAt).Take(200).ToListAsync(ct);
 
-    public async Task<(IReadOnlyList<Order> Items, int Total)> OrdersAsync(OrderStatus? status, int page, int pageSize, CancellationToken ct)
+    public async Task<(IReadOnlyList<Order> Items, int Total)> OrdersAsync(OrderStatus? status, Guid? companyId, int page, int pageSize, CancellationToken ct)
     {
         var query = db.Orders.AsQueryable();
         if (status is not null) query = query.Where(o => o.Status == status);
+        if (companyId is not null) query = query.Where(o => o.CompanyId == companyId);
         var total = await query.CountAsync(ct);
         var items = await query.Include(o => o.Payments).OrderByDescending(o => o.PlacedAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return (items, total);
@@ -152,6 +153,11 @@ internal sealed class CommerceStore(CommerceDb db) : ICommerceStore
     public void Add(Order order) => db.Orders.Add(order);
     public void Add(ProcessedNotification notification) => db.Notifications.Add(notification);
     public void Add(LedgerEntry entry) => db.Ledger.Add(entry);
+
+    public async Task<IReadOnlyList<LedgerLine>> LedgerAsync(DateTimeOffset from, DateTimeOffset until, int max, CancellationToken ct) =>
+        await db.Ledger.AsNoTracking().Where(l => l.At >= from && l.At < until).OrderBy(l => l.At).Take(max)
+            .Join(db.Orders, l => l.OrderId, o => o.Id, (l, o) => new LedgerLine(l, o.Number, o.ProductName, o.PlanName, o.CompanyId))
+            .ToListAsync(ct);
     public void Add(Invoice invoice) => db.Invoices.Add(invoice);
 
     public Task<Invoice?> InvoiceForOrderAsync(Guid orderId, CancellationToken ct) => db.Invoices.SingleOrDefaultAsync(i => i.OrderId == orderId, ct);

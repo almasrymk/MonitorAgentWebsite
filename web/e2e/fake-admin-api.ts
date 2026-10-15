@@ -17,8 +17,8 @@ export class FakeAdminApi {
   readonly me = { id: 'a1', email: 'admin@example.test', fullName: 'Adel Admin', emailConfirmed: true, mfaEnabled: true, roles: ['Admin'] };
 
   readonly orders = [
-    { id: 'o1', number: 'ORD-2026-000001', productName: 'UBG Monitor', planName: 'Standard', total: 1200, currency: 'EGP', status: 'PendingPayment', placedAt: '2026-10-14T10:00:00Z', paidAt: null, licenseNumber: null, payments: [] },
-    { id: 'o2', number: 'ORD-2026-000002', productName: 'UBG Monitor', planName: 'Professional', total: 3000, currency: 'EGP', status: 'Fulfilled', placedAt: '2026-10-13T10:00:00Z', paidAt: '2026-10-13T10:05:00Z', licenseNumber: 'LIC-2026-0007', payments: [] },
+    { id: 'o1', number: 'ORD-2026-000001', productName: 'UBG Monitor', planName: 'Standard', total: 1200, currency: 'EGP', status: 'PendingPayment', placedAt: '2026-10-14T10:00:00Z', paidAt: null, licenseNumber: null, payments: [], companyId: 'c1', companyName: 'Nile Traders' },
+    { id: 'o2', number: 'ORD-2026-000002', productName: 'UBG Monitor', planName: 'Professional', total: 3000, currency: 'EGP', status: 'Fulfilled', placedAt: '2026-10-13T10:00:00Z', paidAt: '2026-10-13T10:05:00Z', licenseNumber: 'LIC-2026-0007', payments: [], companyId: 'c2', companyName: 'Delta Pharma' },
   ];
   readonly releases = [
     { id: 'r1', version: '2.3.1', channel: 'stable', notes: null, status: 'Published', createdAt: '2026-09-01T10:00:00Z', publishedAt: '2026-09-01T10:00:00Z', packages: [{ platform: 'win-x64', url: 'https://x.test/a.zip', sha256: 'ab'.repeat(32), size: 48234496 }] },
@@ -47,6 +47,15 @@ export class FakeAdminApi {
     },
     { id: 'p2', slug: 'privacy', publishedVersion: null as number | null, versions: [version(1, 'Draft', 'Privacy policy', 'Adel Admin')] },
   ];
+  readonly companies = [
+    { id: 'c1', name: 'Nile Traders', ownerName: 'Mona Owner', ownerEmail: 'mona@nile.test', members: 2, createdAt: '2026-09-01T10:00:00Z' },
+    { id: 'c2', name: 'Delta Pharma', ownerName: 'Omar Owner', ownerEmail: 'omar@delta.test', members: 1, createdAt: '2026-08-01T10:00:00Z' },
+  ];
+  readonly licenses = [
+    { id: 'l1', licenseNumber: 'LIC-2026-0003', productCode: 'UBG', planCode: 'STD', productKeyPrefix: 'UBG-AB', status: 'Active', issuedAt: '2026-09-02T10:00:00Z',
+      expiresAt: '2027-09-02T10:00:00Z', maxDevices: 3, activeDevices: 2 },
+  ];
+  grants: unknown[] = [];
   uploaded: { channel: string; manifestBase64: string; signature: string } | null = null;
 
   async install(page: Page): Promise<void> {
@@ -89,7 +98,8 @@ export class FakeAdminApi {
 
     if (key === 'GET /admin/orders') {
       const status = url.searchParams.get('status');
-      const items = this.orders.filter((o) => !status || o.status === status);
+      const company = url.searchParams.get('companyId');
+      const items = this.orders.filter((o) => (!status || o.status === status) && (!company || o.companyId === company));
       return json(200, { items, page: 1, pageSize: Number(url.searchParams.get('pageSize') ?? 50), totalCount: items.length });
     }
     const manual = key.match(/^POST \/admin\/orders\/(\w+)\/manual-payment$/);
@@ -132,6 +142,42 @@ export class FakeAdminApi {
       const suggestion = this.suggestions.find((x) => x.id === answer[1])!;
       Object.assign(suggestion, { status: body.status, staffNote: body.note });
       return json(200, suggestion);
+    }
+    if (key === 'GET /admin/customers') {
+      const search = (url.searchParams.get('search') ?? '').toLowerCase();
+      const items = this.companies.filter((c) => !search || c.name.toLowerCase().includes(search) || c.ownerEmail === search);
+      return json(200, { items, page: 1, pageSize: 25, totalCount: items.length });
+    }
+    const customer = key.match(/^GET \/admin\/customers\/(\w+)(\/licenses)?$/);
+    if (customer) {
+      const c = this.companies.find((x) => x.id === customer[1]);
+      if (!c) return problem(404, 'COMPANY_NOT_FOUND');
+      if (customer[2]) return json(200, c.id === 'c1' ? this.licenses : []);
+      return json(200, {
+        id: c.id, name: c.name, createdAt: c.createdAt,
+        members: [
+          { userId: 'u1', fullName: c.ownerName, email: c.ownerEmail, role: 'Owner', joinedAt: c.createdAt },
+          { userId: 'u2', fullName: 'Tarek Tech', email: 'tarek@nile.test', role: 'Technical', joinedAt: '2026-09-05T10:00:00Z' },
+        ],
+        pendingInvitations: [{ email: 'new@nile.test', role: 'Viewer', expiresAt: '2026-10-20T10:00:00Z' }],
+      });
+    }
+    if (key === 'GET /catalog/plans') {
+      return json(200, [{ id: 'p-std', productCode: 'UBG', productName: 'UBG Monitor', code: 'STD', name: 'Standard', price: 1200, currency: 'EGP', durationDays: 365, maxDevices: 3, features: [] }]);
+    }
+    if (key === 'POST /admin/licenses/grants') {
+      this.grants.push(body);
+      this.licenses.push({ ...this.licenses[0], id: 'l2', licenseNumber: 'LIC-2026-0099', activeDevices: 0 });
+      return json(200, { grantId: 'g1', licenseNumber: 'LIC-2026-0099', expiresAt: null });
+    }
+    if (key === 'GET /admin/reports/revenue') {
+      return json(200, {
+        from: url.searchParams.get('from'), to: url.searchParams.get('to'), truncated: false,
+        totals: [{ currency: 'EGP', payments: 4200, refunds: 1200, net: 3000, paymentCount: 2, refundCount: 1 }],
+        byMonth: [{ month: '2026-10', currency: 'EGP', net: 3000, paymentCount: 2 }],
+        byPlan: [{ productName: 'UBG Monitor', planName: 'Professional', currency: 'EGP', net: 3000, paymentCount: 1 }],
+        byProvider: [{ provider: 'paymob', currency: 'EGP', net: 3000, paymentCount: 2 }],
+      });
     }
     if (key === 'GET /admin/content/pages') {
       return json(200, this.pages.map((p) => {

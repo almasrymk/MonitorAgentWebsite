@@ -122,6 +122,9 @@ export interface Order {
   paidAt: string | null;
   licenseNumber: string | null;
   payments: Payment[];
+  /** Filled in staff lists only. */
+  companyId?: string | null;
+  companyName?: string | null;
 }
 
 export interface Invoice {
@@ -231,4 +234,40 @@ export interface PageDetail {
   slug: string;
   publishedVersion: number | null;
   versions: PageVersion[];
+}
+
+export interface CompanyListItem {
+  id: string;
+  name: string;
+  ownerName: string | null;
+  ownerEmail: string | null;
+  members: number;
+  createdAt: string;
+}
+
+export interface CompanyDetails {
+  id: string;
+  name: string;
+  createdAt: string;
+  members: { userId: string; fullName: string; email: string; role: MemberRole; joinedAt: string }[];
+  pendingInvitations: { email: string; role: MemberRole; expiresAt: string }[];
+}
+
+export interface CurrencyTotal {
+  currency: string;
+  payments: number;
+  refunds: number;
+  net: number;
+  paymentCount: number;
+  refundCount: number;
+}
+
+export interface RevenueReport {
+  from: string;
+  to: string;
+  totals: CurrencyTotal[];
+  byMonth: { month: string; currency: string; net: number; paymentCount: number }[];
+  byPlan: { productName: string; planName: string; currency: string; net: number; paymentCount: number }[];
+  byProvider: { provider: string; currency: string; net: number; paymentCount: number }[];
+  truncated: boolean;
 }

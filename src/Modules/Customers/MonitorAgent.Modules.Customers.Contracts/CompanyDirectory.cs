@@ -14,4 +14,5 @@ public interface ICompanyDirectory
 {
     Task<CompanyMembership?> MembershipOfAsync(Guid userId, CancellationToken ct);
     Task<CompanySummary?> FindAsync(Guid companyId, CancellationToken ct);
+    Task<IReadOnlyDictionary<Guid, CompanySummary>> FindManyAsync(IReadOnlyCollection<Guid> companyIds, CancellationToken ct);
 }

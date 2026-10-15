@@ -1,6 +1,6 @@
 import { Component, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Api, errorText, I18n, Loader, LoadError, MoneyPipe, Order, OrderStatus, Paged, Skeleton, StatusBadge, TranslatePipe, WhenPipe } from 'shared';
 
 const statuses: OrderStatus[] = ['PendingPayment', 'Paid', 'Fulfilled', 'Cancelled'];
@@ -8,7 +8,7 @@ const pageSize = 25;
 
 @Component({
   selector: 'admin-orders',
-  imports: [FormsModule, TranslatePipe, WhenPipe, MoneyPipe, LoadError, Skeleton, StatusBadge],
+  imports: [FormsModule, RouterLink, TranslatePipe, WhenPipe, MoneyPipe, LoadError, Skeleton, StatusBadge],
   template: `
     <div class="page-head">
       <h1>{{ 'orders.title' | t }}</h1>
@@ -38,6 +38,7 @@ const pageSize = 25;
             <thead>
               <tr>
                 <th scope="col">{{ 'orders.number' | t }}</th>
+                <th scope="col">{{ 'customers.company' | t }}</th>
                 <th scope="col">{{ 'orders.plan' | t }}</th>
                 <th scope="col">{{ 'orders.total' | t }}</th>
                 <th scope="col">{{ 'orders.status' | t }}</th>
@@ -50,6 +51,13 @@ const pageSize = 25;
               @for (order of value.items; track order.id) {
                 <tr>
                   <td class="mono">{{ order.number }}</td>
+                  <td>
+                    @if (order.companyId) {
+                      <a [routerLink]="['/customers', order.companyId]">{{ order.companyName ?? '—' }}</a>
+                    } @else {
+                      —
+                    }
+                  </td>
                   <td>{{ order.productName }} · {{ order.planName }}</td>
                   <td>{{ order.total | money: order.currency }}</td>
                   <td><ma-status [value]="order.status" prefix="order.status." /></td>

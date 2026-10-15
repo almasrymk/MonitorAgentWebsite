@@ -89,16 +89,40 @@ public sealed class PaymentNotificationsController(IDispatcher dispatcher) : Con
 /// <summary>Finance and admins: every order, and payments received outside the website.</summary>
 [ApiController]
 [Route("api/v1/admin/orders")]
-[Authorize(Policy = AuthPolicies.StaffAdmin)]
+[Authorize(Policy = AuthPolicies.StaffFinance)]
 public sealed class AdminOrdersController(IDispatcher dispatcher) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<PagedResult<OrderDto>>(StatusCodes.Status200OK)]
-    public async Task<IActionResult> List([FromQuery] OrderStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default) =>
-        (await dispatcher.QueryAsync(new ListOrdersQuery(status, page, pageSize), ct)).ToActionResult();
+    public async Task<IActionResult> List([FromQuery] OrderStatus? status, [FromQuery] Guid? companyId, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50, CancellationToken ct = default) =>
+        (await dispatcher.QueryAsync(new ListOrdersQuery(status, page, pageSize, companyId), ct)).ToActionResult();
 
     [HttpPost("{orderId:guid}/manual-payment")]
     [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> ManualPayment(Guid orderId, ManualPaymentRequest request, CancellationToken ct) =>
         (await dispatcher.SendAsync(new RecordManualPaymentCommand(orderId, request.Reference), ct)).ToActionResult();
+}
+
+/// <summary>Finance and admins: money received and refunded, from the ledger.</summary>
+[ApiController]
+[Route("api/v1/admin/reports")]
+[Authorize(Policy = AuthPolicies.StaffFinance)]
+public sealed class AdminReportsController(IDispatcher dispatcher) : ControllerBase
+{
+    [HttpGet("revenue")]
+    [ProducesResponseType<RevenueReportDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Revenue([FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
+        (await dispatcher.QueryAsync(new RevenueReportQuery(from, to), ct)).ToActionResult();
+
+    [HttpGet("ledger.csv")]
+    [Produces("text/csv")]
+    public async Task<IActionResult> Ledger([FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct)
+    {
+        var file = await dispatcher.QueryAsync(new LedgerExportQuery(from, to), ct);
+        if (file.IsFailure) return file.ToActionResult();
+        // A byte order mark so Excel opens Arabic company names correctly.
+        return File([.. System.Text.Encoding.UTF8.GetPreamble(), .. System.Text.Encoding.UTF8.GetBytes(file.Value.Content)], "text/csv; charset=utf-8",
+            file.Value.FileName);
+    }
 }
