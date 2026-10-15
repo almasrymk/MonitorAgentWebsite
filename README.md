@@ -32,7 +32,7 @@ dotnet user-secrets --project src/Host/MonitorAgent.Api set Identity:BootstrapAd
 dotnet user-secrets --project src/Host/MonitorAgent.Api set Identity:BootstrapAdminPassword "<باسورد 12 حرف أو أكتر>"
 ```
 
-الأدمن ده لازم يفعّل الـ MFA قبل ما يقدر يفتح أي حاجة في لوحة الأدمن. في الـ Development الإيميلات بتتكتب في الـ log بدل ما تتبعت.
+الأدمن ده لازم يفعّل الـ MFA قبل ما يقدر يفتح أي حاجة في لوحة الأدمن. في الـ Development الإيميلات بتروح لـ Mailpit (`docker compose up mailpit`) وتقدر تشوفها على http://localhost:8025.
 
 بـ Docker: انسخ `.env.example` لـ `.env` واكتب باسورد قوي، وبعدين `docker compose up --build`.
 

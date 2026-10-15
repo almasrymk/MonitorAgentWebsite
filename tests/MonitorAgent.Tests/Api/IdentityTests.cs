@@ -222,12 +222,12 @@ public class IdentityTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         await client.LogoutAsync();
         await client.LoginAsync(email, password);
-        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/api/v1/auth/login/mfa", new { code = codes[0], isRecoveryCode = true })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/api/v1/auth/login/recovery-code", new { code = codes[0] })).StatusCode);
         await client.RefreshCsrfAsync();
         await client.LogoutAsync();
         await client.LoginAsync(email, password);
         Assert.Equal("INVALID_MFA_CODE",
-            await TestClient.ErrorCodeAsync(await client.PostAsync("/api/v1/auth/login/mfa", new { code = codes[0], isRecoveryCode = true })));
+            await TestClient.ErrorCodeAsync(await client.PostAsync("/api/v1/auth/login/recovery-code", new { code = codes[0] })));
     }
 
     [Fact]

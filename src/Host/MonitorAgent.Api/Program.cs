@@ -22,7 +22,7 @@ builder.Services.AddHealthChecks();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddCqrs();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
-builder.Services.AddEmailSender(builder.Configuration, builder.Environment);
+builder.Services.AddEmailSender(builder.Configuration);
 
 builder.Services.AddIdentityModule(builder.Configuration);
 

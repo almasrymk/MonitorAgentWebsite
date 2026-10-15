@@ -28,7 +28,9 @@ public class ApiFactory : WebApplicationFactory<Program>
     protected virtual IDictionary<string, string?> Settings => new Dictionary<string, string?>
     {
         ["ConnectionStrings:Default"] = "",
-        ["Email:Provider"] = "Log",
+        ["Email:Provider"] = "Smtp",
+        ["Email:Smtp:Host"] = "smtp.invalid",
+        ["Email:Smtp:From"] = "no-reply@monitoragent.test",
         ["Identity:DatabaseInitialization"] = "EnsureCreated",
         ["Identity:SessionValidationSeconds"] = "0",
         ["Identity:PortalUrl"] = "https://portal.test",

@@ -12,7 +12,8 @@ public sealed record RegisterRequest(string Email, string Password, string FullN
 public sealed record EmailRequest(string Email);
 public sealed record ConfirmEmailRequest(Guid UserId, string Token);
 public sealed record SignInRequest(string Email, string Password, bool RememberMe = false);
-public sealed record MfaSignInRequest(string Code, bool IsRecoveryCode = false, bool RememberMe = false);
+public sealed record MfaSignInRequest(string Code, bool RememberMe = false);
+public sealed record RecoveryCodeSignInRequest(string Code);
 public sealed record ResetPasswordRequest(string Email, string Token, string NewPassword);
 
 /// <summary>
@@ -48,7 +49,12 @@ public sealed class AuthController(IDispatcher dispatcher) : ControllerBase
     [HttpPost("login/mfa")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> LoginMfa(MfaSignInRequest request, CancellationToken ct) =>
-        (await dispatcher.SendAsync(new SignInWithMfaCommand(request.Code, request.IsRecoveryCode, request.RememberMe), ct)).ToActionResult();
+        (await dispatcher.SendAsync(new SignInWithMfaCommand(request.Code, request.RememberMe), ct)).ToActionResult();
+
+    [HttpPost("login/recovery-code")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> LoginRecoveryCode(RecoveryCodeSignInRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new SignInWithRecoveryCodeCommand(request.Code), ct)).ToActionResult();
 
     [HttpPost("logout")]
     [DisableRateLimiting]

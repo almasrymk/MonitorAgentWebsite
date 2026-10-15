@@ -35,13 +35,16 @@ internal sealed class SignInSession(SignInManager<ApplicationUser> signIn, UserM
         return (ToStatus(result), user.Id);
     }
 
-    public async Task<(SignInStatus Status, Guid? UserId)> SecondFactorAsync(string code, bool isRecoveryCode, bool remember)
+    public async Task<(SignInStatus Status, Guid? UserId)> AuthenticatorCodeAsync(string code, bool remember)
     {
         if (await signIn.GetTwoFactorAuthenticationUserAsync() is not { } user) return (SignInStatus.Failed, null);
-        var result = isRecoveryCode
-            ? await signIn.TwoFactorRecoveryCodeSignInAsync(code)
-            : await signIn.TwoFactorAuthenticatorSignInAsync(code, remember, rememberClient: false);
-        return (ToStatus(result), user.Id);
+        return (ToStatus(await signIn.TwoFactorAuthenticatorSignInAsync(code, remember, rememberClient: false)), user.Id);
+    }
+
+    public async Task<(SignInStatus Status, Guid? UserId)> RecoveryCodeAsync(string code)
+    {
+        if (await signIn.GetTwoFactorAuthenticationUserAsync() is not { } user) return (SignInStatus.Failed, null);
+        return (ToStatus(await signIn.TwoFactorRecoveryCodeSignInAsync(code)), user.Id);
     }
 
     public async Task RefreshAsync(Guid userId) => await signIn.RefreshSignInAsync(await GetAsync(userId));

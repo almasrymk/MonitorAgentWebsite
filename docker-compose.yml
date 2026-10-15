@@ -10,6 +10,13 @@ services:
     volumes:
       - sqldata:/var/opt/mssql
 
+  # Catches every email the API sends in development. Inbox: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
   api:
     build:
       context: .
@@ -17,10 +24,12 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Default: Server=sqlserver;Database=MonitorAgentWebsite;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True
+      Email__Smtp__Host: mailpit
     ports:
       - "5200:8080"
     depends_on:
       - sqlserver
+      - mailpit
 
 volumes:
   sqldata:

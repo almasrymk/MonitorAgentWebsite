@@ -33,7 +33,8 @@ internal interface IUserAccounts
 internal interface ISignInSession
 {
     Task<(SignInStatus Status, Guid? UserId)> PasswordAsync(string email, string password, bool remember);
-    Task<(SignInStatus Status, Guid? UserId)> SecondFactorAsync(string code, bool isRecoveryCode, bool remember);
+    Task<(SignInStatus Status, Guid? UserId)> AuthenticatorCodeAsync(string code, bool remember);
+    Task<(SignInStatus Status, Guid? UserId)> RecoveryCodeAsync(string code);
     /// <summary>Re-issues this session after a change that rotated the security stamp, keeping how it was authenticated.</summary>
     Task RefreshAsync(Guid userId);
     /// <summary>Re-issues this session as second-factor authenticated, right after the user proved a fresh authenticator code.</summary>
