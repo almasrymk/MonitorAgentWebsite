@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using MonitorAgent.BuildingBlocks.Application;
 using MonitorAgent.Modules.Licenses.Application;
 using MonitorAgent.Modules.Licenses.Infrastructure.Persistence;
 using MonitorAgent.Modules.Licenses.Infrastructure.Platform;
@@ -13,6 +15,8 @@ public sealed class LicensesModuleOptions
     /// <summary>Migrate (production and development), EnsureCreated (tests) or None.</summary>
     public string DatabaseInitialization { get; set; } = "None";
     public LicensingPlatformOptions Platform { get; set; } = new();
+    /// <summary>How often to look for licenses that need an expiry reminder. 0 turns the reminders off (tests run them directly).</summary>
+    public int ExpiryReminderMinutes { get; set; } = 360;
 }
 
 public static class LicensesModule
@@ -42,6 +46,7 @@ public static class LicensesModule
             .AddHttpMessageHandler<LicensingPlatformAuthHandler>();
         services.AddSingleton<ILicensingPlatform, LicensingPlatformClient>();
         services.AddHostedService<LicensesDbInitializer>();
+        services.AddHostedService<ExpiryReminderWorker>();
 
         services.AddLicensesApplication();
         services.AddControllers().AddApplicationPart(typeof(LicensesModule).Assembly);
@@ -69,4 +74,33 @@ internal sealed class LicensesDbInitializer(IServiceScopeFactory scopes, License
     public Task StoppingAsync(CancellationToken ct) => Task.CompletedTask;
     public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
     public Task StoppedAsync(CancellationToken ct) => Task.CompletedTask;
+}
+
+internal sealed partial class ExpiryReminderWorker(IServiceScopeFactory scopes, LicensesModuleOptions options, ILogger<ExpiryReminderWorker> logger)
+    : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        if (options.ExpiryReminderMinutes <= 0) return;
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(options.ExpiryReminderMinutes));
+        while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            try
+            {
+                await using var scope = scopes.CreateAsyncScope();
+                var result = await scope.ServiceProvider.GetRequiredService<IDispatcher>().SendAsync(new SendExpiryRemindersCommand(), stoppingToken);
+                if (result is { IsSuccess: true, Value: > 0 }) Sent(logger, result.Value);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Failed(logger, ex);
+            }
+        }
+    }
+
+    [LoggerMessage(LogLevel.Information, "Sent {Count} license expiry reminders")]
+    private static partial void Sent(ILogger logger, int count);
+
+    [LoggerMessage(LogLevel.Error, "Expiry reminders failed")]
+    private static partial void Failed(ILogger logger, Exception ex);
 }

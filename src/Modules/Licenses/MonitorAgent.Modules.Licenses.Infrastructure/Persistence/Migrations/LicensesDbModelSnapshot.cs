@@ -37,6 +37,9 @@ namespace MonitorAgent.Modules.Licenses.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("ExpiryReminderDays")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("IssuedAt")
                         .HasColumnType("datetime2");
 

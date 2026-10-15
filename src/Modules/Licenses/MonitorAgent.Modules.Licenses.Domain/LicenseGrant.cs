@@ -44,6 +44,24 @@ public sealed class LicenseGrant : AggregateRoot
     /// <summary>The product key, encrypted with the app's data-protection keys. LicensingPlatform only returns it once.</summary>
     public string? ProtectedProductKey { get; private set; }
     public DateTimeOffset? IssuedAt { get; private set; }
+    /// <summary>The smallest reminder window (days before expiry) already emailed, so each reminder goes out once.</summary>
+    public int? ExpiryReminderDays { get; private set; }
+
+    /// <summary>Days before expiry when the owner is reminded to renew.</summary>
+    public static readonly int[] ReminderWindows = [14, 3];
+
+    /// <summary>The reminder window due now, if one is due and not sent yet: the tightest window the license has entered.</summary>
+    public int? DueReminder(DateTimeOffset now)
+    {
+        if (Status != GrantStatus.Issued || ExpiresAt is not { } expires || expires <= now) return null;
+        var left = expires - now;
+        int? due = null;
+        foreach (var days in ReminderWindows)
+            if (left <= TimeSpan.FromDays(days) && (ExpiryReminderDays is null || days < ExpiryReminderDays)) due = days;
+        return due;
+    }
+
+    public void ReminderSent(int days) => ExpiryReminderDays = days;
 
     public static LicenseGrant Start(Guid companyId, Guid planId, string orderReference, DateTimeOffset at) => new()
     {

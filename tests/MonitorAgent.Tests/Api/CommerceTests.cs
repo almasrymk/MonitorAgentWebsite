@@ -14,7 +14,7 @@ public class CommerceTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     private static readonly Guid PlanId = FakeLicensingPlatform.Standard.Id;
 
-    private sealed record Buyer(Guid CompanyId, TestClient Client);
+    private sealed record Buyer(Guid CompanyId, TestClient Client, string Email);
 
     private static async Task<JsonElement> JsonAsync(HttpResponseMessage response)
     {
@@ -42,9 +42,9 @@ public class CommerceTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
     private async Task<Buyer> BuyerAsync()
     {
-        var (client, _) = await PersonAsync();
+        var (client, email) = await PersonAsync();
         var company = await JsonAsync(await client.PostAsync("/api/v1/company", new { name = "Acme" }));
-        return new Buyer(company.GetProperty("id").GetGuid(), client);
+        return new Buyer(company.GetProperty("id").GetGuid(), client, email);
     }
 
     private static async Task<Guid> PlaceAsync(Buyer buyer) =>
@@ -305,5 +305,66 @@ public class CommerceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var providers = await JsonAsync(await buyer.Client.GetAsync("/api/v1/payments/providers"));
 
         Assert.Equal("sandbox", Assert.Single(providers.EnumerateArray()).GetString());
+    }
+
+    [Fact]
+    public async Task The_buyer_gets_one_receipt_and_one_license_email_even_when_the_provider_repeats_itself()
+    {
+        var buyer = await BuyerAsync();
+        var orderId = await PlaceAsync(buyer);
+        var reference = await CheckoutAsync(buyer, orderId);
+        const string eventId = "evt_receipt_once";
+        await NotifyAsync(reference, eventId: eventId);
+        await NotifyAsync(reference, eventId: eventId);
+        await NotifyAsync(reference);
+
+        var emails = factory.Emails.To(buyer.Email);
+        var order = await OrderAsync(buyer, orderId);
+        var invoice = Assert.Single((await JsonAsync(await buyer.Client.GetAsync("/api/v1/invoices"))).EnumerateArray());
+        var receipt = Assert.Single(emails, m => m.Subject.Contains("Payment received", StringComparison.Ordinal));
+        Assert.Contains(invoice.GetProperty("number").GetString()!, receipt.TextBody, StringComparison.Ordinal);
+        Assert.Contains($"https://portal.test/invoices/{invoice.GetProperty("id").GetGuid()}", receipt.TextBody, StringComparison.Ordinal);
+        var license = Assert.Single(emails, m => m.Subject.Contains("is ready", StringComparison.Ordinal));
+        Assert.Contains(order.GetProperty("licenseNumber").GetString()!, license.TextBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Owners_are_reminded_once_per_window_before_a_license_expires()
+    {
+        var buyer = await BuyerAsync();
+        var orderId = await PlaceAsync(buyer);
+        await NotifyAsync(await CheckoutAsync(buyer, orderId));
+        var licenseNumber = (await OrderAsync(buyer, orderId)).GetProperty("licenseNumber").GetString()!;
+
+        async Task ExpireInAsync(TimeSpan left)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<MonitorAgent.Modules.Licenses.Infrastructure.Persistence.LicensesDb>();
+            var grant = await db.Grants.SingleAsync(g => g.LicenseNumber == licenseNumber);
+            db.Entry(grant).Property(g => g.ExpiresAt).CurrentValue = DateTimeOffset.UtcNow.Add(left);
+            await db.SaveChangesAsync();
+        }
+
+        async Task RemindAsync()
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IDispatcher>().SendAsync(new MonitorAgent.Modules.Licenses.Application.SendExpiryRemindersCommand());
+        }
+
+        int Reminders() => factory.Emails.To(buyer.Email).Count(m => m.Subject.Contains(licenseNumber, StringComparison.Ordinal) && m.Subject.Contains("expires", StringComparison.Ordinal));
+
+        await RemindAsync();
+        Assert.Equal(0, Reminders());
+
+        await ExpireInAsync(TimeSpan.FromDays(10));
+        await RemindAsync();
+        await RemindAsync();
+        Assert.Equal(1, Reminders());
+        Assert.Contains($"https://portal.test/checkout?plan={PlanId}", factory.Emails.To(buyer.Email)[^1].TextBody, StringComparison.Ordinal);
+
+        await ExpireInAsync(TimeSpan.FromDays(2));
+        await RemindAsync();
+        await RemindAsync();
+        Assert.Equal(2, Reminders());
     }
 }
