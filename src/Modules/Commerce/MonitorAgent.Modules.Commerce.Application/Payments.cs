@@ -18,7 +18,8 @@ public sealed record RecordManualPaymentCommand(Guid OrderId, string Reference) 
 /// <summary>Issues licenses for paid orders whose fulfilment didn't finish (LicensingPlatform was down). Run on a timer.</summary>
 public sealed record FulfillPaidOrdersCommand : ICommand<Result<int>>;
 
-public sealed record ListOrdersQuery(OrderStatus? Status, int Page = 1, int PageSize = 50) : IQuery<Result<PagedResult<OrderDto>>>;
+/// <summary>Every company's orders for staff, newest first, with the company named.</summary>
+public sealed record ListOrdersQuery(OrderStatus? Status, int Page = 1, int PageSize = 50, Guid? CompanyId = null) : IQuery<Result<PagedResult<OrderDto>>>;
 
 internal sealed class RecordManualPaymentValidator : AbstractValidator<RecordManualPaymentCommand>
 {
@@ -218,11 +219,13 @@ internal sealed class FulfillPaidOrdersHandler(ICommerceStore store, AfterPaymen
     }
 }
 
-internal sealed class ListOrdersHandler(ICommerceStore store) : IQueryHandler<ListOrdersQuery, Result<PagedResult<OrderDto>>>
+internal sealed class ListOrdersHandler(ICommerceStore store, ICompanyDirectory companies) : IQueryHandler<ListOrdersQuery, Result<PagedResult<OrderDto>>>
 {
     public async Task<Result<PagedResult<OrderDto>>> HandleAsync(ListOrdersQuery query, CancellationToken ct)
     {
-        var (items, total) = await store.OrdersAsync(query.Status, query.Page, query.PageSize, ct);
-        return new PagedResult<OrderDto>(items.Select(o => o.ToDto()).ToList(), query.Page, query.PageSize, total);
+        var (items, total) = await store.OrdersAsync(query.Status, query.CompanyId, query.Page, query.PageSize, ct);
+        var names = await companies.FindManyAsync(items.Select(o => o.CompanyId).Distinct().ToList(), ct);
+        var dtos = items.Select(o => o.ToDto() with { CompanyId = o.CompanyId, CompanyName = names.TryGetValue(o.CompanyId, out var c) ? c.Name : null });
+        return new PagedResult<OrderDto>(dtos.ToList(), query.Page, query.PageSize, total);
     }
 }

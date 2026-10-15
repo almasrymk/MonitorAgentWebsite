@@ -25,6 +25,7 @@ public static class CustomersModule
             sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", CustomersDb.Schema)));
         services.AddScoped<ICustomerAccounts, CustomerAccounts>();
         services.AddScoped<ICompanyDirectory, CompanyDirectory>();
+        services.AddScoped<IStaffCompanyReader, StaffCompanyReader>();
         services.AddHostedService<CustomersDbInitializer>();
 
         services.AddCustomersApplication();

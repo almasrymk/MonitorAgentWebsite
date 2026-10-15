@@ -11,7 +11,8 @@ namespace MonitorAgent.Modules.Commerce.Application;
 
 public sealed record PaymentDto(Guid Id, string Provider, decimal Amount, string Currency, PaymentStatus Status, DateTimeOffset CreatedAt, string? FailureReason);
 public sealed record OrderDto(Guid Id, string Number, string ProductName, string PlanName, decimal Total, string Currency, OrderStatus Status,
-    DateTimeOffset PlacedAt, DateTimeOffset? PaidAt, string? LicenseNumber, IReadOnlyList<PaymentDto> Payments);
+    DateTimeOffset PlacedAt, DateTimeOffset? PaidAt, string? LicenseNumber, IReadOnlyList<PaymentDto> Payments, Guid? CompanyId = null,
+    string? CompanyName = null);
 public sealed record CheckoutDto(string RedirectUrl);
 public sealed record InvoiceDto(Guid Id, string Number, Guid OrderId, string CompanyName, string Description, decimal Amount, string Currency, DateTimeOffset IssuedAt);
 

@@ -1,9 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.DependencyInjection;
 using MonitorAgent.Modules.Identity.Contracts;
-using MonitorAgent.Modules.Identity.Infrastructure.Persistence;
 
 namespace MonitorAgent.Tests.Api;
 
@@ -16,23 +13,7 @@ public class ContentTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return JsonDocument.Parse(body).RootElement;
     }
 
-    /// <summary>A staff member with the given role, signed in with two-step verification.</summary>
-    private async Task<TestClient> StaffAsync(string role)
-    {
-        var client = factory.CreateTestClient();
-        var email = $"{role.ToLowerInvariant()}-{Guid.NewGuid():N}@example.test";
-        var password = await client.RegisterConfirmedAsync(email);
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = (await users.FindByEmailAsync(email))!;
-            await users.RemoveFromRoleAsync(user, IdentityRoles.Customer);
-            await users.AddToRoleAsync(user, role);
-        }
-        await client.SignInAsync(email, password);
-        await client.EnableMfaAsync();
-        return client;
-    }
+    private Task<TestClient> StaffAsync(string role) => factory.StaffAsync(role);
 
     private static object Text(string title, string body = "## Who we are\nWe build **Monitor Agent**.") => new
     {

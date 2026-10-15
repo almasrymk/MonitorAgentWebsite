@@ -32,7 +32,9 @@ export const routes: Routes = [
     data: {
       nav: [
         { path: '/', label: 'nav.overview' },
+        { path: '/customers', label: 'nav.customers' },
         { path: '/orders', label: 'nav.orders' },
+        { path: '/reports', label: 'nav.reports' },
         { path: '/releases', label: 'nav.releases' },
         { path: '/support', label: 'nav.support' },
         { path: '/suggestions', label: 'nav.suggestions' },
@@ -43,6 +45,9 @@ export const routes: Routes = [
     },
     children: [
       { path: '', loadComponent: () => import('./pages/overview').then((m) => m.OverviewPage) },
+      { path: 'customers', loadComponent: () => import('./pages/customers').then((m) => m.CustomersPage) },
+      { path: 'customers/:id', loadComponent: () => import('./pages/customers').then((m) => m.CustomerPage) },
+      { path: 'reports', loadComponent: () => import('./pages/reports').then((m) => m.ReportsPage) },
       { path: 'orders', loadComponent: () => import('./pages/orders').then((m) => m.OrdersPage) },
       { path: 'releases', loadComponent: () => import('./pages/releases').then((m) => m.ReleasesPage) },
       { path: 'support', loadComponent: () => import('./pages/support').then((m) => m.SupportQueuePage) },

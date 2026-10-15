@@ -5,6 +5,7 @@ namespace MonitorAgent.Modules.Customers.Domain;
 /// <summary>Error codes the Customers endpoints return. They are part of the API contract.</summary>
 public static class CustomersErrors
 {
+    public static readonly Error CompanyNotFound = Error.NotFound("COMPANY_NOT_FOUND", "No such company.");
     public static readonly Error NoCompany = Error.NotFound("NO_COMPANY", "You are not part of a company account yet.");
     public static readonly Error AlreadyInCompany = Error.Conflict("ALREADY_IN_COMPANY", "You already belong to a company account.");
     public static readonly Error NotOwner = Error.Forbidden("NOT_COMPANY_OWNER", "Only an owner of the company account can do this.");
