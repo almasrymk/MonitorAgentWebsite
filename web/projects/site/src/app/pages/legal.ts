@@ -1,8 +1,8 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { Api, I18n, PublicPage, RichText, TranslatePipe, WhenPipe } from 'shared';
+import { I18n, RichText, TranslatePipe, WhenPipe } from 'shared';
 import { useSeoText } from '../seo';
-import { localized } from './content';
+import { Loaded, localized } from './content-data';
 
 /**
  * Terms, privacy and refunds: route data says which. Editors can replace the built-in text by publishing a page with
@@ -19,31 +19,26 @@ import { localized } from './content';
           <p class="muted">{{ 'legal.updated' | t: { date: (page.publishedAt | when) } }}</p>
           <ma-rich-text [text]="page.body" />
         } @else {
-          <h1>{{ 'legal.' + page + '.title' | t }}</h1>
+          <h1>{{ 'legal.' + name + '.title' | t }}</h1>
           <p class="muted">{{ 'legal.updated' | t: { date: (updated | when) } }}</p>
-          <p>{{ 'legal.' + page + '.body' | t }}</p>
+          <p>{{ 'legal.' + name + '.body' | t }}</p>
         }
       </article>
     </section>
   `,
 })
-export class LegalPage implements OnInit {
-  protected readonly page: string = inject(ActivatedRoute).snapshot.data['page'];
+export class LegalPage {
+  /** From the route resolver: the published version, or nothing yet. */
+  readonly cms = input.required<Loaded>();
+  protected readonly name: string = inject(ActivatedRoute).snapshot.data['page'];
   protected readonly updated = '2026-10-15T00:00:00Z';
-  private readonly api = inject(Api);
   private readonly i18n = inject(I18n);
-  private readonly cms = signal<PublicPage | null>(null);
-  protected readonly published = computed(() => localized(this.cms(), this.i18n.lang()));
+  protected readonly published = computed(() => {
+    const cms = this.cms();
+    return localized(cms.kind === 'ready' ? cms.page : null, this.i18n.lang());
+  });
 
   constructor() {
-    useSeoText(() => this.published() ?? { title: this.i18n.t(`legal.${this.page}.title`), description: this.i18n.t(`legal.${this.page}.body`) });
-  }
-
-  async ngOnInit(): Promise<void> {
-    try {
-      this.cms.set(await this.api.get<PublicPage>(`/api/v1/content/pages/${this.page}`));
-    } catch {
-      // Nothing published yet, or the API is down: the built-in text stands.
-    }
+    useSeoText(() => this.published() ?? { title: this.i18n.t(`legal.${this.name}.title`), description: this.i18n.t(`legal.${this.name}.body`) });
   }
 }

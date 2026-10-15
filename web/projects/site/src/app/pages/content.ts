@@ -1,21 +1,8 @@
-import { Component, computed, effect, inject, input, RESPONSE_INIT, signal, untracked } from '@angular/core';
-import { RouterLink } from '@angular/router';
-import { Api, ApiError, I18n, PublicPage, RichText, TranslatePipe, WhenPipe } from 'shared';
+import { Component, computed, inject, input, RESPONSE_INIT } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { I18n, RichText, TranslatePipe, WhenPipe } from 'shared';
 import { useSeoText } from '../seo';
-
-/** The published page in the visitor's language, or null when there is none. */
-export function localized(page: PublicPage | null, lang: string) {
-  if (!page) return null;
-  const ar = lang === 'ar';
-  return {
-    title: ar ? page.titleAr : page.titleEn,
-    description: ar ? page.descriptionAr : page.descriptionEn,
-    body: ar ? page.bodyAr : page.bodyEn,
-    publishedAt: page.publishedAt,
-  };
-}
-
-type State = { kind: 'loading' } | { kind: 'missing' } | { kind: 'error' } | { kind: 'ready'; page: PublicPage };
+import { Loaded, localized } from './content-data';
 
 /** Any page editors publish from the admin panel, at /{lang}/pages/{slug}. */
 @Component({
@@ -24,10 +11,7 @@ type State = { kind: 'loading' } | { kind: 'missing' } | { kind: 'error' } | { k
   template: `
     <section class="section">
       <article class="container narrow card legal">
-        @switch (state().kind) {
-          @case ('loading') {
-            <div aria-busy="true"><div class="skeleton" style="height: 10rem"></div></div>
-          }
+        @switch (page().kind) {
           @case ('ready') {
             @if (text(); as page) {
               <h1>{{ page.title }}</h1>
@@ -36,6 +20,7 @@ type State = { kind: 'loading' } | { kind: 'missing' } | { kind: 'error' } | { k
             }
           }
           @case ('error') {
+            <h1>{{ 'content.errorTitle' | t }}</h1>
             <div class="alert" role="alert">{{ 'content.error' | t }}</div>
           }
           @default {
@@ -49,36 +34,24 @@ type State = { kind: 'loading' } | { kind: 'missing' } | { kind: 'error' } | { k
   `,
 })
 export class ContentPage {
-  readonly slug = input.required<string>();
-  private readonly api = inject(Api);
-  private readonly response = inject(RESPONSE_INIT, { optional: true });
+  /** From the route resolver. */
+  readonly page = input.required<Loaded>();
   protected readonly i18n = inject(I18n);
-  protected readonly state = signal<State>({ kind: 'loading' });
   protected readonly text = computed(() => {
-    const state = this.state();
-    return localized(state.kind === 'ready' ? state.page : null, this.i18n.lang());
+    const loaded = this.page();
+    return localized(loaded.kind === 'ready' ? loaded.page : null, this.i18n.lang());
   });
 
   constructor() {
+    // Search engines and caches must see a missing page as missing, and an outage as temporary.
+    const response = inject(RESPONSE_INIT, { optional: true });
+    const resolved: Loaded = inject(ActivatedRoute).snapshot.data['page'];
+    if (response && resolved.kind !== 'ready') response.status = resolved.kind === 'missing' ? 404 : 503;
     useSeoText(() => {
-      const kind = this.state().kind;
+      const kind = this.page().kind;
       if (kind === 'missing') return { title: this.i18n.t('notFound.title'), description: this.i18n.t('notFound.body') };
+      if (kind === 'error') return { title: this.i18n.t('content.errorTitle'), description: this.i18n.t('content.error') };
       return this.text();
     });
-    effect(() => {
-      const slug = this.slug();
-      untracked(() => void this.load(slug));
-    });
-  }
-
-  private async load(slug: string): Promise<void> {
-    this.state.set({ kind: 'loading' });
-    try {
-      this.state.set({ kind: 'ready', page: await this.api.get<PublicPage>(`/api/v1/content/pages/${encodeURIComponent(slug)}`) });
-    } catch (error) {
-      const missing = ApiError.from(error).status === 404;
-      this.state.set({ kind: missing ? 'missing' : 'error' });
-      if (this.response) this.response.status = missing ? 404 : 503;
-    }
   }
 }
