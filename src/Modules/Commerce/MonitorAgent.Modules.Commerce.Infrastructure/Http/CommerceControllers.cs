@@ -49,6 +49,17 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
     public async Task<IActionResult> Invoices(CancellationToken ct) => (await dispatcher.QueryAsync(new ListMyInvoicesQuery(), ct)).ToActionResult();
 }
 
+/// <summary>The payment providers checkout can send a customer to, in the order the portal offers them.</summary>
+[ApiController]
+[Route("api/v1/payments/providers")]
+[Authorize(Policy = AuthPolicies.Customer)]
+public sealed class PaymentProvidersController(IEnumerable<IPaymentGateway> gateways) : ControllerBase
+{
+    [HttpGet]
+    [ProducesResponseType<IReadOnlyList<string>>(StatusCodes.Status200OK)]
+    public IActionResult List() => Ok(gateways.Select(g => g.Name).ToList());
+}
+
 /// <summary>
 /// Where payment providers report results. No session and no CSRF header: the signature in the request is the only
 /// proof of who sent it, and the handler checks it before reading anything else.
