@@ -52,13 +52,35 @@ jobs:
         run: npx playwright test
         env:
           CI: 'true'
+      - name: Lighthouse (performance 90+, LCP under 2.5 s, CLS under 0.1 on the public site)
+        run: npx --yes @lhci/cli@0.15.1 autorun
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse
+          path: web/lighthouse-results
+          if-no-files-found: ignore
 
   docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: API image builds
-        run: docker build -f src/Host/MonitorAgent.Api/Dockerfile .
+        run: docker build -f src/Host/MonitorAgent.Api/Dockerfile -t monitoragent-api:ci .
+      - name: Image has no fixable critical or high vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: monitoragent-api:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Software bill of materials (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: monitoragent-api:ci
+          format: spdx-json
+          output-file: sbom-api.spdx.json
+          upload-artifact: true
 
   secrets-scan:
     runs-on: ubuntu-latest

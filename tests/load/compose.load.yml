@@ -1,0 +1,7 @@
+# Overrides for load testing the docker compose stack: one client IP sends all the traffic, so the per-IP rate
+# limit is raised, and the sandbox payment provider is turned on so webhooks can be sent.
+services:
+  api:
+    environment:
+      RateLimiting__PermitPerMinute: "1000000"
+      Commerce__Sandbox__WebhookSecret: ${SANDBOX_SECRET:?Set SANDBOX_SECRET}
