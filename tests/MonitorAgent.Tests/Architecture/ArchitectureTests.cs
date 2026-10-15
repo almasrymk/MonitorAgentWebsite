@@ -60,6 +60,13 @@ public class ArchitectureTests
                 .Select(m => m.GetName().Name!.Split('.')[^1]));
 
     [Fact]
+    public void Every_layer_of_the_customers_module_is_checked() =>
+        Assert.Equal(
+            ["Application", "Domain", "Infrastructure"],
+            Modules.Where(m => m.GetName().Name!.StartsWith("MonitorAgent.Modules.Customers.", StringComparison.Ordinal))
+                .Select(m => m.GetName().Name!.Split('.')[^1]));
+
+    [Fact]
     public void Module_domain_and_application_layers_stay_free_of_web_and_database_code()
     {
         foreach (var module in Modules.Where(m => m.GetName().Name!.EndsWith(".Domain", StringComparison.Ordinal) || m.GetName().Name!.EndsWith(".Application", StringComparison.Ordinal)))

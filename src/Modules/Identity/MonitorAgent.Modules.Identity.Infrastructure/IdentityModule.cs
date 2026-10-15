@@ -16,9 +16,6 @@ namespace MonitorAgent.Modules.Identity.Infrastructure;
 
 public sealed class IdentityModuleOptions
 {
-    /// <summary>Base URL of the customer portal; account emails link into it.</summary>
-    public string PortalUrl { get; set; } = "http://localhost:4200";
-
     /// <summary>How often a session is re-checked against the account, so "sign out everywhere" and password changes take effect.</summary>
     public int SessionValidationSeconds { get; set; } = 60;
 
@@ -121,6 +118,7 @@ public static class IdentityModule
         services.AddScoped<ISecurityLog>(sp => sp.GetRequiredService<SecurityLog>());
         services.AddScoped<ISecurityEventQueries>(sp => sp.GetRequiredService<SecurityLog>());
         services.AddScoped<IIdentityLinks, IdentityLinks>();
+        services.AddScoped<IUserDirectory, UserDirectory>();
         services.AddHostedService<IdentitySeeder>();
 
         services.AddIdentityApplication();

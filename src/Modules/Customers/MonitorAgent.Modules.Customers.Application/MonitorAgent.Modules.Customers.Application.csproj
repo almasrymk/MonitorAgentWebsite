@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\MonitorAgent.BuildingBlocks.Application\MonitorAgent.BuildingBlocks.Application.csproj" />
+    <ProjectReference Include="..\..\Identity\MonitorAgent.Modules.Identity.Contracts\MonitorAgent.Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\MonitorAgent.Modules.Customers.Domain\MonitorAgent.Modules.Customers.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MonitorAgent.Modules.Customers.Infrastructure" />
+    <InternalsVisibleTo Include="MonitorAgent.Tests" />
+  </ItemGroup>
+</Project>
