@@ -22,9 +22,12 @@ internal sealed class ApiExceptionHandler(IProblemDetailsService problemDetails,
         };
         if (problem is null)
         {
-            logger.LogError(exception, "Unhandled exception for {Method} {Path}", http.Request.Method, http.Request.Path);
+            // Only the server-generated trace id is logged here: request values (path, headers) are user input and
+            // could forge log lines. The client gets the same id so support can find the entry.
+            logger.LogError(exception, "Unhandled exception, trace {TraceId}", http.TraceIdentifier);
             problem = new ProblemDetails { Status = StatusCodes.Status500InternalServerError, Title = "An unexpected error occurred." };
             problem.Extensions["code"] = "INTERNAL_ERROR";
+            problem.Extensions["traceId"] = http.TraceIdentifier;
         }
 
         http.Response.StatusCode = problem.Status!.Value;
