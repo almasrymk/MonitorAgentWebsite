@@ -8,6 +8,7 @@ using MonitorAgent.Modules.Customers.Infrastructure;
 using MonitorAgent.Modules.Identity.Infrastructure;
 using MonitorAgent.Modules.Licenses.Infrastructure;
 using MonitorAgent.Modules.Releases.Infrastructure;
+using MonitorAgent.Modules.Support.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,6 +40,7 @@ builder.Services.AddCustomersModule(builder.Configuration);
 builder.Services.AddLicensesModule(builder.Configuration, builder.Environment);
 builder.Services.AddCommerceModule(builder.Configuration, builder.Environment);
 builder.Services.AddReleasesModule(builder.Configuration);
+builder.Services.AddSupportModule(builder.Configuration);
 
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [])

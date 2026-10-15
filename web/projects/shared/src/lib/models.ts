@@ -141,3 +141,48 @@ export interface Paged<T> {
   pageSize: number;
   totalCount: number;
 }
+
+export type TicketCategory = 'Technical' | 'Licensing' | 'Billing' | 'Other';
+export type TicketStatus = 'Open' | 'Answered' | 'Closed';
+
+export interface TicketSummary {
+  id: string;
+  number: string;
+  subject: string;
+  category: TicketCategory;
+  status: TicketStatus;
+  openedAt: string;
+  lastActivityAt: string;
+  companyName: string | null;
+}
+
+export interface TicketMessage {
+  id: string;
+  authorName: string;
+  fromStaff: boolean;
+  body: string;
+  postedAt: string;
+}
+
+export interface Ticket {
+  id: string;
+  number: string;
+  subject: string;
+  category: TicketCategory;
+  status: TicketStatus;
+  openedAt: string;
+  companyName: string | null;
+  messages: TicketMessage[];
+}
+
+export type SuggestionStatus = 'New' | 'Planned' | 'Done' | 'Declined';
+
+export interface Suggestion {
+  id: string;
+  title: string;
+  body: string;
+  status: SuggestionStatus;
+  staffNote: string | null;
+  createdAt: string;
+  companyName: string | null;
+}

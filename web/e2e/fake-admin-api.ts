@@ -19,6 +19,16 @@ export class FakeAdminApi {
     { id: 'e1', userId: 'a1aaaaaa-0000-0000-0000-000000000000', type: 'SignedIn', occurredAt: '2026-10-15T09:00:00Z', ipAddress: '203.0.113.7' },
     { id: 'e2', userId: 'b2bbbbbb-0000-0000-0000-000000000000', type: 'SignInFailed', occurredAt: '2026-10-15T08:00:00Z', ipAddress: '198.51.100.4' },
   ];
+  readonly tickets = [
+    {
+      id: 't1', number: 'T-261014-ABCDE', subject: 'Agent stops at night', category: 'Technical', status: 'Open', openedAt: '2026-10-14T10:00:00Z',
+      lastActivityAt: '2026-10-14T10:00:00Z', companyName: 'Nile Traders',
+      messages: [{ id: 'm1', authorName: 'Mona Owner', fromStaff: false, body: 'The service stops every night.', postedAt: '2026-10-14T10:00:00Z' }],
+    },
+  ];
+  readonly suggestions = [
+    { id: 's1', title: 'Weekly report', body: 'Email me a summary.', status: 'New', staffNote: null as string | null, createdAt: '2026-10-10T10:00:00Z', companyName: 'Nile Traders' },
+  ];
   uploaded: { channel: string; manifestBase64: string; signature: string } | null = null;
 
   async install(page: Page): Promise<void> {
@@ -82,6 +92,28 @@ export class FakeAdminApi {
       const release = this.releases.find((r) => r.id === publish[1])!;
       Object.assign(release, publish[2] === 'publish' ? { status: 'Published', publishedAt: '2026-10-15T11:05:00Z' } : { status: 'Withdrawn' });
       return json(200, release);
+    }
+    if (key === 'GET /admin/support/tickets') {
+      const status = url.searchParams.get('status');
+      const items = this.tickets.filter((t) => !status || t.status === status).map(({ messages: _, ...t }) => t);
+      return json(200, { items, page: 1, pageSize: 25, totalCount: items.length });
+    }
+    const ticketRoute = key.match(/^(GET|POST) \/admin\/support\/tickets\/(\w+)(\/messages|\/close)?$/);
+    if (ticketRoute) {
+      const ticket = this.tickets.find((t) => t.id === ticketRoute[2])!;
+      if (ticketRoute[3] === '/messages') {
+        ticket.messages.push({ id: 'm2', authorName: this.me.fullName, fromStaff: true, body: body.body, postedAt: '2026-10-15T11:00:00Z' });
+        ticket.status = 'Answered';
+      }
+      if (ticketRoute[3] === '/close') ticket.status = 'Closed';
+      return json(200, ticket);
+    }
+    if (key === 'GET /admin/support/suggestions') return json(200, { items: this.suggestions, page: 1, pageSize: 25, totalCount: this.suggestions.length });
+    const answer = key.match(/^PUT \/admin\/support\/suggestions\/(\w+)$/);
+    if (answer) {
+      const suggestion = this.suggestions.find((x) => x.id === answer[1])!;
+      Object.assign(suggestion, { status: body.status, staffNote: body.note });
+      return json(200, suggestion);
     }
     if (key === 'GET /admin/security-events') {
       const user = url.searchParams.get('userId');

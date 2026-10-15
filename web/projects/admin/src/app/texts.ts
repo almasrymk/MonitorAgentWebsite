@@ -1,10 +1,14 @@
-import { ACCOUNT_TEXTS, Dictionary } from 'shared';
+import { ACCOUNT_TEXTS, Dictionary, SUPPORT_TEXTS } from 'shared';
 
 const en = {
   'nav.label': 'Admin',
   'nav.overview': 'Overview',
   'nav.orders': 'Orders',
   'nav.releases': 'Releases',
+  'nav.support': 'Support',
+  'nav.suggestions': 'Suggestions',
+  'support.company': 'Company',
+  'suggestions.saved': 'Answer saved for "{title}".',
   'nav.security': 'Security log',
   'nav.account': 'Account & security',
   'nav.signOut': 'Sign out',
@@ -88,6 +92,10 @@ const ar: Record<keyof typeof en, string> = {
   'nav.overview': 'نظرة عامة',
   'nav.orders': 'الطلبات',
   'nav.releases': 'الإصدارات',
+  'nav.support': 'الدعم',
+  'nav.suggestions': 'الاقتراحات',
+  'support.company': 'الشركة',
+  'suggestions.saved': 'الرد اتحفظ على "{title}".',
   'nav.security': 'سجل الأمان',
   'nav.account': 'الحساب والأمان',
   'nav.signOut': 'تسجيل الخروج',
@@ -167,6 +175,6 @@ const ar: Record<keyof typeof en, string> = {
 };
 
 export const ADMIN_TEXTS: Dictionary = {
-  en: { ...ACCOUNT_TEXTS.en, ...en },
-  ar: { ...ACCOUNT_TEXTS.ar, ...ar },
+  en: { ...ACCOUNT_TEXTS.en, ...SUPPORT_TEXTS.en, ...en },
+  ar: { ...ACCOUNT_TEXTS.ar, ...SUPPORT_TEXTS.ar, ...ar },
 };
