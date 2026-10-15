@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using MonitorAgent.BuildingBlocks.Web;
 using MonitorAgent.SharedKernel;
 
 namespace MonitorAgent.Api.Web;

@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- What other modules may use from Identity: role and policy names. No dependencies. -->
+</Project>
