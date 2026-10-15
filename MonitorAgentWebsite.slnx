@@ -10,9 +10,16 @@
   </Folder>
   <Folder Name="/src/Modules/" />
   <Folder Name="/src/Modules/Customers/">
+    <Project Path="src/Modules/Customers/MonitorAgent.Modules.Customers.Contracts/MonitorAgent.Modules.Customers.Contracts.csproj" />
     <Project Path="src/Modules/Customers/MonitorAgent.Modules.Customers.Application/MonitorAgent.Modules.Customers.Application.csproj" />
     <Project Path="src/Modules/Customers/MonitorAgent.Modules.Customers.Domain/MonitorAgent.Modules.Customers.Domain.csproj" />
     <Project Path="src/Modules/Customers/MonitorAgent.Modules.Customers.Infrastructure/MonitorAgent.Modules.Customers.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Licenses/">
+    <Project Path="src/Modules/Licenses/MonitorAgent.Modules.Licenses.Application/MonitorAgent.Modules.Licenses.Application.csproj" />
+    <Project Path="src/Modules/Licenses/MonitorAgent.Modules.Licenses.Contracts/MonitorAgent.Modules.Licenses.Contracts.csproj" />
+    <Project Path="src/Modules/Licenses/MonitorAgent.Modules.Licenses.Domain/MonitorAgent.Modules.Licenses.Domain.csproj" />
+    <Project Path="src/Modules/Licenses/MonitorAgent.Modules.Licenses.Infrastructure/MonitorAgent.Modules.Licenses.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Modules/Identity/">
     <Project Path="src/Modules/Identity/MonitorAgent.Modules.Identity.Application/MonitorAgent.Modules.Identity.Application.csproj" />

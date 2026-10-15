@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- What other modules may use from Customers: who belongs to which company. No dependencies. -->
+</Project>

@@ -62,8 +62,15 @@ public class ArchitectureTests
     [Fact]
     public void Every_layer_of_the_customers_module_is_checked() =>
         Assert.Equal(
-            ["Application", "Domain", "Infrastructure"],
+            ["Application", "Contracts", "Domain", "Infrastructure"],
             Modules.Where(m => m.GetName().Name!.StartsWith("MonitorAgent.Modules.Customers.", StringComparison.Ordinal))
+                .Select(m => m.GetName().Name!.Split('.')[^1]));
+
+    [Fact]
+    public void Every_layer_of_the_licenses_module_is_checked() =>
+        Assert.Equal(
+            ["Application", "Contracts", "Domain", "Infrastructure"],
+            Modules.Where(m => m.GetName().Name!.StartsWith("MonitorAgent.Modules.Licenses.", StringComparison.Ordinal))
                 .Select(m => m.GetName().Name!.Split('.')[^1]));
 
     [Fact]

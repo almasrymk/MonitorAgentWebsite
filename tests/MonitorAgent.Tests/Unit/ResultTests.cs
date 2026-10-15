@@ -33,6 +33,7 @@ public class ResultTests
     [InlineData(ErrorKind.NotFound, StatusCodes.Status404NotFound)]
     [InlineData(ErrorKind.Conflict, StatusCodes.Status409Conflict)]
     [InlineData(ErrorKind.TooManyRequests, StatusCodes.Status429TooManyRequests)]
+    [InlineData(ErrorKind.Unavailable, StatusCodes.Status503ServiceUnavailable)]
     public void Failures_map_to_the_matching_status_with_the_error_code(ErrorKind kind, int status)
     {
         var result = Result.Failure(new Error("SOME_CODE", "Message.", kind)).ToActionResult();

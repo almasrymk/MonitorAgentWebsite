@@ -63,6 +63,17 @@ public sealed partial class TestClient(HttpClient http, CapturedEmails emails)
         await RefreshCsrfAsync();
     }
 
+    /// <summary>Turns on two-step verification for the signed-in account and returns its recovery codes.</summary>
+    public async Task<List<string>> EnableMfaAsync()
+    {
+        var setup = JsonDocument.Parse(await (await GetAsync("/api/v1/account/mfa/setup")).Content.ReadAsStringAsync()).RootElement;
+        var enabled = await PostAsync("/api/v1/account/mfa/enable", new { code = Totp(setup.GetProperty("sharedKey").GetString()!) });
+        Assert.Equal(HttpStatusCode.OK, enabled.StatusCode);
+        await RefreshCsrfAsync();
+        return JsonDocument.Parse(await enabled.Content.ReadAsStringAsync()).RootElement.GetProperty("recoveryCodes")
+            .EnumerateArray().Select(c => c.GetString()!).ToList();
+    }
+
     public async Task SignInAsync(string email, string password)
     {
         var response = await LoginAsync(email, password);

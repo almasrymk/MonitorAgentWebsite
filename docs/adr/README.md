@@ -28,3 +28,13 @@
 - الأدوار: Owner (بيدير الفريق)، وBilling، وTechnical، وViewer. لازم يفضل Owner واحد على الأقل.
 - الدعوة بتتبعت بالإيميل وصالحة 7 أيام ومرة واحدة، ولازم تتقبل من حساب بنفس الإيميل. التوكن مش بيتخزن، بيتخزن الـ SHA-256 بتاعه بس.
 - الموديولات التانية بتعرف بيانات المستخدم (الإيميل والاسم) عن طريق `IUserDirectory` في `Identity.Contracts`، مش من قاعدة بيانات Identity مباشرة.
+
+## ADR-007 — الربط مع LicensingPlatform بحساب خدمة
+**القرار:** موديول `Licenses` هو طبقة الحماية (ACL) الوحيدة اللي بتكلم LicensingPlatform. بيدخل بمستخدم مخصص للموقع (`Licenses:Platform:ServiceEmail` و`ServicePassword` من الأسرار)، وبيستخدم الـ endpoints الموجودة من غير ما نعدّل حاجة في LicensingPlatform.
+- **ليه:** الـ client tokens في LicensingPlatform بتوصل لـ endpoints الأجهزة بس، ومفيش API للأنظمة التانية. لما يتعمل integration API هناك، هنغيّر الـ client بس، والشاشات والـ handlers مش هتتأثر.
+- **الصلاحيات المطلوبة لحساب الخدمة:** catalog.read و customers.manage و subscriptions.manage و licenses.read و licenses.manage.
+- **منع التكرار:** كل طلب له `OrderReference` فريد في جدول `licenses.Grants`. إصدار الرخصة بيتم على خطوات (عميل، اشتراك، رخصة)، وكل خطوة بتتحفظ. فلو حصل خطأ في النص، إعادة المحاولة بنفس الرقم بتكمّل من مكانها ومش بتعمل اشتراك تاني.
+- **مفتاح المنتج:** LicensingPlatform بيرجّعه مرة واحدة بس. بنخزّنه متشفّر بـ Data Protection، وبيظهر للـ Owner والـ Technical بس، وكل مرة بيتشاف بتتسجل.
+- **العزل:** الرخصة بتتجاب من LicensingPlatform وبعدين نتأكد إن الـ CustomerId بتاعها هو عميل شركة المستخدم، وإلا نرجّع LICENSE_NOT_FOUND.
+- **قائمة الأسعار:** الخطط المنشورة والمدفوعة والحالية بس، وبتتخزّن 5 دقايق. ولو LicensingPlatform وقع، بنعرض آخر نسخة.
+- **مخاطرة معروفة:** لو LicensingPlatform أصدر الرخصة واحنا وقعنا قبل ما نحفظها، إعادة المحاولة هتصدر رخصة تانية على نفس الاشتراك. ده بيتقفل لما LicensingPlatform يقبل مفتاح idempotency.

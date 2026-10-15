@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MonitorAgent.Modules.Customers.Application;
+using MonitorAgent.Modules.Customers.Contracts;
 using MonitorAgent.Modules.Customers.Infrastructure.Persistence;
 
 namespace MonitorAgent.Modules.Customers.Infrastructure;
@@ -23,6 +24,7 @@ public static class CustomersModule
         services.AddDbContext<CustomersDb>(db => db.UseSqlServer(configuration.GetConnectionString("Default"),
             sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", CustomersDb.Schema)));
         services.AddScoped<ICustomerAccounts, CustomerAccounts>();
+        services.AddScoped<ICompanyDirectory, CompanyDirectory>();
         services.AddHostedService<CustomersDbInitializer>();
 
         services.AddCustomersApplication();
