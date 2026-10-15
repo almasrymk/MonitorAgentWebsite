@@ -9,6 +9,11 @@
     <Project Path="src/Host/MonitorAgent.Api/MonitorAgent.Api.csproj" />
   </Folder>
   <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Commerce/">
+    <Project Path="src/Modules/Commerce/MonitorAgent.Modules.Commerce.Application/MonitorAgent.Modules.Commerce.Application.csproj" />
+    <Project Path="src/Modules/Commerce/MonitorAgent.Modules.Commerce.Domain/MonitorAgent.Modules.Commerce.Domain.csproj" />
+    <Project Path="src/Modules/Commerce/MonitorAgent.Modules.Commerce.Infrastructure/MonitorAgent.Modules.Commerce.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Customers/">
     <Project Path="src/Modules/Customers/MonitorAgent.Modules.Customers.Contracts/MonitorAgent.Modules.Customers.Contracts.csproj" />
     <Project Path="src/Modules/Customers/MonitorAgent.Modules.Customers.Application/MonitorAgent.Modules.Customers.Application.csproj" />
