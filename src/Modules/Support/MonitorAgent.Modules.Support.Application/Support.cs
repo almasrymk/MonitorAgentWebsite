@@ -34,14 +34,24 @@ public sealed record SuggestionDto(Guid Id, string Title, string Body, Suggestio
 
 public sealed record OpenTicketCommand(string Subject, TicketCategory Category, string Body) : ICommand<Result<TicketDto>>;
 public sealed record ReplyToTicketCommand(Guid TicketId, string Body, bool AsStaff) : ICommand<Result<TicketDto>>;
-public sealed record CloseTicketCommand(Guid TicketId, bool AsStaff) : ICommand<Result<TicketDto>>;
+public sealed record CloseTicketCommand(Guid TicketId, bool AsStaff) : ICommand<Result<TicketDto>>, IAuditedCommand
+{
+    public string AuditAction => "support.close";
+    public string AuditTarget => $"ticket:{TicketId}";
+    public string? AuditDetail => AsStaff ? "by staff" : "by customer";
+}
 public sealed record MyTicketsQuery : IQuery<Result<IReadOnlyList<TicketSummaryDto>>>;
 public sealed record GetTicketQuery(Guid TicketId, bool AsStaff) : IQuery<Result<TicketDto>>;
 public sealed record ListTicketsQuery(TicketStatus? Status, int Page, int PageSize) : IQuery<Result<PagedResult<TicketSummaryDto>>>;
 public sealed record SubmitSuggestionCommand(string Title, string Body) : ICommand<Result<SuggestionDto>>;
 public sealed record MySuggestionsQuery : IQuery<Result<IReadOnlyList<SuggestionDto>>>;
 public sealed record ListSuggestionsQuery(SuggestionStatus? Status, int Page, int PageSize) : IQuery<Result<PagedResult<SuggestionDto>>>;
-public sealed record AnswerSuggestionCommand(Guid SuggestionId, SuggestionStatus Status, string? Note) : ICommand<Result<SuggestionDto>>;
+public sealed record AnswerSuggestionCommand(Guid SuggestionId, SuggestionStatus Status, string? Note) : ICommand<Result<SuggestionDto>>, IAuditedCommand
+{
+    public string AuditAction => "support.answer-suggestion";
+    public string AuditTarget => $"suggestion:{SuggestionId}";
+    public string? AuditDetail => $"{Status}: {Note}";
+}
 
 internal sealed class OpenTicketValidator : AbstractValidator<OpenTicketCommand>
 {

@@ -170,6 +170,15 @@ export class FakeAdminApi {
       this.licenses.push({ ...this.licenses[0], id: 'l2', licenseNumber: 'LIC-2026-0099', activeDevices: 0 });
       return json(200, { grantId: 'g1', licenseNumber: 'LIC-2026-0099', expiresAt: null });
     }
+    if (key === 'GET /admin/audit') {
+      const action = url.searchParams.get('action');
+      const items = [
+        { id: 'a1', at: '2026-10-15T09:00:00Z', actorUserId: 'a1aaaaaa-0000-0000-0000-000000000000', actorName: 'Adel Admin', actorEmail: 'admin@example.test',
+          action: 'order.manual-payment', target: 'order:o1', detail: 'BANK-7781', ipAddress: '203.0.113.7' },
+        { id: 'a2', at: '2026-10-15T08:00:00Z', actorUserId: null, actorName: null, actorEmail: null, action: 'license.issue', target: 'company:c1', detail: null, ipAddress: null },
+      ].filter((e) => !action || e.action.startsWith(action));
+      return json(200, { items, page: 1, pageSize: 50, totalCount: items.length });
+    }
     if (key === 'GET /admin/reports/revenue') {
       return json(200, {
         from: url.searchParams.get('from'), to: url.searchParams.get('to'), truncated: false,

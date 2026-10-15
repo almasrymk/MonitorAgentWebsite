@@ -30,13 +30,31 @@ public sealed record PageDto(Guid Id, string Slug, int? PublishedVersion, IReadO
 public sealed record GetPublishedPageQuery(string Slug) : IQuery<Result<PublicPageDto>>;
 public sealed record ListPagesQuery : IQuery<Result<IReadOnlyList<PageSummaryDto>>>;
 public sealed record GetPageQuery(Guid PageId) : IQuery<Result<PageDto>>;
-public sealed record CreatePageCommand(string Slug, PageContent Content) : ICommand<Result<PageDto>>;
+public sealed record CreatePageCommand(string Slug, PageContent Content) : ICommand<Result<PageDto>>, IAuditedCommand
+{
+    public string AuditAction => "content.create";
+    public string AuditTarget => $"page:{Slug}";
+}
 public sealed record SaveDraftCommand(Guid PageId, PageContent Content) : ICommand<Result<PageDto>>;
-public sealed record RestoreVersionCommand(Guid PageId, int Number) : ICommand<Result<PageDto>>;
+public sealed record RestoreVersionCommand(Guid PageId, int Number) : ICommand<Result<PageDto>>, IAuditedCommand
+{
+    public string AuditAction => "content.restore";
+    public string AuditTarget => $"page:{PageId}";
+    public string? AuditDetail => $"version {Number}";
+}
 public sealed record SubmitPageCommand(Guid PageId) : ICommand<Result<PageDto>>;
 public sealed record WithdrawPageCommand(Guid PageId) : ICommand<Result<PageDto>>;
-public sealed record ApprovePageCommand(Guid PageId) : ICommand<Result<PageDto>>;
-public sealed record RejectPageCommand(Guid PageId, string Note) : ICommand<Result<PageDto>>;
+public sealed record ApprovePageCommand(Guid PageId) : ICommand<Result<PageDto>>, IAuditedCommand
+{
+    public string AuditAction => "content.approve";
+    public string AuditTarget => $"page:{PageId}";
+}
+public sealed record RejectPageCommand(Guid PageId, string Note) : ICommand<Result<PageDto>>, IAuditedCommand
+{
+    public string AuditAction => "content.reject";
+    public string AuditTarget => $"page:{PageId}";
+    public string? AuditDetail => Note;
+}
 
 internal sealed class PageContentValidator : AbstractValidator<PageContent>
 {

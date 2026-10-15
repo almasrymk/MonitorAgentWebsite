@@ -1,8 +1,10 @@
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using MonitorAgent.Api.Web;
 using MonitorAgent.BuildingBlocks.Application;
+using MonitorAgent.Modules.Audit.Infrastructure;
 using MonitorAgent.Modules.Commerce.Infrastructure;
 using MonitorAgent.Modules.Content.Infrastructure;
 using MonitorAgent.Modules.Customers.Infrastructure;
@@ -26,7 +28,7 @@ builder.Services.AddAntiforgery(o =>
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddCqrs();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
@@ -43,6 +45,7 @@ builder.Services.AddCommerceModule(builder.Configuration, builder.Environment);
 builder.Services.AddReleasesModule(builder.Configuration);
 builder.Services.AddSupportModule(builder.Configuration);
 builder.Services.AddContentModule(builder.Configuration);
+builder.Services.AddAuditModule(builder.Configuration);
 
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [])
@@ -79,8 +82,8 @@ app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();
 
-app.MapHealthChecks("/health/live").DisableRateLimiting();
-app.MapHealthChecks("/health/ready").DisableRateLimiting();
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).DisableRateLimiting();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).DisableRateLimiting();
 app.MapControllers();
 
 await app.RunAsync();

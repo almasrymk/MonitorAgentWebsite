@@ -22,10 +22,19 @@ public sealed record ListMyLicensesQuery : IQuery<Result<IReadOnlyList<LicenseSu
 public sealed record GetMyLicenseQuery(Guid LicenseId) : IQuery<Result<LicenseDetailsDto>>;
 
 /// <summary>Shows the full product key again. Owners and technical members only, and every reveal is logged.</summary>
-public sealed record RevealProductKeyCommand(Guid LicenseId) : ICommand<Result<ProductKeyDto>>;
+public sealed record RevealProductKeyCommand(Guid LicenseId) : ICommand<Result<ProductKeyDto>>, IAuditedCommand
+{
+    public string AuditAction => "license.reveal-key";
+    public string AuditTarget => $"license:{LicenseId}";
+}
 
 /// <summary>Frees a device's seat on the license, for a replaced or reinstalled machine.</summary>
-public sealed record ResetDeviceCommand(Guid LicenseId, Guid DeviceId) : ICommand<Result>;
+public sealed record ResetDeviceCommand(Guid LicenseId, Guid DeviceId) : ICommand<Result>, IAuditedCommand
+{
+    public string AuditAction => "license.reset-device";
+    public string AuditTarget => $"license:{LicenseId}";
+    public string? AuditDetail => $"device {DeviceId}";
+}
 
 /// <summary>Resolves the caller's company and its LicensingPlatform customer, the only tenant these handlers may read.</summary>
 internal sealed class CompanyScope(ICurrentUser me, ICompanyDirectory companies, ILicenseStore store)
