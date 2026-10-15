@@ -2,10 +2,18 @@
   <Folder Name="/src/" />
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/MonitorAgent.BuildingBlocks.Application/MonitorAgent.BuildingBlocks.Application.csproj" />
+    <Project Path="src/BuildingBlocks/MonitorAgent.BuildingBlocks.Web/MonitorAgent.BuildingBlocks.Web.csproj" />
     <Project Path="src/BuildingBlocks/MonitorAgent.SharedKernel/MonitorAgent.SharedKernel.csproj" />
   </Folder>
   <Folder Name="/src/Host/">
     <Project Path="src/Host/MonitorAgent.Api/MonitorAgent.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Identity/">
+    <Project Path="src/Modules/Identity/MonitorAgent.Modules.Identity.Application/MonitorAgent.Modules.Identity.Application.csproj" />
+    <Project Path="src/Modules/Identity/MonitorAgent.Modules.Identity.Contracts/MonitorAgent.Modules.Identity.Contracts.csproj" />
+    <Project Path="src/Modules/Identity/MonitorAgent.Modules.Identity.Domain/MonitorAgent.Modules.Identity.Domain.csproj" />
+    <Project Path="src/Modules/Identity/MonitorAgent.Modules.Identity.Infrastructure/MonitorAgent.Modules.Identity.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MonitorAgent.Tests/MonitorAgent.Tests.csproj" />
