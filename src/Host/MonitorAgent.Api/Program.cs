@@ -1,13 +1,16 @@
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using MonitorAgent.Api.Web;
 using MonitorAgent.BuildingBlocks.Application;
+using MonitorAgent.Modules.Customers.Infrastructure;
 using MonitorAgent.Modules.Identity.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Every unsafe request must carry the CSRF header that matches the antiforgery cookie (ADR-005).
-builder.Services.AddControllers(o => o.Filters.Add<ValidateCsrfFilter>());
+builder.Services.AddControllers(o => o.Filters.Add<ValidateCsrfFilter>())
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddAntiforgery(o =>
 {
     o.HeaderName = Csrf.HeaderName;
@@ -23,8 +26,13 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddCqrs();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 builder.Services.AddEmailSender(builder.Configuration);
+var portalUrl = builder.Configuration["Portal:Url"];
+if (string.IsNullOrWhiteSpace(portalUrl))
+    throw new InvalidOperationException("Set Portal:Url. Account and invitation emails link into the customer portal.");
+builder.Services.AddSingleton(new PortalLinks(portalUrl));
 
 builder.Services.AddIdentityModule(builder.Configuration);
+builder.Services.AddCustomersModule(builder.Configuration);
 
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [])

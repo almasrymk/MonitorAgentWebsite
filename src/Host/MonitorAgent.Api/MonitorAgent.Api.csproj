@@ -7,6 +7,7 @@
     <ProjectReference Include="..\..\BuildingBlocks\MonitorAgent.BuildingBlocks.Application\MonitorAgent.BuildingBlocks.Application.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\MonitorAgent.BuildingBlocks.Web\MonitorAgent.BuildingBlocks.Web.csproj" />
     <ProjectReference Include="..\..\Modules\Identity\MonitorAgent.Modules.Identity.Infrastructure\MonitorAgent.Modules.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Customers\MonitorAgent.Modules.Customers.Infrastructure\MonitorAgent.Modules.Customers.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />

@@ -33,6 +33,13 @@ public sealed partial class TestClient(HttpClient http, CapturedEmails emails)
 
     public Task<HttpResponseMessage> GetAsync(string path) => http.GetAsync(path);
 
+    /// <summary>Adds the CSRF header to a hand-built request (PUT, DELETE).</summary>
+    public HttpRequestMessage WithCsrf(HttpRequestMessage request)
+    {
+        request.Headers.Add("X-XSRF-TOKEN", _csrf);
+        return request;
+    }
+
     /// <summary>Registers and confirms an account through the emailed link, the way a customer would.</summary>
     public async Task<string> RegisterConfirmedAsync(string email, string password = "correct horse battery")
     {

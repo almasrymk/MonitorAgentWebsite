@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MonitorAgent.BuildingBlocks.Application;
+using MonitorAgent.Modules.Customers.Infrastructure.Persistence;
 using MonitorAgent.Modules.Identity.Infrastructure.Persistence;
 
 namespace MonitorAgent.Tests.Api;
@@ -22,6 +23,7 @@ public class ApiFactory : WebApplicationFactory<Program>
     public const string AdminPassword = "Admin-Passw0rd-For-Tests";
 
     private readonly SqliteConnection _identityDb = new("DataSource=:memory:");
+    private readonly SqliteConnection _customersDb = new("DataSource=:memory:");
 
     public CapturedEmails Emails { get; } = new();
 
@@ -32,8 +34,9 @@ public class ApiFactory : WebApplicationFactory<Program>
         ["Email:Smtp:Host"] = "smtp.invalid",
         ["Email:Smtp:From"] = "no-reply@monitoragent.test",
         ["Identity:DatabaseInitialization"] = "EnsureCreated",
+        ["Customers:DatabaseInitialization"] = "EnsureCreated",
         ["Identity:SessionValidationSeconds"] = "0",
-        ["Identity:PortalUrl"] = "https://portal.test",
+        ["Portal:Url"] = "https://portal.test",
         ["Identity:BootstrapAdminEmail"] = AdminEmail,
         ["Identity:BootstrapAdminPassword"] = AdminPassword,
         ["RateLimiting:PermitPerMinute"] = "100000",
@@ -45,11 +48,15 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Development");
         foreach (var (key, value) in Settings) builder.UseSetting(key, value);
         if (_identityDb.State != System.Data.ConnectionState.Open) _identityDb.Open();
+        if (_customersDb.State != System.Data.ConnectionState.Open) _customersDb.Open();
         builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<DbContextOptions<IdentityDb>>();
             services.RemoveAll<IDbContextOptionsConfiguration<IdentityDb>>();
             services.AddDbContext<IdentityDb>(o => o.UseSqlite(_identityDb));
+            services.RemoveAll<DbContextOptions<CustomersDb>>();
+            services.RemoveAll<IDbContextOptionsConfiguration<CustomersDb>>();
+            services.AddDbContext<CustomersDb>(o => o.UseSqlite(_customersDb));
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Emails);
         });
@@ -61,7 +68,9 @@ public class ApiFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing) _identityDb.Dispose();
+        if (!disposing) return;
+        _identityDb.Dispose();
+        _customersDb.Dispose();
     }
 }
 

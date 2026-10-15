@@ -8,6 +8,12 @@ public interface ICurrentUser
     bool IsInRole(string role);
 }
 
+/// <summary>Builds links into the customer portal for emails. The base URL comes from <c>Portal:Url</c>.</summary>
+public sealed class PortalLinks(string baseUrl)
+{
+    public string To(string pathAndQuery) => baseUrl.TrimEnd('/') + "/" + pathAndQuery.TrimStart('/');
+}
+
 public sealed record EmailMessage(string To, string Subject, string TextBody);
 
 /// <summary>Sends transactional email. The host picks the implementation from configuration.</summary>
