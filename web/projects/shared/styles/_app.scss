@@ -1,0 +1,233 @@
+// Signed-in apps (portal and admin): dark sidebar, top bar and content area, as in the mockups.
+
+.app {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  min-height: 100dvh;
+}
+
+// Grid items default to their content's width; without this the scrolling nav widens the page on phones.
+.app > * {
+  min-width: 0;
+}
+
+.sidebar {
+  background: var(--sidebar);
+  color: #fff;
+  padding: 1.25rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sidebar .logo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 800;
+  font-size: 1.15rem;
+  padding-inline: 0.6rem;
+  color: #fff;
+  text-decoration: none;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sidebar nav a {
+  color: #d9d9d9;
+  text-decoration: none;
+  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar nav a:hover,
+.sidebar nav a.active {
+  background: #2a2a2a;
+  color: #fff;
+}
+
+.sidebar :focus-visible {
+  box-shadow: 0 0 0 3px rgb(255 255 255 / 0.6);
+}
+
+.sidebar .foot {
+  margin-top: auto;
+  font-size: 0.9rem;
+  color: #bdbdbd;
+  padding-inline: 0.6rem;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar .who {
+  text-align: end;
+  line-height: 1.25;
+}
+
+.content {
+  padding: 1.5rem;
+  min-width: 0;
+}
+
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.kpi .value {
+  font-size: 1.9rem;
+  font-weight: 800;
+  margin: 0.25rem 0;
+}
+
+.stack {
+  display: grid;
+  // minmax(0, ...) lets a wide table scroll inside its card instead of stretching the page.
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.auth-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.auth-card {
+  width: min(440px, 100%);
+}
+
+// Links under the sign-in form stand alone, so each gets a 24px touch target whatever font is installed (WCAG 2.2).
+.auth-card a {
+  display: inline-block;
+  min-height: 24px;
+  padding-block: 0.15rem;
+}
+
+.auth-card .logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 800;
+  margin-bottom: 1rem;
+}
+
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  color: inherit;
+  min-height: 44px;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+}
+
+.checkbox input {
+  // At least 24px so it meets the WCAG 2.2 target size whatever font the browser falls back to.
+  width: 1.5rem;
+  height: 1.5rem;
+  min-height: auto;
+  flex: none;
+  margin: 0;
+}
+
+.dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.5rem 1.25rem;
+  margin: 0;
+}
+
+.dl dt {
+  color: var(--muted);
+}
+
+.dl dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .sidebar nav {
+    flex-direction: row;
+    overflow-x: auto;
+    flex-basis: 100%;
+  }
+
+  .sidebar nav a {
+    white-space: nowrap;
+  }
+
+  .sidebar .foot {
+    display: none;
+  }
+}
+
+@media print {
+  .sidebar,
+  .topbar,
+  .no-print {
+    display: none !important;
+  }
+
+  .app {
+    display: block;
+  }
+}
+
+td select {
+  min-width: 9rem;
+}
