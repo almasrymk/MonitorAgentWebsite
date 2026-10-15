@@ -10,6 +10,7 @@
     <ProjectReference Include="..\..\Modules\Customers\MonitorAgent.Modules.Customers.Infrastructure\MonitorAgent.Modules.Customers.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Licenses\MonitorAgent.Modules.Licenses.Infrastructure\MonitorAgent.Modules.Licenses.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Commerce\MonitorAgent.Modules.Commerce.Infrastructure\MonitorAgent.Modules.Commerce.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Releases\MonitorAgent.Modules.Releases.Infrastructure\MonitorAgent.Modules.Releases.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />

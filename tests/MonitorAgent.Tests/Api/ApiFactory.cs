@@ -12,6 +12,7 @@ using MonitorAgent.Modules.Customers.Infrastructure.Persistence;
 using MonitorAgent.Modules.Identity.Infrastructure.Persistence;
 using MonitorAgent.Modules.Licenses.Application;
 using MonitorAgent.Modules.Licenses.Infrastructure.Persistence;
+using MonitorAgent.Modules.Releases.Infrastructure.Persistence;
 
 namespace MonitorAgent.Tests.Api;
 
@@ -29,6 +30,9 @@ public class ApiFactory : WebApplicationFactory<Program>
     private readonly string _dbFolder = Directory.CreateTempSubdirectory("monitoragent-tests-").FullName;
 
     public const string SandboxSecret = "sandbox-secret-for-tests";
+
+    /// <summary>Stands in for the publisher's offline signing key (UBGMonitor tools/UpdateSigner).</summary>
+    public static System.Security.Cryptography.ECDsa ReleaseKey { get; } = System.Security.Cryptography.ECDsa.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
 
     public FakeLicensingPlatform Platform { get; } = new();
 
@@ -49,6 +53,8 @@ public class ApiFactory : WebApplicationFactory<Program>
         ["Commerce:DatabaseInitialization"] = "EnsureCreated",
         ["Commerce:FulfillmentRetrySeconds"] = "0",
         ["Commerce:Sandbox:WebhookSecret"] = SandboxSecret,
+        ["Releases:DatabaseInitialization"] = "EnsureCreated",
+        ["Releases:PublicKey"] = Convert.ToBase64String(ReleaseKey.ExportSubjectPublicKeyInfo()),
         ["Identity:SessionValidationSeconds"] = "0",
         ["Portal:Url"] = "https://portal.test",
         ["Identity:BootstrapAdminEmail"] = AdminEmail,
@@ -75,6 +81,9 @@ public class ApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<DbContextOptions<CommerceDb>>();
             services.RemoveAll<IDbContextOptionsConfiguration<CommerceDb>>();
             services.AddDbContext<CommerceDb>(o => o.UseSqlite(Database("commerce")));
+            services.RemoveAll<DbContextOptions<ReleasesDb>>();
+            services.RemoveAll<IDbContextOptionsConfiguration<ReleasesDb>>();
+            services.AddDbContext<ReleasesDb>(o => o.UseSqlite(Database("releases")));
             services.RemoveAll<ILicensingPlatform>();
             services.AddSingleton<ILicensingPlatform>(Platform);
             services.RemoveAll<IEmailSender>();
