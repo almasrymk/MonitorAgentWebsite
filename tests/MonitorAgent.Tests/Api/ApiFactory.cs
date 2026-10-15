@@ -100,7 +100,8 @@ public class ApiFactory : WebApplicationFactory<Program>
     {
         base.Dispose(disposing);
         if (!disposing) return;
-        Directory.Delete(_dbFolder, recursive: true);
+        // Dispose and DisposeAsync both end up here.
+        if (Directory.Exists(_dbFolder)) Directory.Delete(_dbFolder, recursive: true);
     }
 }
 
