@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/MonitorAgent.BuildingBlocks.Application/MonitorAgent.BuildingBlocks.Application.csproj" />
+    <Project Path="src/BuildingBlocks/MonitorAgent.SharedKernel/MonitorAgent.SharedKernel.csproj" />
+  </Folder>
+  <Folder Name="/src/Host/">
+    <Project Path="src/Host/MonitorAgent.Api/MonitorAgent.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MonitorAgent.Tests/MonitorAgent.Tests.csproj" />
+  </Folder>
+</Solution>
