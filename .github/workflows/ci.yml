@@ -68,14 +68,14 @@ jobs:
       - name: API image builds
         run: docker build -f src/Host/MonitorAgent.Api/Dockerfile -t monitoragent-api:ci .
       - name: Image has no fixable critical or high vulnerabilities (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: monitoragent-api:ci
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: '1'
       - name: Software bill of materials (SPDX)
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           image: monitoragent-api:ci
           format: spdx-json
