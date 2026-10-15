@@ -1,7 +1,6 @@
 import { Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Api, CatalogPlan, errorText, I18n, Loader, MoneyPipe, Order, TranslatePipe, WhenPipe } from 'shared';
-import { LoadError, Skeleton, StatusBadge } from './ui';
+import { Api, CatalogPlan, errorText, I18n, Loader, LoadError, MoneyPipe, Order, Skeleton, StatusBadge, TranslatePipe, WhenPipe } from 'shared';
 
 /** Sends the browser to the provider's hosted payment page for this order. */
 async function pay(api: Api, orderId: string): Promise<void> {
@@ -17,9 +16,9 @@ async function pay(api: Api, orderId: string): Promise<void> {
     <h1>{{ 'checkout.title' | t }}</h1>
     <p class="muted">{{ 'checkout.lead' | t }}</p>
     @if (plans.loading()) {
-      <portal-skeleton />
+      <ma-skeleton />
     } @else if (plans.error()) {
-      <portal-load-error [error]="plans.error()" (retry)="plans.load()" />
+      <ma-load-error [error]="plans.error()" (retry)="plans.load()" />
     } @else {
       <fieldset class="card stack" style="border: 1px solid var(--line)">
         <legend class="eyebrow">{{ 'checkout.choose' | t }}</legend>
@@ -111,9 +110,9 @@ export class SandboxCheckoutPage {
       <a class="btn" routerLink="/checkout">{{ 'overview.buy' | t }}</a>
     </div>
     @if (orders.loading()) {
-      <portal-skeleton />
+      <ma-skeleton />
     } @else if (orders.error()) {
-      <portal-load-error [error]="orders.error()" (retry)="orders.load()" />
+      <ma-load-error [error]="orders.error()" (retry)="orders.load()" />
     } @else if (orders.value()?.length === 0) {
       <p class="card">{{ 'orders.empty' | t }}</p>
     } @else {
@@ -134,7 +133,7 @@ export class SandboxCheckoutPage {
                 <td><a [routerLink]="['/orders', order.id]" class="mono">{{ order.number }}</a></td>
                 <td>{{ order.productName }} · {{ order.planName }}</td>
                 <td>{{ order.total | money: order.currency }}</td>
-                <td><portal-status [value]="order.status" prefix="order.status." /></td>
+                <td><ma-status [value]="order.status" prefix="order.status." /></td>
                 <td>{{ order.placedAt | when }}</td>
               </tr>
             }
@@ -159,13 +158,13 @@ export class OrdersPage implements OnInit {
   template: `
     <p><a routerLink="/orders">← {{ 'orders.title' | t }}</a></p>
     @if (order.loading()) {
-      <portal-skeleton />
+      <ma-skeleton />
     } @else if (order.error()) {
-      <portal-load-error [error]="order.error()" (retry)="order.load()" />
+      <ma-load-error [error]="order.error()" (retry)="order.load()" />
     } @else if (order.value(); as value) {
       <div class="page-head">
         <h1>{{ 'order.title' | t: { number: value.number } }}</h1>
-        <portal-status [value]="value.status" prefix="order.status." />
+        <ma-status [value]="value.status" prefix="order.status." />
       </div>
       <div class="stack">
         <div aria-live="polite">
@@ -211,7 +210,7 @@ export class OrdersPage implements OnInit {
                   <tr>
                     <td>{{ payment.createdAt | when: true }}</td>
                     <td>{{ payment.amount | money: payment.currency }}</td>
-                    <td><portal-status [value]="payment.status" prefix="order.payment." /></td>
+                    <td><ma-status [value]="payment.status" prefix="order.payment." /></td>
                     <td>{{ payment.failureReason ?? '' }}</td>
                   </tr>
                 }

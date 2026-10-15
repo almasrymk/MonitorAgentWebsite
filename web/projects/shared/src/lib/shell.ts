@@ -1,9 +1,15 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, input } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { I18n, saveLanguage, Session, TranslatePipe } from 'shared';
+import { I18n, TranslatePipe } from './i18n';
+import { saveLanguage, Session } from './session';
+
+export interface NavItem {
+  path: string;
+  label: string;
+}
 
 @Component({
-  selector: 'portal-layout',
+  selector: 'ma-shell',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe],
   template: `
     <a class="skip-link" href="#main">{{ 'skip' | t }}</a>
@@ -14,7 +20,7 @@ import { I18n, saveLanguage, Session, TranslatePipe } from 'shared';
           {{ 'brand' | t }}
         </a>
         <nav [attr.aria-label]="'nav.label' | t">
-          @for (item of nav; track item.path) {
+          @for (item of nav(); track item.path) {
             <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.path === '/' }" ariaCurrentWhenActive="page">{{ item.label | t }}</a>
           }
         </nav>
@@ -38,19 +44,13 @@ import { I18n, saveLanguage, Session, TranslatePipe } from 'shared';
     </div>
   `,
 })
-export class Layout {
+/** The signed-in frame of the portal and admin app. The menu comes from the route's data (`nav`). */
+export class AppShell {
+  readonly nav = input<NavItem[]>([]);
   protected readonly i18n = inject(I18n);
   protected readonly session = inject(Session);
   private readonly router = inject(Router);
 
-  protected readonly nav = [
-    { path: '/', label: 'nav.overview' },
-    { path: '/licenses', label: 'nav.licenses' },
-    { path: '/orders', label: 'nav.orders' },
-    { path: '/invoices', label: 'nav.invoices' },
-    { path: '/company', label: 'nav.company' },
-    { path: '/account', label: 'nav.account' },
-  ];
 
   protected switchLanguage(): void {
     saveLanguage(this.i18n, this.i18n.other());

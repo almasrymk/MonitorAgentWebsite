@@ -1,7 +1,6 @@
 import { Component, inject, input, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Api, Device, errorText, I18n, LicenseDetails, LicenseSummary, Loader, TranslatePipe, WhenPipe } from 'shared';
-import { LoadError, Skeleton, StatusBadge } from './ui';
+import { Api, Device, errorText, I18n, LicenseDetails, LicenseSummary, Loader, LoadError, Skeleton, StatusBadge, TranslatePipe, WhenPipe } from 'shared';
 
 @Component({
   selector: 'portal-licenses',
@@ -12,9 +11,9 @@ import { LoadError, Skeleton, StatusBadge } from './ui';
       <a class="btn" routerLink="/checkout">{{ 'overview.buy' | t }}</a>
     </div>
     @if (licenses.loading()) {
-      <portal-skeleton />
+      <ma-skeleton />
     } @else if (licenses.error()) {
-      <portal-load-error [error]="licenses.error()" (retry)="licenses.load()" />
+      <ma-load-error [error]="licenses.error()" (retry)="licenses.load()" />
     } @else if (licenses.value()?.length === 0) {
       <p class="card">{{ 'licenses.empty' | t }}</p>
     } @else {
@@ -35,7 +34,7 @@ import { LoadError, Skeleton, StatusBadge } from './ui';
               <tr>
                 <td><a [routerLink]="['/licenses', license.id]">{{ license.licenseNumber }}</a></td>
                 <td>{{ license.productCode }} · {{ license.planCode }}</td>
-                <td><portal-status [value]="license.status" /></td>
+                <td><ma-status [value]="license.status" /></td>
                 <td class="mono">{{ license.productKeyPrefix }}••••</td>
                 <td>{{ license.activeDevices }}{{ license.maxDevices ? ' / ' + license.maxDevices : '' }}</td>
                 <td>{{ license.expiresAt | when }}</td>
@@ -62,13 +61,13 @@ export class LicensesPage implements OnInit {
   template: `
     <p><a routerLink="/licenses">← {{ 'licenses.title' | t }}</a></p>
     @if (details.loading()) {
-      <portal-skeleton />
+      <ma-skeleton />
     } @else if (details.error()) {
-      <portal-load-error [error]="details.error()" (retry)="details.load()" />
+      <ma-load-error [error]="details.error()" (retry)="details.load()" />
     } @else if (details.value(); as value) {
       <div class="page-head">
         <h1>{{ 'license.title' | t: { number: value.license.licenseNumber } }}</h1>
-        <portal-status [value]="value.license.status" />
+        <ma-status [value]="value.license.status" />
       </div>
       <div class="stack">
         <section class="card">

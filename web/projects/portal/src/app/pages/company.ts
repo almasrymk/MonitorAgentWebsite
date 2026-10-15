@@ -1,8 +1,7 @@
 import { Component, inject, input, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Api, ApiError, Company, errorText, I18n, Loader, Member, MemberRole, TranslatePipe, WhenPipe } from 'shared';
-import { LoadError, Skeleton } from './ui';
+import { Api, ApiError, Company, errorText, I18n, Loader, LoadError, Member, MemberRole, Skeleton, TranslatePipe, WhenPipe } from 'shared';
 
 const roles: MemberRole[] = ['Owner', 'Billing', 'Technical', 'Viewer'];
 
@@ -12,11 +11,11 @@ const roles: MemberRole[] = ['Owner', 'Billing', 'Technical', 'Viewer'];
   template: `
     <h1>{{ 'company.title' | t }}</h1>
     @if (company.loading()) {
-      <portal-skeleton />
+      <ma-skeleton />
     } @else if (noCompany()) {
       <p class="card">{{ 'overview.noCompanyBody' | t }} <a routerLink="/">{{ 'nav.overview' | t }}</a></p>
     } @else if (company.error()) {
-      <portal-load-error [error]="company.error()" (retry)="company.load()" />
+      <ma-load-error [error]="company.error()" (retry)="company.load()" />
     } @else if (company.value(); as value) {
       <div class="stack">
         @if (message()) {

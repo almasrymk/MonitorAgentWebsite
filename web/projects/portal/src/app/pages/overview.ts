@@ -1,8 +1,7 @@
 import { Component, computed, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Api, ApiError, Company, errorText, I18n, LicenseSummary, Loader, Order, Session, TranslatePipe, WhenPipe } from 'shared';
-import { LoadError, Skeleton } from './ui';
+import { Api, ApiError, Company, errorText, I18n, LicenseSummary, Loader, LoadError, Order, Session, Skeleton, TranslatePipe, WhenPipe } from 'shared';
 import { signal } from '@angular/core';
 
 interface Overview {
@@ -26,9 +25,9 @@ interface Overview {
     </div>
 
     @if (data.loading()) {
-      <portal-skeleton />
+      <ma-skeleton />
     } @else if (data.error()) {
-      <portal-load-error [error]="data.error()" (retry)="data.load()" />
+      <ma-load-error [error]="data.error()" (retry)="data.load()" />
     } @else if (data.value(); as value) {
       @if (!value.company) {
         <section class="card" aria-labelledby="no-company">

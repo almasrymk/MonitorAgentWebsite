@@ -1,7 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, Routes } from '@angular/router';
-import { Session } from 'shared';
-import { Layout } from './layout';
+import { AppShell, Session } from 'shared';
 
 /** Signed-in pages: anyone else goes to sign-in and comes back afterwards. */
 const signedIn: CanActivateFn = async (_route, state) => {
@@ -21,8 +20,18 @@ export const routes: Routes = [
   { path: 'auth/reset-password', loadComponent: () => import('./pages/auth').then((m) => m.ResetPasswordPage) },
   {
     path: '',
-    component: Layout,
+    component: AppShell,
     canActivate: [signedIn],
+    data: {
+      nav: [
+        { path: '/', label: 'nav.overview' },
+        { path: '/licenses', label: 'nav.licenses' },
+        { path: '/orders', label: 'nav.orders' },
+        { path: '/invoices', label: 'nav.invoices' },
+        { path: '/company', label: 'nav.company' },
+        { path: '/account', label: 'nav.account' },
+      ],
+    },
     children: [
       { path: '', loadComponent: () => import('./pages/overview').then((m) => m.OverviewPage) },
       { path: 'licenses', loadComponent: () => import('./pages/licenses').then((m) => m.LicensesPage) },
@@ -35,7 +44,7 @@ export const routes: Routes = [
       { path: 'invoices/:id', loadComponent: () => import('./pages/invoices').then((m) => m.InvoicePage) },
       { path: 'company', loadComponent: () => import('./pages/company').then((m) => m.CompanyPage) },
       { path: 'invitations/accept', loadComponent: () => import('./pages/company').then((m) => m.AcceptInvitationPage) },
-      { path: 'account', loadComponent: () => import('./pages/account').then((m) => m.AccountPage) },
+      { path: 'account', loadComponent: () => import('shared').then((m) => m.AccountPage) },
     ],
   },
   { path: '**', redirectTo: '' },
