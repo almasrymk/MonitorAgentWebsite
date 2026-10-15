@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using MonitorAgent.Api.Web;
 using MonitorAgent.BuildingBlocks.Application;
 using MonitorAgent.Modules.Commerce.Infrastructure;
+using MonitorAgent.Modules.Content.Infrastructure;
 using MonitorAgent.Modules.Customers.Infrastructure;
 using MonitorAgent.Modules.Identity.Infrastructure;
 using MonitorAgent.Modules.Licenses.Infrastructure;
@@ -41,6 +42,7 @@ builder.Services.AddLicensesModule(builder.Configuration, builder.Environment);
 builder.Services.AddCommerceModule(builder.Configuration, builder.Environment);
 builder.Services.AddReleasesModule(builder.Configuration);
 builder.Services.AddSupportModule(builder.Configuration);
+builder.Services.AddContentModule(builder.Configuration);
 
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [])

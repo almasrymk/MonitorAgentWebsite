@@ -1,5 +1,5 @@
 // A stand-in for the website API so the UI can be tested without SQL Server or LicensingPlatform.
-// Serves fixed catalog and release data; anything else is 404.
+// Serves fixed catalog, release and content data; anything else is 404.
 import { createServer } from 'node:http';
 
 const plans = [
@@ -13,7 +13,16 @@ const releases = [
   { id: 'r1', version: '2.3.1', channel: 'stable', notes: 'Bug fixes.', status: 'Published', createdAt: '2026-09-01T10:00:00Z', publishedAt: '2026-09-01T10:00:00Z', packages: [pkg] },
 ];
 
+const page = (slug, titleEn, titleAr, bodyEn, bodyAr) => ({
+  slug, version: 2, publishedAt: '2026-10-10T09:00:00Z', titleEn, titleAr, descriptionEn: `${titleEn} of Monitor Agent`, descriptionAr: `${titleAr} - Monitor Agent`, bodyEn, bodyAr,
+});
+
 const routes = {
+  'GET /api/v1/content/pages/about-us': page('about-us', 'About us', 'من إحنا',
+    '## Who we are\nWe build **Monitor Agent** in Cairo.\n\n- Device monitoring\n- [See prices](/en/pricing)\n\n<script>window.hacked = true</script>',
+    '## إحنا مين\nبنعمل **Monitor Agent** في القاهرة.\n\n- مراقبة الأجهزة\n- [شوف الأسعار](/ar/pricing)'),
+  'GET /api/v1/content/pages/privacy': page('privacy', 'Privacy policy', 'سياسة الخصوصية',
+    'Published privacy text from the content editor.', 'نص الخصوصية المنشور من محرر المحتوى.'),
   'GET /api/v1/catalog/plans': plans,
   'GET /api/v1/releases': releases,
 };

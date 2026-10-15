@@ -1,5 +1,13 @@
 import { Page, Route } from '@playwright/test';
 
+function version(number: number, status: string, titleEn: string, editedBy: string) {
+  return {
+    number, status, titleEn, titleAr: `${titleEn} (ar)`, descriptionEn: '', descriptionAr: '', bodyEn: `## ${titleEn}\nWe build **Monitor Agent**.`,
+    bodyAr: '## عنّا\nبنعمل **Monitor Agent**.', editedBy, editedAt: '2026-10-14T10:00:00Z', reviewedBy: null as string | null,
+    reviewedAt: null as string | null, reviewNote: null as string | null, publishedAt: null as string | null,
+  };
+}
+
 /** An in-memory stand-in for the admin endpoints, so the admin UI can be driven end to end. */
 export class FakeAdminApi {
   signedIn = false;
@@ -28,6 +36,16 @@ export class FakeAdminApi {
   ];
   readonly suggestions = [
     { id: 's1', title: 'Weekly report', body: 'Email me a summary.', status: 'New', staffNote: null as string | null, createdAt: '2026-10-10T10:00:00Z', companyName: 'Nile Traders' },
+  ];
+  readonly pages = [
+    {
+      id: 'p1', slug: 'about-us', publishedVersion: 1 as number | null,
+      versions: [
+        version(2, 'InReview', 'About Monitor Agent', 'Eman Editor'),
+        { ...version(1, 'Published', 'About us', 'Eman Editor'), reviewedBy: 'Rami Reviewer', reviewedAt: '2026-10-01T10:00:00Z', publishedAt: '2026-10-01T10:00:00Z' },
+      ],
+    },
+    { id: 'p2', slug: 'privacy', publishedVersion: null as number | null, versions: [version(1, 'Draft', 'Privacy policy', 'Adel Admin')] },
   ];
   uploaded: { channel: string; manifestBase64: string; signature: string } | null = null;
 
@@ -114,6 +132,38 @@ export class FakeAdminApi {
       const suggestion = this.suggestions.find((x) => x.id === answer[1])!;
       Object.assign(suggestion, { status: body.status, staffNote: body.note });
       return json(200, suggestion);
+    }
+    if (key === 'GET /admin/content/pages') {
+      return json(200, this.pages.map((p) => {
+        const open = p.versions.find((v) => v.status === 'Draft' || v.status === 'InReview');
+        const latest = open ?? p.versions[0];
+        return { id: p.id, slug: p.slug, titleAr: latest.titleAr, titleEn: latest.titleEn, publishedVersion: p.publishedVersion, openStatus: open?.status ?? null, updatedAt: latest.editedAt };
+      }));
+    }
+    const pageRoute = key.match(/^(GET|PUT|POST) \/admin\/content\/pages\/(\w+)(\/.*)?$/);
+    if (pageRoute) {
+      const p = this.pages.find((x) => x.id === pageRoute[2]);
+      if (!p) return problem(404, 'PAGE_NOT_FOUND');
+      const open = p.versions.find((v) => v.status === 'Draft' || v.status === 'InReview');
+      const step = pageRoute[3] ?? '';
+      if (step === '/draft') {
+        if (open?.status === 'InReview') return problem(409, 'PAGE_IN_REVIEW');
+        if (open) Object.assign(open, body, { reviewNote: null, editedBy: this.me.fullName });
+        else p.versions.unshift({ ...version(p.versions.length + 1, 'Draft', body.titleEn, this.me.fullName), ...body });
+      } else if (step === '/submit') {
+        if (!open?.bodyEn) return problem(400, 'PAGE_INCOMPLETE');
+        open.status = 'InReview';
+      } else if (step === '/approve') {
+        if (open?.editedBy === this.me.fullName) return problem(403, 'OWN_VERSION');
+        p.versions.filter((v) => v.status === 'Published').forEach((v) => (v.status = 'Superseded'));
+        Object.assign(open!, { status: 'Published', reviewedBy: this.me.fullName, publishedAt: '2026-10-15T12:00:00Z' });
+        p.publishedVersion = open!.number;
+      } else if (step === '/reject') {
+        Object.assign(open!, { status: 'Draft', reviewedBy: this.me.fullName, reviewNote: body.note });
+      } else if (step === '/withdraw') {
+        open!.status = 'Draft';
+      }
+      return json(200, p);
     }
     if (key === 'GET /admin/security-events') {
       const user = url.searchParams.get('userId');

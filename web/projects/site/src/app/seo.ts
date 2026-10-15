@@ -13,3 +13,16 @@ export function useSeo(titleKey: string, descriptionKey: string): void {
     meta.updateTag({ name: 'description', content: i18n.t(descriptionKey) });
   });
 }
+
+/** Like useSeo, for text that comes from the content API instead of the translation tables. */
+export function useSeoText(text: () => { title: string; description: string } | null): void {
+  const i18n = inject(I18n);
+  const title = inject(Title);
+  const meta = inject(Meta);
+  effect(() => {
+    const current = text();
+    if (!current) return;
+    title.setTitle(`${current.title} | ${i18n.t('brand')}`);
+    meta.updateTag({ name: 'description', content: current.description || current.title });
+  });
+}

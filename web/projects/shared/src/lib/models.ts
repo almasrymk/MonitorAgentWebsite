@@ -186,3 +186,49 @@ export interface Suggestion {
   createdAt: string;
   companyName: string | null;
 }
+
+export type VersionStatus = 'Draft' | 'InReview' | 'Published' | 'Superseded';
+
+/** What a page says in both languages, as editors write it. */
+export interface PageContent {
+  titleAr: string;
+  titleEn: string;
+  descriptionAr: string;
+  descriptionEn: string;
+  bodyAr: string;
+  bodyEn: string;
+}
+
+export interface PublicPage extends PageContent {
+  slug: string;
+  version: number;
+  publishedAt: string;
+}
+
+export interface PageSummary {
+  id: string;
+  slug: string;
+  titleAr: string;
+  titleEn: string;
+  publishedVersion: number | null;
+  openStatus: VersionStatus | null;
+  updatedAt: string;
+}
+
+export interface PageVersion extends PageContent {
+  number: number;
+  status: VersionStatus;
+  editedBy: string;
+  editedAt: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  publishedAt: string | null;
+}
+
+export interface PageDetail {
+  id: string;
+  slug: string;
+  publishedVersion: number | null;
+  versions: PageVersion[];
+}
