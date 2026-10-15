@@ -34,6 +34,26 @@ public sealed class AccountController(IDispatcher dispatcher) : ControllerBase
     public async Task<IActionResult> RevokeSessions(CancellationToken ct) =>
         (await dispatcher.SendAsync(new RevokeAllSessionsCommand(), ct)).ToActionResult();
 
+    /// <summary>Everything the website holds about the signed-in person, as a JSON file.</summary>
+    [HttpGet("export")]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
+    [ProducesResponseType<PersonalDataExport>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Export(CancellationToken ct)
+    {
+        var export = await dispatcher.QueryAsync(new ExportMyDataQuery(), ct);
+        if (export.IsFailure) return export.ToActionResult();
+        Response.Headers.CacheControl = "no-store";
+        Response.Headers.ContentDisposition = $"attachment; filename=\"monitor-agent-data-{export.Value.ExportedAt:yyyy-MM-dd}.json\"";
+        return Ok(export.Value);
+    }
+
+    /// <summary>Deletes the signed-in customer's account for good. Asks for the password again.</summary>
+    [HttpPost("delete")]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Delete(PasswordRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new DeleteMyAccountCommand(request.Password), ct)).ToActionResult();
+
     [HttpGet("mfa/setup")]
     [ProducesResponseType<AuthenticatorSetup>(StatusCodes.Status200OK)]
     public async Task<IActionResult> MfaSetup(CancellationToken ct) => (await dispatcher.QueryAsync(new GetMfaSetupQuery(), ct)).ToActionResult();

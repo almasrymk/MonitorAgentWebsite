@@ -1,4 +1,4 @@
-import { Component, inject, input, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, input, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Api } from '../api';
@@ -10,6 +10,9 @@ import { errorText, Session } from '../session';
   imports: [FormsModule, TranslatePipe],
   template: `
     <h1>{{ 'account.title' | t }}</h1>
+    @if (deleted()) {
+      <p class="alert ok" role="status">{{ 'account.deleted' | t }}</p>
+    } @else {
     <div class="stack">
       @if (setup() === 'mfa' && !session.me()?.mfaEnabled) {
         <p class="alert" role="alert">{{ 'account.mfaRequired' | t }}</p>
@@ -93,7 +96,28 @@ import { errorText, Session } from '../session';
         <p class="muted">{{ 'account.revokeHelp' | t }}</p>
         <button class="btn secondary" type="button" (click)="revokeAll()" [disabled]="busy()">{{ 'account.revokeAll' | t }}</button>
       </section>
+
+      @if (isCustomer()) {
+        <section class="card" aria-labelledby="privacy-title">
+          <h2 id="privacy-title">{{ 'account.privacy' | t }}</h2>
+          <p class="muted">{{ 'account.exportHelp' | t }}</p>
+          <a class="btn secondary" href="/api/v1/account/export" download>{{ 'account.export' | t }}</a>
+
+          <h3 style="margin-top: 1.5rem">{{ 'account.deleteTitle' | t }}</h3>
+          <p class="muted" id="delete-help">{{ 'account.deleteHelp' | t }}</p>
+          <form (ngSubmit)="deleteAccount()" aria-describedby="delete-help">
+            <input type="email" name="username" autocomplete="username" [value]="session.me()?.email" hidden />
+            <div class="field">
+              <label for="delete-password">{{ 'common.password' | t }}</label>
+              <input id="delete-password" name="password" type="password" autocomplete="current-password" required [(ngModel)]="deletePassword" />
+            </div>
+            <label class="checkbox field"><input type="checkbox" name="confirm" required [(ngModel)]="deleteConfirmed" /> {{ 'account.deleteConfirm' | t }}</label>
+            <button class="btn danger" type="submit" [disabled]="busy() || !deleteConfirmed || !deletePassword">{{ 'account.delete' | t }}</button>
+          </form>
+        </section>
+      }
     </div>
+    }
   `,
 })
 export class AccountPage implements OnInit {
@@ -108,6 +132,14 @@ export class AccountPage implements OnInit {
   protected readonly failed = signal(false);
   protected readonly setupKey = signal('');
   protected readonly codes = signal<string[]>([]);
+  protected readonly deleted = signal(false);
+  /** Customers manage their own data here; staff accounts are closed by an admin. */
+  protected readonly isCustomer = computed(() => {
+    const roles = this.session.me()?.roles ?? [];
+    return roles.includes('Customer') && roles.length === 1;
+  });
+  protected deletePassword = '';
+  protected deleteConfirmed = false;
   protected current = '';
   protected next = '';
   protected code = '';
@@ -166,6 +198,16 @@ export class AccountPage implements OnInit {
       await this.api.post('/api/v1/account/sessions/revoke');
       await this.session.signOut();
       await this.router.navigateByUrl('/sign-in');
+    });
+  }
+
+  protected deleteAccount(): Promise<void> {
+    return this.act(async () => {
+      await this.api.post('/api/v1/account/delete', { password: this.deletePassword });
+      this.deletePassword = '';
+      // The server already ended the session; this clears the local copy and fetches a fresh CSRF token.
+      await this.session.signOut().catch(() => undefined);
+      this.deleted.set(true);
     });
   }
 

@@ -4,7 +4,8 @@ using MonitorAgent.SharedKernel;
 
 namespace MonitorAgent.Modules.Identity.Application;
 
-public sealed record UserAccount(Guid Id, string Email, string FullName, bool EmailConfirmed, bool MfaEnabled, IReadOnlyList<string> Roles);
+public sealed record UserAccount(Guid Id, string Email, string FullName, bool EmailConfirmed, bool MfaEnabled, IReadOnlyList<string> Roles,
+    DateTimeOffset CreatedAt = default);
 
 public sealed record AuthenticatorSetup(string SharedKey, string AuthenticatorUri);
 
@@ -27,6 +28,11 @@ internal interface IUserAccounts
     Task SetMfaEnabledAsync(Guid userId, bool enabled);
     Task<IReadOnlyList<string>> NewRecoveryCodesAsync(Guid userId);
     Task RevokeSessionsAsync(Guid userId);
+    /// <summary>
+    /// Replaces the name and email with placeholders, removes the password, authenticator and recovery codes, locks the
+    /// account for good and signs it out everywhere. The id stays so kept records (invoices) still point somewhere.
+    /// </summary>
+    Task AnonymizeAsync(Guid userId);
 }
 
 /// <summary>The caller's sign-in session (the auth cookie).</summary>

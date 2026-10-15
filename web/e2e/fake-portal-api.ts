@@ -80,6 +80,11 @@ export class FakePortalApi {
       return json(204);
     }
     if (key === 'GET /account/me') return json(200, this.me);
+    if (key === 'POST /account/delete') {
+      if (body.password !== 'correct horse battery') return problem(400, 'WRONG_PASSWORD');
+      this.signedIn = false;
+      return json(204);
+    }
     if (key === 'GET /company') return this.hasCompany ? json(200, this.company) : problem(404, 'NO_COMPANY');
     if (key === 'POST /company') {
       this.hasCompany = true;

@@ -12,6 +12,7 @@ public static class DependencyInjection
         services.AddHandlersFrom(assembly);
         services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
         services.AddScoped<CompanyView>();
+        services.AddScoped<IPersonalDataSource, CompanyPersonalData>();
         return services;
     }
 }
