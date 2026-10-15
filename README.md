@@ -48,6 +48,7 @@ src/
   Modules/                                    كل موديول هنا بالـ Domain/Application/Infrastructure بتوعه (ADR-001)
     Identity                                  التسجيل وتأكيد الإيميل والدخول والـ MFA والأدوار وسجل الأمان (ADR-005)
     Customers                                 حساب الشركة والفريق والدعوات، والعزل بين العملاء (ADR-006)
+    Licenses                                  قائمة الأسعار، وإصدار الرخص في LicensingPlatform، والأجهزة (ADR-007)
 tests/MonitorAgent.Tests                      Unit وArchitecture وAPI
 web/                                          Angular workspace: projects/site، portal، admin، shared (ADR-003)
 docs/adr/                                     قرارات المعمارية

@@ -17,6 +17,7 @@ public static class ResultMapping
         ErrorKind.Gone => StatusCodes.Status410Gone,
         ErrorKind.Locked => StatusCodes.Status423Locked,
         ErrorKind.TooManyRequests => StatusCodes.Status429TooManyRequests,
+        ErrorKind.Unavailable => StatusCodes.Status503ServiceUnavailable,
         _ => StatusCodes.Status400BadRequest,
     };
 
