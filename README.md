@@ -54,6 +54,7 @@ src/
 tests/MonitorAgent.Tests                      Unit وArchitecture وAPI
 web/                                          Angular workspace: projects/site، portal، admin، shared (ADR-003)
 docs/adr/                                     قرارات المعمارية
+docs/operations/                              النسخ الاحتياطي، والمراقبة، وقائمة الإطلاق
 ```
 
 ## الأمان
