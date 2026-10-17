@@ -80,6 +80,11 @@ export class FakePortalApi {
       return json(204);
     }
     if (key === 'GET /account/me') return json(200, this.me);
+    if (key === 'GET /account/mfa/setup')
+      return json(200, {
+        sharedKey: 'jbsw y3dp ehpk 3pxp',
+        authenticatorUri: 'otpauth://totp/Monitor%20Agent:owner%40example.test?secret=JBSWY3DPEHPK3PXP&issuer=Monitor%20Agent&digits=6',
+      });
     if (key === 'POST /account/delete') {
       if (body.password !== 'correct horse battery') return problem(400, 'WRONG_PASSWORD');
       this.signedIn = false;

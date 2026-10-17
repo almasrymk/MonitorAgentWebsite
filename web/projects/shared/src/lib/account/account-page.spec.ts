@@ -65,6 +65,8 @@ describe('AccountPage', () => {
     await page.startMfa();
     expect(page.setupKey()).toBe('ABCD EFGH');
     expect(api.get).toHaveBeenCalledWith('/api/v1/auth/csrf');
+    await settle(fixture);
+    expect(fixture.nativeElement.querySelector('ma-qr-code svg[role=img]')).not.toBeNull();
 
     api.post.mockResolvedValueOnce({ recoveryCodes: ['a1', 'b2'] });
     page.code = '123 456';
