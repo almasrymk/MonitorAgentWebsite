@@ -146,6 +146,17 @@ test('a customer sends a suggestion and sees our answers', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
 });
 
+test('a customer turns on two-step verification by scanning a QR code', async ({ page }) => {
+  const api = await open(page);
+  api.signedIn = true;
+  await page.goto(`${portal}/account`);
+  await page.getByRole('button', { name: 'Turn on' }).click();
+
+  await expect(page.getByRole('img', { name: 'QR code for your authenticator app' })).toBeVisible();
+  await expect(page.getByTestId('mfa-key')).toHaveText('jbsw y3dp ehpk 3pxp');
+  await expectAccessible(page);
+});
+
 test('a customer downloads their data and deletes their account', async ({ page }) => {
   const api = await open(page);
   api.signedIn = true;

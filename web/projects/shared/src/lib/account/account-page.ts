@@ -3,11 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Api } from '../api';
 import { I18n, TranslatePipe } from '../i18n';
+import { QrCode } from '../qr-code';
 import { errorText, Session } from '../session';
 
 @Component({
   selector: 'ma-account',
-  imports: [FormsModule, TranslatePipe],
+  imports: [FormsModule, QrCode, TranslatePipe],
   template: `
     <h1>{{ 'account.title' | t }}</h1>
     @if (deleted()) {
@@ -76,6 +77,8 @@ import { errorText, Session } from '../session';
             <button class="btn secondary" type="submit" [disabled]="busy()" style="align-self: flex-end">{{ 'account.mfaDisable' | t }}</button>
           </form>
         } @else if (setupKey()) {
+          <p>{{ 'account.mfaScan' | t }}</p>
+          <ma-qr-code [text]="setupUri()" [label]="'account.mfaQr' | t" />
           <p>{{ 'account.mfaKey' | t }}</p>
           <p class="mono" data-testid="mfa-key">{{ setupKey() }}</p>
           <form class="row" (ngSubmit)="enableMfa()">
@@ -131,6 +134,7 @@ export class AccountPage implements OnInit {
   protected readonly message = signal('');
   protected readonly failed = signal(false);
   protected readonly setupKey = signal('');
+  protected readonly setupUri = signal('');
   protected readonly codes = signal<string[]>([]);
   protected readonly deleted = signal(false);
   /** Customers manage their own data here; staff accounts are closed by an admin. */
@@ -164,6 +168,7 @@ export class AccountPage implements OnInit {
       const setup = await this.api.get<{ sharedKey: string; authenticatorUri: string }>('/api/v1/account/mfa/setup');
       await this.session.refreshCsrf();
       this.setupKey.set(setup.sharedKey);
+      this.setupUri.set(setup.authenticatorUri);
     });
   }
 

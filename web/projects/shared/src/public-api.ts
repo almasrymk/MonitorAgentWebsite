@@ -9,6 +9,7 @@ export * from './lib/session';
 export * from './lib/errors';
 export * from './lib/loader';
 export * from './lib/ui';
+export * from './lib/qr-code';
 export * from './lib/shell';
 export * from './lib/support';
 export * from './lib/content';
