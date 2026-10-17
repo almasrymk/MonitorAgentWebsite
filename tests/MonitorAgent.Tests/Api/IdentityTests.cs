@@ -186,6 +186,33 @@ public class IdentityTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task A_mail_outage_does_not_turn_a_saved_change_into_an_error()
+    {
+        var client = factory.CreateTestClient();
+        var email = NewEmail();
+        var password = await client.RegisterConfirmedAsync(email);
+        await client.SignInAsync(email, password);
+        factory.Emails.FailFor(email);
+
+        var changed = await client.PostAsync("/api/v1/account/change-password", new { currentPassword = password, newPassword = "changed passphrase here" });
+        var forgot = await client.PostAsync("/api/v1/auth/forgot-password", new { email });
+        var other = NewEmail();
+        factory.Emails.FailFor(other);
+        var registered = await client.PostAsync("/api/v1/auth/register", new { email = other, password = "another long password", fullName = "Someone" });
+
+        Assert.Equal(HttpStatusCode.NoContent, changed.StatusCode);
+        Assert.True(forgot.IsSuccessStatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, registered.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDb>();
+        var userId = db.Users.Single(u => u.Email == email).Id;
+        var types = db.SecurityEvents.Where(e => e.UserId == userId).Select(e => e.Type.ToString()).ToList();
+        Assert.Contains("PasswordChanged", types);
+        Assert.Contains("PasswordResetRequested", types);
+        Assert.Single(db.Users.Where(u => u.Email == other));
+    }
+
+    [Fact]
     public async Task Sign_out_everywhere_ends_every_session()
     {
         var phone = factory.CreateTestClient();

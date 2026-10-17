@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using MonitorAgent.BuildingBlocks.Application;
 using MonitorAgent.Modules.Customers.Domain;
 using MonitorAgent.Modules.Identity.Contracts;
@@ -52,7 +53,8 @@ internal sealed class ChangeMemberRoleValidator : AbstractValidator<ChangeMember
 }
 
 internal sealed class InviteMemberHandler(
-    ICustomerAccounts accounts, ICurrentUser me, IUserDirectory users, IEmailSender email, PortalLinks portal, TimeProvider clock)
+    ICustomerAccounts accounts, ICurrentUser me, IUserDirectory users, IEmailSender email, PortalLinks portal, TimeProvider clock,
+    ILogger<InviteMemberHandler> logger)
     : ICommandHandler<InviteMemberCommand, Result<InvitationDto>>
 {
     public async Task<Result<InvitationDto>> HandleAsync(InviteMemberCommand command, CancellationToken ct)
@@ -69,7 +71,7 @@ internal sealed class InviteMemberHandler(
         await accounts.SaveAsync(ct);
         var inviter = people.TryGetValue(userId, out var p) ? p.FullName : "";
         var link = portal.To($"invitations/accept?token={Uri.EscapeDataString(token)}");
-        await email.SendAsync(Emails.Invitation(invited.Value.Email, inviter, account.Name, link), ct);
+        await email.TrySendAsync(Emails.Invitation(invited.Value.Email, inviter, account.Name, link), logger, ct);
         return new InvitationDto(invited.Value.Id, invited.Value.Email, invited.Value.Role, invited.Value.ExpiresAt);
     }
 }

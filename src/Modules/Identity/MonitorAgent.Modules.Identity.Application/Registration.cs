@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using MonitorAgent.BuildingBlocks.Application;
 using MonitorAgent.Modules.Identity.Contracts;
 using MonitorAgent.Modules.Identity.Domain;
@@ -41,7 +42,7 @@ internal sealed class ResendConfirmationValidator : AbstractValidator<ResendConf
     public ResendConfirmationValidator() => RuleFor(x => x.Email).NotEmpty().MaximumLength(256).EmailAddress();
 }
 
-internal sealed class RegisterHandler(IUserAccounts users, IEmailSender email, IIdentityLinks links, ISecurityLog log)
+internal sealed class RegisterHandler(IUserAccounts users, IEmailSender email, IIdentityLinks links, ISecurityLog log, ILogger<RegisterHandler> logger)
     : ICommandHandler<RegisterCommand, Result>
 {
     public async Task<Result> HandleAsync(RegisterCommand command, CancellationToken ct)
@@ -49,7 +50,7 @@ internal sealed class RegisterHandler(IUserAccounts users, IEmailSender email, I
         var existing = await users.FindByEmailAsync(command.Email);
         if (existing is not null)
         {
-            await email.SendAsync(Emails.AlreadyRegistered(existing.Email), ct);
+            await email.TrySendAsync(Emails.AlreadyRegistered(existing.Email), logger, ct);
             return Result.Success();
         }
 
@@ -58,8 +59,9 @@ internal sealed class RegisterHandler(IUserAccounts users, IEmailSender email, I
 
         var user = created.Value;
         var token = await users.CreateEmailConfirmationTokenAsync(user.Id);
-        await email.SendAsync(Emails.ConfirmEmail(user.Email, user.FullName, links.ConfirmEmail(user.Id, token)), ct);
         await log.RecordAsync(user.Id, SecurityEventType.Registered, ct);
+        // The account exists either way; if this email is lost the person asks for it again from the sign-in page.
+        await email.TrySendAsync(Emails.ConfirmEmail(user.Email, user.FullName, links.ConfirmEmail(user.Id, token)), logger, ct);
         return Result.Success();
     }
 }
@@ -74,7 +76,7 @@ internal sealed class ConfirmEmailHandler(IUserAccounts users, ISecurityLog log)
     }
 }
 
-internal sealed class ResendConfirmationHandler(IUserAccounts users, IEmailSender email, IIdentityLinks links)
+internal sealed class ResendConfirmationHandler(IUserAccounts users, IEmailSender email, IIdentityLinks links, ILogger<ResendConfirmationHandler> logger)
     : ICommandHandler<ResendConfirmationCommand, Result>
 {
     public async Task<Result> HandleAsync(ResendConfirmationCommand command, CancellationToken ct)
@@ -82,7 +84,7 @@ internal sealed class ResendConfirmationHandler(IUserAccounts users, IEmailSende
         var user = await users.FindByEmailAsync(command.Email);
         if (user is null || user.EmailConfirmed) return Result.Success();
         var token = await users.CreateEmailConfirmationTokenAsync(user.Id);
-        await email.SendAsync(Emails.ConfirmEmail(user.Email, user.FullName, links.ConfirmEmail(user.Id, token)), ct);
+        await email.TrySendAsync(Emails.ConfirmEmail(user.Email, user.FullName, links.ConfirmEmail(user.Id, token)), logger, ct);
         return Result.Success();
     }
 }
