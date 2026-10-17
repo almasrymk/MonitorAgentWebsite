@@ -12,6 +12,9 @@ public sealed class SupportModuleOptions
 {
     /// <summary>Migrate (production and development), EnsureCreated (tests) or None.</summary>
     public string DatabaseInitialization { get; set; } = "None";
+
+    /// <summary>Who hears about new demo requests from the public site, for example sales@. Empty: only the admin panel shows them.</summary>
+    public string? DemoRequestsEmail { get; set; }
 }
 
 public static class SupportModule
@@ -20,6 +23,7 @@ public static class SupportModule
     {
         var options = configuration.GetSection("Support").Get<SupportModuleOptions>() ?? new SupportModuleOptions();
         services.AddSingleton(options);
+        services.AddSingleton(new SupportNotifications(options.DemoRequestsEmail));
         services.AddDbContext<SupportDb>(db => db.UseSqlServer(configuration.GetConnectionString("Default"),
             sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", SupportDb.Schema)));
         services.AddScoped<ISupportStore, SupportStore>();

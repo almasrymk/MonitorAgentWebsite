@@ -21,6 +21,10 @@ public interface ISupportStore
     Task<PagedResult<Suggestion>> SuggestionsAsync(SuggestionStatus? status, int page, int pageSize, CancellationToken ct);
     void Add(Ticket ticket);
     void Add(Suggestion suggestion);
+    Task<DemoRequest?> DemoRequestAsync(Guid id, CancellationToken ct);
+    Task<bool> HasOpenDemoRequestAsync(string email, DateTimeOffset since, CancellationToken ct);
+    Task<PagedResult<DemoRequest>> DemoRequestsAsync(DemoRequestStatus? status, int page, int pageSize, CancellationToken ct);
+    void Add(DemoRequest request);
     Task SaveAsync(CancellationToken ct);
 }
 
@@ -336,6 +340,23 @@ internal static class SupportEmails
 
         Support replied to your ticket "{subject}". Read and answer it here:
         {link}
+        """);
+
+    /// <summary>To sales. The visitor's own words are quoted as they wrote them; the validator keeps line breaks out of the one-line fields.</summary>
+    public static EmailMessage DemoRequested(string to, DemoRequest r) => new(to,
+        $"طلب عرض توضيحي من {r.Company} | Demo request from {r.Company}",
+        $"""
+        Name / الاسم: {r.Name}
+        Company / الشركة: {r.Company}
+        Email / البريد: {r.Email}
+        Phone / الهاتف: {r.Phone ?? "-"}
+        Sites / عدد المواقع: {r.Sites?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "-"}
+        Language / اللغة: {r.Language}
+
+        {r.Message ?? ""}
+
+        افتح "طلبات العرض" في لوحة الإدارة لتسجيل المتابعة.
+        Open "Demo requests" in the admin panel to record the follow-up.
         """);
 }
 

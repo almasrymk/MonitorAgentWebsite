@@ -12,6 +12,7 @@ public sealed class SupportDb(DbContextOptions<SupportDb> options) : DbContext(o
 
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<Suggestion> Suggestions => Set<Suggestion>();
+    public DbSet<DemoRequest> DemoRequests => Set<DemoRequest>();
 
     private static readonly ValueConverter<DateTimeOffset, DateTime> Utc =
         new(v => v.UtcDateTime, v => new DateTimeOffset(DateTime.SpecifyKind(v, DateTimeKind.Utc)));
@@ -63,6 +64,25 @@ public sealed class SupportDb(DbContextOptions<SupportDb> options) : DbContext(o
             s.HasIndex(x => x.CompanyId);
             s.HasIndex(x => new { x.Status, x.CreatedAt });
         });
+        modelBuilder.Entity<DemoRequest>(r =>
+        {
+            r.ToTable("DemoRequests");
+            r.HasKey(x => x.Id);
+            r.Property(x => x.Id).ValueGeneratedNever();
+            r.Ignore(x => x.DomainEvents);
+            r.Property(x => x.Name).HasMaxLength(DemoRequest.MaxName);
+            r.Property(x => x.Company).HasMaxLength(DemoRequest.MaxCompany);
+            r.Property(x => x.Email).HasMaxLength(DemoRequest.MaxEmail);
+            r.Property(x => x.Phone).HasMaxLength(DemoRequest.MaxPhone);
+            r.Property(x => x.Message).HasMaxLength(DemoRequest.MaxMessage);
+            r.Property(x => x.Language).HasMaxLength(2);
+            r.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            r.Property(x => x.StaffNote).HasMaxLength(DemoRequest.MaxNote);
+            r.Property(x => x.CreatedAt).HasConversion(Utc);
+            r.Property(x => x.HandledAt).HasConversion(NullableUtc);
+            r.HasIndex(x => new { x.Status, x.CreatedAt });
+            r.HasIndex(x => new { x.Email, x.CreatedAt });
+        });
     }
 }
 
@@ -99,6 +119,21 @@ internal sealed class SupportStore(SupportDb db) : ISupportStore
     public void Add(Ticket ticket) => db.Tickets.Add(ticket);
 
     public void Add(Suggestion suggestion) => db.Suggestions.Add(suggestion);
+
+    public Task<DemoRequest?> DemoRequestAsync(Guid id, CancellationToken ct) => db.DemoRequests.SingleOrDefaultAsync(r => r.Id == id, ct);
+
+    public Task<bool> HasOpenDemoRequestAsync(string email, DateTimeOffset since, CancellationToken ct) =>
+        db.DemoRequests.AnyAsync(r => r.Email == email && r.Status == DemoRequestStatus.New && r.CreatedAt >= since, ct);
+
+    /// <summary>New requests oldest first, so the visitor waiting longest is at the top; the rest newest first.</summary>
+    public async Task<PagedResult<DemoRequest>> DemoRequestsAsync(DemoRequestStatus? status, int page, int pageSize, CancellationToken ct)
+    {
+        var query = db.DemoRequests.Where(r => status == null || r.Status == status);
+        var ordered = status == DemoRequestStatus.New ? query.OrderBy(r => r.CreatedAt) : query.OrderByDescending(r => r.CreatedAt);
+        return new PagedResult<DemoRequest>(await ordered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct), page, pageSize, await query.CountAsync(ct));
+    }
+
+    public void Add(DemoRequest request) => db.DemoRequests.Add(request);
 
     public Task SaveAsync(CancellationToken ct) => db.SaveChangesAsync(ct);
 }

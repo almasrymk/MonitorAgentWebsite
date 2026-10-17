@@ -10,6 +10,7 @@ const langs = async () => LANGS.map((lang) => ({ lang }));
 export const serverRoutes: ServerRoute[] = [
   { path: '', renderMode: RenderMode.Server },
   { path: ':lang', renderMode: RenderMode.Prerender, getPrerenderParams: langs },
+  { path: ':lang/demo', renderMode: RenderMode.Prerender, getPrerenderParams: langs },
   { path: ':lang/pricing', renderMode: RenderMode.Server },
   { path: ':lang/download', renderMode: RenderMode.Server },
   { path: ':lang/terms', renderMode: RenderMode.Server },

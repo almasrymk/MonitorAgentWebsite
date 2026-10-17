@@ -99,7 +99,7 @@ test('an expired MFA session explains what to do', async ({ page }) => {
 });
 
 for (const lang of ['ar', 'en'] as const) {
-  for (const path of ['', '/orders', '/releases', '/support', '/support/t1', '/suggestions', '/customers', '/customers/c1', '/reports', '/audit', '/content', '/content/p1', '/content/p2', '/security', '/account']) {
+  for (const path of ['', '/orders', '/releases', '/support', '/support/t1', '/suggestions', '/demo-requests', '/customers', '/customers/c1', '/reports', '/audit', '/content', '/content/p1', '/content/p2', '/security', '/account']) {
     test(`${lang} ${path || '/'} has no accessibility violations`, async ({ page }) => {
       signedIn(await open(page, lang));
       await page.goto(`${admin}${path}`);
@@ -132,6 +132,21 @@ test('support answers a suggestion', async ({ page }) => {
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('status')).toContainText('Weekly report');
   expect(api.suggestions[0]).toMatchObject({ status: 'Planned', staffNote: 'Coming in 2.6.' });
+});
+
+test('sales records the follow-up on a demo request', async ({ page }) => {
+  const api = signedIn(await open(page));
+  await page.goto(`${admin}/demo-requests`);
+  const card = page.getByRole('article').filter({ hasText: 'Nile Gas Stations' });
+  await expect(card.getByRole('link', { name: 'mona@nilegas.example' })).toHaveAttribute('href', 'mailto:mona@nilegas.example');
+  await expect(card).toContainText('50 sites');
+  await card.getByLabel('Status', { exact: true }).selectOption('Contacted');
+  await card.getByLabel('Follow-up note (staff only)').fill('Demo booked for Sunday.');
+  await card.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('status')).toContainText('Nile Gas Stations');
+  expect(api.demoRequests[0]).toMatchObject({ status: 'Contacted', staffNote: 'Demo booked for Sunday.' });
+  // The default view shows only requests still waiting, so the handled one leaves it.
+  await expect(page.getByRole('article')).toHaveCount(0);
 });
 
 test('a reviewer publishes the version an editor sent', async ({ page }) => {

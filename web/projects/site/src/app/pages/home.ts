@@ -273,7 +273,10 @@ import { useSeo } from '../seo';
           <h2>{{ 'home.finalTitle' | t }}</h2>
           <p class="muted">{{ 'home.finalBody' | t }}</p>
         </div>
-        <a class="btn" [routerLink]="['/', i18n.lang(), 'pricing']">{{ 'home.ctaPrimary' | t }}</a>
+        <div class="cta-row">
+          <a class="btn" [routerLink]="['/', i18n.lang(), 'demo']">{{ 'home.ctaDemo' | t }}</a>
+          <a class="btn secondary" [routerLink]="['/', i18n.lang(), 'pricing']">{{ 'home.ctaPrimary' | t }}</a>
+        </div>
       </div>
     </section>
   `,

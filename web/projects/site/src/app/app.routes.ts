@@ -13,6 +13,7 @@ export const routes: Routes = [
     children: [
       { path: '', loadComponent: () => import('./pages/home').then((m) => m.HomePage) },
       { path: 'pricing', loadComponent: () => import('./pages/pricing').then((m) => m.PricingPage) },
+      { path: 'demo', loadComponent: () => import('./pages/demo').then((m) => m.DemoPage) },
       { path: 'download', loadComponent: () => import('./pages/download').then((m) => m.DownloadPage) },
       { path: 'terms', data: { page: 'terms' }, resolve: { cms: legalResolver }, loadComponent: () => import('./pages/legal').then((m) => m.LegalPage) },
       { path: 'privacy', data: { page: 'privacy' }, resolve: { cms: legalResolver }, loadComponent: () => import('./pages/legal').then((m) => m.LegalPage) },
