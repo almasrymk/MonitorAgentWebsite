@@ -27,6 +27,9 @@ public static class RateLimitPolicies
 {
     /// <summary>Sign-in, registration and recovery endpoints: a small budget per client IP.</summary>
     public const string Auth = "auth";
+
+    /// <summary>Forms anyone can send from the public site, such as a demo request: a smaller budget still.</summary>
+    public const string PublicForm = "public-form";
 }
 
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount);

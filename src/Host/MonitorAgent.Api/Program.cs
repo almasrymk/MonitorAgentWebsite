@@ -60,6 +60,8 @@ builder.Services.AddRateLimiter(options =>
         PerClientIp(http, builder.Configuration.GetValue("RateLimiting:PermitPerMinute", 300)));
     options.AddPolicy(RateLimitPolicies.Auth, http =>
         PerClientIp(http, builder.Configuration.GetValue("RateLimiting:AuthPermitPerMinute", 10)));
+    options.AddPolicy(RateLimitPolicies.PublicForm, http =>
+        PerClientIp(http, builder.Configuration.GetValue("RateLimiting:FormPermitPerMinute", 3)));
 });
 
 var app = builder.Build();

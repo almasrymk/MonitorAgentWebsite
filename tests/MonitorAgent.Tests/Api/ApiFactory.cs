@@ -28,6 +28,7 @@ namespace MonitorAgent.Tests.Api;
 public class ApiFactory : WebApplicationFactory<Program>
 {
     public const string AdminEmail = "admin@monitoragent.test";
+    public const string SalesEmail = "sales@monitoragent.test";
     public const string AdminPassword = "Admin-Passw0rd-For-Tests";
 
     // Each module's database is a temp file, so every request gets its own connection and real locking:
@@ -77,6 +78,8 @@ public class ApiFactory : WebApplicationFactory<Program>
         ["Identity:BootstrapAdminPassword"] = AdminPassword,
         ["RateLimiting:PermitPerMinute"] = "100000",
         ["RateLimiting:AuthPermitPerMinute"] = "100000",
+        ["RateLimiting:FormPermitPerMinute"] = "100000",
+        ["Support:DemoRequestsEmail"] = SalesEmail,
     };
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

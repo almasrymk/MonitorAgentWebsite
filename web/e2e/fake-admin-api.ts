@@ -37,6 +37,13 @@ export class FakeAdminApi {
   readonly suggestions = [
     { id: 's1', title: 'Weekly report', body: 'Email me a summary.', status: 'New', staffNote: null as string | null, createdAt: '2026-10-10T10:00:00Z', companyName: 'Nile Traders' },
   ];
+  readonly demoRequests = [
+    {
+      id: 'd1', name: 'Mona Adel', company: 'Nile Gas Stations', email: 'mona@nilegas.example', phone: '+20 100 000 0000', sites: 50,
+      message: 'We run 50 stations and want to see the reports.', language: 'ar', status: 'New', staffNote: null as string | null,
+      createdAt: '2026-10-16T09:00:00Z', handledAt: null as string | null,
+    },
+  ];
   readonly pages = [
     {
       id: 'p1', slug: 'about-us', publishedVersion: 1 as number | null,
@@ -135,6 +142,17 @@ export class FakeAdminApi {
       }
       if (ticketRoute[3] === '/close') ticket.status = 'Closed';
       return json(200, ticket);
+    }
+    if (key === 'GET /admin/support/demo-requests') {
+      const status = url.searchParams.get('status');
+      const items = this.demoRequests.filter((r) => !status || r.status === status);
+      return json(200, { items, page: 1, pageSize: 25, totalCount: items.length });
+    }
+    const demo = key.match(/^PUT \/admin\/support\/demo-requests\/(\w+)$/);
+    if (demo) {
+      const request = this.demoRequests.find((x) => x.id === demo[1])!;
+      Object.assign(request, { status: body.status, staffNote: body.note, handledAt: '2026-10-17T10:00:00Z' });
+      return json(200, request);
     }
     if (key === 'GET /admin/support/suggestions') return json(200, { items: this.suggestions, page: 1, pageSize: 25, totalCount: this.suggestions.length });
     const answer = key.match(/^PUT \/admin\/support\/suggestions\/(\w+)$/);
