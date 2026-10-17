@@ -233,7 +233,18 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "tsConfig": "projects/shared/tsconfig.spec.json"
+            "tsConfig": "projects/shared/tsconfig.spec.json",
+            "coverageInclude": ["projects/shared/src/lib/**/*.ts"],
+            "coverageExclude": [
+              "projects/shared/src/lib/**/*.spec.ts",
+              "projects/shared/src/lib/testing.ts"
+            ],
+            "coverageThresholds": {
+              "statements": 70,
+              "branches": 70,
+              "functions": 70,
+              "lines": 70
+            }
           }
         }
       }

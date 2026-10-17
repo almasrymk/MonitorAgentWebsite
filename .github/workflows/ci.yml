@@ -12,8 +12,8 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           global-json-file: global.json
       - name: Restore (fails on high or critical vulnerable packages)
@@ -21,7 +21,34 @@ jobs:
       - name: Build (warnings are errors)
         run: dotnet build --no-restore -c Release
       - name: Unit, architecture and API tests
-        run: dotnet test --no-build -c Release --collect:"XPlat Code Coverage"
+        run: dotnet test --no-build -c Release --collect:"XPlat Code Coverage" --results-directory coverage
+      - name: Coverage of Domain and Application is at least 80%
+        run: python3 scripts/ci/coverage-gate.py "$(find coverage -name coverage.cobertura.xml | head -1)" 80
+
+  # The same API tests on a real SQL Server, each test class in its own database built by the real migrations: catches
+  # what SQLite can't (migrations, SQL Server's own errors, locking and isolation, date and decimal handling).
+  backend-sqlserver:
+    runs-on: ubuntu-latest
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: Ci-${{ github.run_id }}-Aa1
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Ci-${{ github.run_id }}-Aa1 -Q 'SELECT 1'"
+          --health-interval 10s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          global-json-file: global.json
+      - name: API tests on SQL Server
+        run: dotnet test -c Release
+        env:
+          TEST_SQLSERVER: Server=localhost,1433;User Id=sa;Password=Ci-${{ github.run_id }}-Aa1;TrustServerCertificate=True
 
   web:
     runs-on: ubuntu-latest
@@ -29,8 +56,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -42,7 +69,8 @@ jobs:
           npm audit --audit-level=critical
       - name: Tests
         run: |
-          for p in site portal admin shared; do npx ng test $p --watch=false; done
+          for p in site portal admin; do npx ng test $p --watch=false; done
+          npx ng test shared --watch=false --coverage
       - name: Build
         run: |
           for p in shared site portal admin; do npx ng build $p; done
@@ -54,7 +82,7 @@ jobs:
           CI: 'true'
       - name: Lighthouse (performance 90+, LCP under 2.5 s, CLS under 0.1 on the public site)
         run: npx --yes @lhci/cli@0.15.1 autorun
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: lighthouse
@@ -64,7 +92,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: API image builds
         run: docker build -f src/Host/MonitorAgent.Api/Dockerfile -t monitoragent-api:ci .
       - name: Image has no fixable critical or high vulnerabilities (Trivy)
@@ -82,12 +110,26 @@ jobs:
           output-file: sbom-api.spdx.json
           upload-artifact: true
 
+  # Semgrep's community rules for C#, TypeScript and secrets. Fails on ERROR findings (the plan's zero Critical/High);
+  # warnings stay visible in the log. CodeQL (codeql.yml) covers the deeper data-flow checks.
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install Semgrep
+        run: python3 -m pip install --user semgrep==1.180.0
+      - name: Scan
+        run: >-
+          semgrep scan --metrics off --error --severity ERROR
+          --config p/csharp --config p/typescript --config p/secrets --config p/github-actions
+          --exclude "**/Migrations/**" --exclude "**/*.spec.ts"
+
   secrets-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
