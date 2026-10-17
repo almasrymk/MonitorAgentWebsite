@@ -1,5 +1,8 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace MonitorAgent.Tests.Api;
 
@@ -61,5 +64,59 @@ public class HostTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         Assert.Equal("http://localhost:4200", ok.Headers.GetValues("Access-Control-Allow-Origin").Single());
         Assert.False(blocked.Headers.Contains("Access-Control-Allow-Origin"));
+    }
+}
+
+/// <summary>An API behind a reverse proxy on 10.0.0.0/8 that allows two sign-in attempts per minute per visitor.</summary>
+public sealed class BehindProxyFactory : ApiFactory
+{
+    protected override IDictionary<string, string?> Settings
+    {
+        get
+        {
+            var settings = base.Settings;
+            settings["ReverseProxy:KnownNetworks:0"] = "10.0.0.0/8";
+            settings["RateLimiting:AuthPermitPerMinute"] = "2";
+            return settings;
+        }
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        // TestServer has no socket; every request arrives as if from the proxy at 10.0.0.5.
+        builder.ConfigureServices(services => services.AddSingleton<IStartupFilter, FromProxy>());
+    }
+
+    private sealed class FromProxy : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            app.Use((http, nextMiddleware) =>
+            {
+                http.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("10.0.0.5");
+                return nextMiddleware(http);
+            });
+            next(app);
+        };
+    }
+}
+
+public class BehindProxyTests(BehindProxyFactory factory) : IClassFixture<BehindProxyFactory>
+{
+    private async Task<HttpStatusCode> LoginFromAsync(string? visitor)
+    {
+        var client = factory.CreateTestClient();
+        if (visitor is not null) client.Http.DefaultRequestHeaders.Add("X-Forwarded-For", visitor);
+        return (await client.LoginAsync("nobody@example.test", "not a real password")).StatusCode;
+    }
+
+    [Fact]
+    public async Task Each_visitor_behind_the_proxy_gets_their_own_sign_in_budget()
+    {
+        for (var i = 0; i < 2; i++) Assert.NotEqual(HttpStatusCode.TooManyRequests, await LoginFromAsync("203.0.113.7"));
+        Assert.Equal(HttpStatusCode.TooManyRequests, await LoginFromAsync("203.0.113.7"));
+
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, await LoginFromAsync("198.51.100.20"));
     }
 }
