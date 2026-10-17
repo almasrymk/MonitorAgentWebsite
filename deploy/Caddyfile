@@ -1,0 +1,56 @@
+# One domain for everything (ADR-019). Caddy gets and renews the TLS certificate by itself.
+#   /api/*, /updates/*  -> the API (and /health/* for the uptime monitor)
+#   /portal/, /admin/   -> the built single-page apps, served here
+#   everything else     -> the website's server-side renderer
+{
+	email {$ACME_EMAIL}
+}
+
+(spa) {
+	header {
+		# The same policy the website sends; the one hash is Angular's handler that switches the stylesheet on.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-hashes' 'sha256-MhtPZXr7+LpJUY5qtMutB+qWfQtMaPccfe7QXtCcEYc='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		Cross-Origin-Opener-Policy same-origin
+		X-Robots-Tag noindex
+	}
+	# File names carry a content hash, so they can be cached for good; index.html must be checked every time.
+	@hashed path_regexp -[A-Z0-9]{8}\.(js|css)$
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	@unhashed not path_regexp -[A-Z0-9]{8}\.(js|css)$
+	header @unhashed Cache-Control no-cache
+	try_files {path} /index.html
+	file_server
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		-Server
+	}
+
+	@backend path /api/* /updates/* /health/*
+	handle @backend {
+		reverse_proxy api:8080
+	}
+
+	redir /portal /portal/ 308
+	handle_path /portal/* {
+		root * /srv/portal
+		import spa
+	}
+
+	redir /admin /admin/ 308
+	handle_path /admin/* {
+		root * /srv/admin
+		import spa
+	}
+
+	handle {
+		reverse_proxy site:4000
+	}
+}

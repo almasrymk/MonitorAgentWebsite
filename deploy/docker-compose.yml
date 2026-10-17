@@ -1,0 +1,63 @@
+# Production stack on one server (ADR-019). From this folder:
+#   cp env.example .env      # then fill it in; .env never goes into git
+#   docker compose up -d --build
+# With SQL Server on the same machine instead of a managed database: docker compose --profile db up -d --build
+name: monitoragent
+
+services:
+  edge:
+    build: { context: .., dockerfile: deploy/web.Dockerfile, target: edge }
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [site, api]
+    networks: [front]
+
+  site:
+    build: { context: .., dockerfile: deploy/web.Dockerfile, target: site }
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8080
+      NG_ALLOWED_HOSTS: ${SITE_HOST:?Set SITE_HOST in .env}
+    networks: [front]
+
+  api:
+    build: { context: .., dockerfile: src/Host/MonitorAgent.Api/Dockerfile }
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      # Only the edge may tell the API who the visitor is (X-Forwarded-For) and that the request came over HTTPS.
+      ReverseProxy__KnownNetworks__0: 172.30.0.0/24
+    networks: [front, back]
+
+  sqlserver:
+    profiles: [db]
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD:-}
+    volumes:
+      - sqldata:/var/opt/mssql
+    networks: [back]
+
+networks:
+  front:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+  back: {}
+
+volumes:
+  caddy-data:
+  caddy-config:
+  sqldata:

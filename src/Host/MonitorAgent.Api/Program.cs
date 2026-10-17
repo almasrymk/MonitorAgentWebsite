@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using MonitorAgent.Api.Web;
 using MonitorAgent.BuildingBlocks.Application;
@@ -53,6 +54,17 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
     .AllowAnyMethod()
     .AllowCredentials()));
 
+// Behind the reverse proxy (Caddy, App Service, Front Door) the connection comes from the proxy. Trust its
+// X-Forwarded-For/Proto only from the networks listed here, so rate limits, logs and HTTPS see the real visitor.
+var proxyNetworks = builder.Configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? [];
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+    foreach (var network in proxyNetworks) options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+});
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -66,6 +78,7 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+if (proxyNetworks.Length > 0) app.UseForwardedHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseSecurityHeaders();

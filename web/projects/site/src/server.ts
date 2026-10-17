@@ -12,7 +12,10 @@ import { join } from 'node:path';
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
-const angularApp = new AngularNodeAppEngine();
+// The site is only reachable through the edge (deploy/Caddyfile), which overwrites these headers with what it saw.
+// Rendering passes the visitor's address on to the API (forward-visitor.ts); the host is still checked against
+// NG_ALLOWED_HOSTS.
+const angularApp = new AngularNodeAppEngine({ trustProxyHeaders: ['x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host'] });
 
 app.disable('x-powered-by');
 app.use(compression());

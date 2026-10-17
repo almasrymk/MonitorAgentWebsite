@@ -109,6 +109,53 @@ jobs:
           format: spdx-json
           output-file: sbom-api.spdx.json
           upload-artifact: true
+      - name: Web images build (site renderer and edge)
+        run: |
+          docker build -f deploy/web.Dockerfile --target site -t monitoragent-site:ci .
+          docker build -f deploy/web.Dockerfile --target edge -t monitoragent-edge:ci .
+      - name: Site image has no fixable critical or high vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: monitoragent-site:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Edge image has no fixable critical or high vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: monitoragent-edge:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+
+  # The whole production stack from deploy/ (Caddy, site, API, SQL Server), checked through the front door.
+  stack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Start the stack
+        working-directory: deploy
+        run: |
+          sa="Ci-$(openssl rand -hex 12)-1a!"
+          {
+            echo "DOMAIN=localhost"
+            echo "ACME_EMAIL=ops@example.test"
+            echo "SITE_HOST=localhost"
+            echo "SQL_SA_PASSWORD=$sa"
+            echo "ConnectionStrings__Default=Server=sqlserver;Database=MonitorAgentWebsite;User Id=sa;Password=$sa;TrustServerCertificate=True"
+            echo "Portal__Url=https://localhost/portal"
+            echo "Email__Provider=Smtp"
+            echo "Email__Smtp__Host=smtp.invalid"
+            echo "Email__Smtp__From=no-reply@example.test"
+            echo "Licenses__Platform__BaseUrl=http://licensing-platform.invalid"
+          } > .env
+          docker compose --profile db up -d --build
+      - name: Smoke test through the front door
+        run: scripts/ci/stack-smoke.sh
+      - name: Logs
+        if: failure()
+        working-directory: deploy
+        run: docker compose --profile db logs --no-color
 
   # Semgrep's community rules for C#, TypeScript and secrets. Fails on ERROR findings (the plan's zero Critical/High);
   # warnings stay visible in the log. CodeQL (codeql.yml) covers the deeper data-flow checks.

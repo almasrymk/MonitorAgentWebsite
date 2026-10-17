@@ -5,7 +5,7 @@
 ## 1. قرارات مفتوحة
 - [ ] 👤 مزوّد الدفع: Paymob (المقترح، للعملاء في مصر بالجنيه) أو Stripe. وبعدها عقد التاجر وبيانات الـ API.
 - [ ] 👤 طريقة دخول الموقع على LicensingPlatform: حساب خدمة (المقترح) بصلاحيات إصدار الرخص بس.
-- [ ] 👤 الاستضافة: Azure (المقترح: App Service + Azure SQL + Key Vault) أو سيرفر خاص بـ Docker.
+- [ ] 👤 الاستضافة: Azure (المقترح: Container Apps أو App Service + Azure SQL + Key Vault) أو سيرفر خاص بـ Docker. الاتنين بنفس الصور اللي في `deploy/` ([deploy.md](deploy.md)، ADR-019).
 - [ ] 👤 الدومين، والإيميل اللي بيبعت منه الموقع (SPF و DKIM و DMARC).
 - [ ] 👤 تغيير مفتاح الـ API اللي اتكتب قبل كده في ريبو UBGMonitor العام (لسه مطلوب).
 
@@ -15,7 +15,7 @@
 - [ ] `ASPNETCORE_ENVIRONMENT=Production`. ده بيقفل مزوّد الـ Sandbox تلقائيًا.
 - [ ] HTTPS بس، و HSTS، والـ API والتطبيقات تحت نفس الدومين (الكوكيز `__Host-`).
 - [ ] `Support:DemoRequestsEmail` على إيميل المبيعات الحقيقي بدل القيمة الافتراضية `sales@monitoragent.local`، عشان طلبات العرض التوضيحي توصلهم أول بأول.
-- [ ] `Cors:Origins` و `Portal:Url` مظبوطين، والـ reverse proxy بيبعت IP العميل الحقيقي عشان حدود الطلبات.
+- [ ] `Portal:Url` مظبوط، و`ReverseProxy:KnownNetworks` فيه شبكة الـ proxy بس، وسجل الأمان بيسجّل IP الزائر الحقيقي مش IP الـ proxy.
 - [ ] WAF أو على الأقل حد طلبات في الـ proxy قدام الموقع.
 - [ ] حساب أدمن أول عن طريق `Identity:BootstrapAdmin*`، وبعدين تتشال من الإعدادات. الأدمن يفعّل التحقق بخطوتين.
 
