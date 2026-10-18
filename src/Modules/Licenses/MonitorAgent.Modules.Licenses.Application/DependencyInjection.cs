@@ -15,6 +15,7 @@ public static class DependencyInjection
         services.AddSingleton<CatalogCache>();
         services.AddScoped<CompanyScope>();
         services.AddScoped<ILicenseFulfillment, LicenseFulfillment>();
+        services.AddScoped<IPlanCatalog, PlanCatalog>();
         return services;
     }
 }

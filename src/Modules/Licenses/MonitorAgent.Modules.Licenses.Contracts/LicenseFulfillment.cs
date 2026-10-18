@@ -2,6 +2,15 @@ using MonitorAgent.SharedKernel;
 
 namespace MonitorAgent.Modules.Licenses.Contracts;
 
+/// <summary>A plan as it is sold now: what Commerce prices an order from.</summary>
+public sealed record PlanOffer(Guid PlanId, string ProductName, string PlanName, decimal Price, string Currency, int? DurationDays);
+
+public interface IPlanCatalog
+{
+    /// <summary>The plan as sold now; PLAN_NOT_AVAILABLE if it isn't on sale, LICENSING_UNAVAILABLE if the catalog can't be read.</summary>
+    Task<Result<PlanOffer>> OfferAsync(Guid planId, CancellationToken ct);
+}
+
 public sealed record FulfilledLicense(Guid GrantId, string LicenseNumber, DateTimeOffset? ExpiresAt);
 
 /// <summary>

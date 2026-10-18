@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using MonitorAgent.BuildingBlocks.Web;
 
 namespace MonitorAgent.Api.Web;
 
@@ -49,6 +50,7 @@ internal sealed class ValidateCsrfFilter(IAntiforgery antiforgery) : IAsyncAutho
         if (HttpMethods.IsGet(context.HttpContext.Request.Method) || HttpMethods.IsHead(context.HttpContext.Request.Method)
             || HttpMethods.IsOptions(context.HttpContext.Request.Method) || HttpMethods.IsTrace(context.HttpContext.Request.Method))
             return;
+        if (context.ActionDescriptor.EndpointMetadata.OfType<NoCsrfAttribute>().Any()) return;
 
         if (await antiforgery.IsRequestValidAsync(context.HttpContext)) return;
 
