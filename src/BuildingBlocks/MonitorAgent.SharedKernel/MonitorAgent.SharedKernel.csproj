@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Domain primitives shared by every module. No dependencies on purpose. -->
+</Project>

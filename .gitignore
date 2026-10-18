@@ -48,3 +48,11 @@ Thumbs.db
 .DS_Store
 .env
 .env.*
+
+## Local secrets
+.env
+*.pfx
+
+## OS
+.DS_Store
+Thumbs.db
