@@ -10,6 +10,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using MonitorAgent.BuildingBlocks.Application;
 using MonitorAgent.Modules.Customers.Infrastructure.Persistence;
 using MonitorAgent.Modules.Identity.Infrastructure.Persistence;
+using MonitorAgent.Modules.Licenses.Application;
+using MonitorAgent.Modules.Licenses.Infrastructure.Persistence;
 
 namespace MonitorAgent.Tests.Api;
 
@@ -24,6 +26,12 @@ public class ApiFactory : WebApplicationFactory<Program>
 
     private readonly SqliteConnection _identityDb = new("DataSource=:memory:");
     private readonly SqliteConnection _customersDb = new("DataSource=:memory:");
+    private readonly SqliteConnection _licensesDb = new("DataSource=:memory:");
+
+    public FakeLicensingPlatform Platform { get; } = new();
+
+    /// <summary>An admin session with two-step verification, kept by tests that need staff access.</summary>
+    public TestClient? SharedAdmin { get; set; }
 
     public CapturedEmails Emails { get; } = new();
 
@@ -35,6 +43,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         ["Email:Smtp:From"] = "no-reply@monitoragent.test",
         ["Identity:DatabaseInitialization"] = "EnsureCreated",
         ["Customers:DatabaseInitialization"] = "EnsureCreated",
+        ["Licenses:DatabaseInitialization"] = "EnsureCreated",
         ["Identity:SessionValidationSeconds"] = "0",
         ["Portal:Url"] = "https://portal.test",
         ["Identity:BootstrapAdminEmail"] = AdminEmail,
@@ -49,6 +58,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         foreach (var (key, value) in Settings) builder.UseSetting(key, value);
         if (_identityDb.State != System.Data.ConnectionState.Open) _identityDb.Open();
         if (_customersDb.State != System.Data.ConnectionState.Open) _customersDb.Open();
+        if (_licensesDb.State != System.Data.ConnectionState.Open) _licensesDb.Open();
         builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<DbContextOptions<IdentityDb>>();
@@ -57,6 +67,11 @@ public class ApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<DbContextOptions<CustomersDb>>();
             services.RemoveAll<IDbContextOptionsConfiguration<CustomersDb>>();
             services.AddDbContext<CustomersDb>(o => o.UseSqlite(_customersDb));
+            services.RemoveAll<DbContextOptions<LicensesDb>>();
+            services.RemoveAll<IDbContextOptionsConfiguration<LicensesDb>>();
+            services.AddDbContext<LicensesDb>(o => o.UseSqlite(_licensesDb));
+            services.RemoveAll<ILicensingPlatform>();
+            services.AddSingleton<ILicensingPlatform>(Platform);
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Emails);
         });
@@ -71,6 +86,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         if (!disposing) return;
         _identityDb.Dispose();
         _customersDb.Dispose();
+        _licensesDb.Dispose();
     }
 }
 

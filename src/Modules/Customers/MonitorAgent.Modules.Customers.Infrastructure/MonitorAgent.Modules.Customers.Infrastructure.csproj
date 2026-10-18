@@ -5,6 +5,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MonitorAgent.Modules.Customers.Application\MonitorAgent.Modules.Customers.Application.csproj" />
+    <ProjectReference Include="..\MonitorAgent.Modules.Customers.Contracts\MonitorAgent.Modules.Customers.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\MonitorAgent.BuildingBlocks.Web\MonitorAgent.BuildingBlocks.Web.csproj" />
   </ItemGroup>
   <ItemGroup>

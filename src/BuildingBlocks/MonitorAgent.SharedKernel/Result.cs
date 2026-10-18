@@ -1,6 +1,6 @@
 namespace MonitorAgent.SharedKernel;
 
-public enum ErrorKind { Validation, NotFound, Conflict, Forbidden, Unauthorized, Locked, TooManyRequests, Gone }
+public enum ErrorKind { Validation, NotFound, Conflict, Forbidden, Unauthorized, Locked, TooManyRequests, Gone, Unavailable }
 
 /// <summary>A stable, client-facing error. <see cref="Code"/> values are part of the public API contract.</summary>
 public sealed record Error(string Code, string Message, ErrorKind Kind)
@@ -10,6 +10,7 @@ public sealed record Error(string Code, string Message, ErrorKind Kind)
     public static Error Conflict(string code, string message) => new(code, message, ErrorKind.Conflict);
     public static Error Forbidden(string code, string message) => new(code, message, ErrorKind.Forbidden);
     public static Error Unauthorized(string code, string message) => new(code, message, ErrorKind.Unauthorized);
+    public static Error Unavailable(string code, string message) => new(code, message, ErrorKind.Unavailable);
 }
 
 public class Result

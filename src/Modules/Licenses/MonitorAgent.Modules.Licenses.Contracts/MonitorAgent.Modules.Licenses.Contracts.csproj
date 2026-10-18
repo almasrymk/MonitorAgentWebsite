@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- What other modules (Commerce) may use from Licenses: fulfilling a paid order. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\MonitorAgent.SharedKernel\MonitorAgent.SharedKernel.csproj" />
+  </ItemGroup>
+</Project>
