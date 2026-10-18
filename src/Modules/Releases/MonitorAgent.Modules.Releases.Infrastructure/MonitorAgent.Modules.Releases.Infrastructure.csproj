@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Persistence (schema "releases"), the update manifest the program reads, and the admin endpoints. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MonitorAgent.Modules.Releases.Application\MonitorAgent.Modules.Releases.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\MonitorAgent.BuildingBlocks.Web\MonitorAgent.BuildingBlocks.Web.csproj" />
+    <ProjectReference Include="..\..\Identity\MonitorAgent.Modules.Identity.Contracts\MonitorAgent.Modules.Identity.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MonitorAgent.Tests" />
+  </ItemGroup>
+</Project>
