@@ -296,4 +296,14 @@ public class CommerceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal("UNKNOWN_PAYMENT_PROVIDER",
             await TestClient.ErrorCodeAsync(await buyer.Client.PostAsync($"/api/v1/orders/{orderId}/pay", new { provider = "bitcoin" })));
     }
+
+    [Fact]
+    public async Task Checkout_lists_the_configured_providers()
+    {
+        var buyer = await BuyerAsync();
+
+        var providers = await JsonAsync(await buyer.Client.GetAsync("/api/v1/payments/providers"));
+
+        Assert.Equal("sandbox", Assert.Single(providers.EnumerateArray()).GetString());
+    }
 }

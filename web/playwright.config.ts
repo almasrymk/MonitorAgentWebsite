@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * End-to-end and accessibility tests against the built apps (run `ng build site` first). The API is a small mock,
+ * End-to-end and accessibility tests against the built apps (run `ng build` first). The API is a small mock,
  * so these tests check the UI, not the backend (the backend has its own API tests).
  */
 export default defineConfig({
@@ -21,5 +21,6 @@ export default defineConfig({
       reuseExistingServer: !process.env['CI'],
       env: { PORT: '4400', API_URL: 'http://localhost:5099', NG_ALLOWED_HOSTS: 'localhost' },
     },
+    { command: 'node e2e/serve.mjs portal 4401', port: 4401, reuseExistingServer: !process.env['CI'] },
   ],
 });
