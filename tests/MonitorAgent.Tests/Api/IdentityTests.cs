@@ -282,7 +282,7 @@ public class IdentityTests(ApiFactory factory) : IClassFixture<ApiFactory>
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IdentityDb>();
         var userId = db.Users.Single(u => u.Email == email).Id;
-        var types = db.SecurityEvents.Where(e => e.UserId == userId).Select(e => e.Type.ToString()).ToList();
+        var types = db.SecurityEvents.Where(e => e.UserId == userId).AsEnumerable().OrderBy(e => e.OccurredAt).Select(e => e.Type.ToString()).ToList();
 
         Assert.Equal(["Registered", "EmailConfirmed", "SignInFailed", "SignedIn"], types);
     }

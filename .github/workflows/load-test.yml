@@ -12,7 +12,7 @@ jobs:
   k6:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Start the stack
         run: |
           echo "SQL_SA_PASSWORD=Load!$(openssl rand -hex 12)Aa1" > .env
@@ -21,10 +21,10 @@ jobs:
           for i in $(seq 1 60); do curl -fsS http://localhost:5200/health/ready && break; sleep 5; done
           curl -fsS http://localhost:5200/health/ready
           grep SANDBOX_SECRET .env | sed 's/^/LOAD_/' >> "$GITHUB_ENV"
-      - uses: grafana/setup-k6-action@v1
+      - uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1 # v1.2.2
       - name: Run
         run: k6 run -e BASE_URL=http://localhost:5200 -e SANDBOX_SECRET="$LOAD_SANDBOX_SECRET" --summary-export=k6-summary.json tests/load/website.js
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: k6-summary
