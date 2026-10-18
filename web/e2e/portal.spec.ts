@@ -71,7 +71,7 @@ test('an owner buys a license, pays and gets the invoice', async ({ page }) => {
   await expect(page.getByText('INV-2026-000001')).toBeVisible();
 });
 
-const signedInPages = ['', '/licenses', '/licenses/l1', '/orders', '/invoices', '/company', '/account'];
+const signedInPages = ['', '/licenses', '/licenses/l1', '/orders', '/invoices', '/support', '/support/new', '/support/t1', '/suggestions', '/company', '/account'];
 for (const lang of ['ar', 'en'] as const) {
   for (const path of signedInPages) {
     test(`${lang} ${path || '/'} has no accessibility violations`, async ({ page }) => {
@@ -113,4 +113,35 @@ test('each member shows their own role, and the page fits a phone screen', async
   await expect(page.getByLabel('Change role for Tarek Tech')).toHaveValue('Technical');
   // Phones widen the layout to fit anything that overflows, so the layout must stay as wide as the device.
   expect(await page.evaluate(() => window.innerWidth)).toBe(page.viewportSize()!.width);
+});
+
+test('a customer opens a ticket and follows the conversation', async ({ page }) => {
+  const api = await open(page);
+  api.signedIn = true;
+  await page.goto(`${portal}/support`);
+  await page.getByRole('link', { name: 'New ticket' }).click();
+  await page.getByLabel('Subject').fill('Cannot activate <b>PC-02</b>');
+  await page.getByLabel('Topic').selectOption('Licensing');
+  await page.getByLabel('What happened?').fill('It says the license is full.');
+  await page.getByRole('button', { name: 'Send ticket' }).click();
+  await expect(page).toHaveURL(`${portal}/support/t2`);
+  // Shown as text, never as markup.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Cannot activate <b>PC-02</b>');
+
+  await page.getByLabel('Your reply').fill('Also PC-03.');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.getByText('Also PC-03.')).toBeVisible();
+  await expect(page.getByLabel('Your reply')).toHaveValue('');
+});
+
+test('a customer sends a suggestion and sees our answers', async ({ page }) => {
+  const api = await open(page);
+  api.signedIn = true;
+  await page.goto(`${portal}/suggestions`);
+  await expect(page.getByText('Coming in 2.6.')).toBeVisible();
+  await page.getByLabel('Title').fill('Dark mode');
+  await page.getByLabel('Details').fill('For the night shift.');
+  await page.getByRole('button', { name: 'Send suggestion' }).click();
+  await expect(page.getByRole('status')).toContainText('Thank you');
+  await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
 });

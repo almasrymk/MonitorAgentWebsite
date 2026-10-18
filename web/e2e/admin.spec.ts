@@ -99,7 +99,7 @@ test('an expired MFA session explains what to do', async ({ page }) => {
 });
 
 for (const lang of ['ar', 'en'] as const) {
-  for (const path of ['', '/orders', '/releases', '/security', '/account']) {
+  for (const path of ['', '/orders', '/releases', '/support', '/support/t1', '/suggestions', '/security', '/account']) {
     test(`${lang} ${path || '/'} has no accessibility violations`, async ({ page }) => {
       signedIn(await open(page, lang));
       await page.goto(`${admin}${path}`);
@@ -111,3 +111,25 @@ for (const lang of ['ar', 'en'] as const) {
     });
   }
 }
+
+test('support answers the oldest open ticket', async ({ page }) => {
+  const api = signedIn(await open(page));
+  await page.goto(`${admin}/support`);
+  await expect(page.getByRole('cell', { name: 'Nile Traders' })).toBeVisible();
+  await page.getByRole('link', { name: 'Agent stops at night' }).click();
+  await page.getByLabel('Your reply').fill('Please send the service log.');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.getByText('Answered')).toBeVisible();
+  expect(api.calls).toContain('POST /admin/support/tickets/t1/messages');
+});
+
+test('support answers a suggestion', async ({ page }) => {
+  const api = signedIn(await open(page));
+  await page.goto(`${admin}/suggestions`);
+  const card = page.getByRole('article').filter({ hasText: 'Weekly report' });
+  await card.getByLabel('Status', { exact: true }).selectOption('Planned');
+  await card.getByLabel('Our answer').fill('Coming in 2.6.');
+  await card.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('status')).toContainText('Weekly report');
+  expect(api.suggestions[0]).toMatchObject({ status: 'Planned', staffNote: 'Coming in 2.6.' });
+});

@@ -31,6 +31,19 @@ export class FakePortalApi {
     { id: 'd1', deviceId: 'PC-01', deviceName: 'Front desk', operatingSystem: 'Windows 11', appVersion: '2.4.0', status: 'Active', activatedAt: '2026-09-01T10:00:00Z', lastSeenAt: '2026-10-15T09:00:00Z', online: true },
   ];
   readonly orders: Record<string, unknown>[] = [];
+  readonly tickets: { id: string; number: string; subject: string; category: string; status: string; openedAt: string; lastActivityAt: string; companyName: null; messages: { id: string; authorName: string; fromStaff: boolean; body: string; postedAt: string }[] }[] = [
+    {
+      id: 't1', number: 'T-261014-ABCDE', subject: 'Agent stops at night', category: 'Technical', status: 'Answered', openedAt: '2026-10-14T10:00:00Z',
+      lastActivityAt: '2026-10-14T12:00:00Z', companyName: null,
+      messages: [
+        { id: 'm1', authorName: 'Mona Owner', fromStaff: false, body: 'The service stops every night.\nSince 2.4.0.', postedAt: '2026-10-14T10:00:00Z' },
+        { id: 'm2', authorName: 'Sara (Support)', fromStaff: true, body: 'Please send the service log.', postedAt: '2026-10-14T12:00:00Z' },
+      ],
+    },
+  ];
+  readonly suggestions: Record<string, unknown>[] = [
+    { id: 's1', title: 'Weekly report', body: 'Email me a summary.', status: 'Planned', staffNote: 'Coming in 2.6.', createdAt: '2026-10-10T10:00:00Z', companyName: null },
+  ];
   readonly invoices: Record<string, unknown>[] = [];
 
   async install(page: Page): Promise<void> {
@@ -101,6 +114,33 @@ export class FakePortalApi {
       return json(200, { redirectUrl: `/portal/orders/${order['id']}` });
     }
     if (key === 'GET /invoices') return json(200, this.invoices);
+    if (key === 'GET /support/tickets') return json(200, this.tickets.map(({ messages: _, ...t }) => t));
+    if (key === 'POST /support/tickets') {
+      const ticket = {
+        id: `t${this.tickets.length + 1}`, number: 'T-261015-XYZ12', subject: body.subject, category: body.category, status: 'Open',
+        openedAt: '2026-10-15T10:00:00Z', lastActivityAt: '2026-10-15T10:00:00Z', companyName: null,
+        messages: [{ id: 'mx', authorName: this.me.fullName, fromStaff: false, body: body.body, postedAt: '2026-10-15T10:00:00Z' }],
+      };
+      this.tickets.unshift(ticket);
+      return json(200, ticket);
+    }
+    const ticketRoute = key.match(/^(GET|POST) \/support\/tickets\/(\w+)(\/messages|\/close)?$/);
+    if (ticketRoute) {
+      const ticket = this.tickets.find((t) => t.id === ticketRoute[2]);
+      if (!ticket) return problem(404, 'TICKET_NOT_FOUND');
+      if (ticketRoute[3] === '/messages') {
+        ticket.messages.push({ id: `m${ticket.messages.length + 1}`, authorName: this.me.fullName, fromStaff: false, body: body.body, postedAt: '2026-10-15T11:00:00Z' });
+        ticket.status = 'Open';
+      }
+      if (ticketRoute[3] === '/close') ticket.status = 'Closed';
+      return json(200, ticket);
+    }
+    if (key === 'GET /support/suggestions') return json(200, this.suggestions);
+    if (key === 'POST /support/suggestions') {
+      const suggestion = { id: `s${this.suggestions.length + 1}`, title: body.title, body: body.body, status: 'New', staffNote: null, createdAt: '2026-10-15T10:00:00Z', companyName: null };
+      this.suggestions.unshift(suggestion);
+      return json(200, suggestion);
+    }
     return problem(404, 'NOT_FOUND');
   }
 }
