@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using MonitorAgent.Modules.Licenses.Application;
 
 namespace MonitorAgent.Modules.Licenses.Infrastructure.Platform;
@@ -25,19 +26,28 @@ public sealed class LicensingPlatformOptions
 internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicensingPlatform
 {
     public const string HttpClientName = "LicensingPlatform";
-    private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
 
-    // LicensingPlatform enums (Licensing.Domain): PlanStatus.Published = 2, PlanKind.Paid = 1.
-    private const int PublishedPlan = 2;
-    private const int PaidPlan = 1;
-    private static readonly string[] LicenseStatuses = ["", "Active", "Suspended", "Revoked", "Expired"];
-    private static readonly string[] ActivationStatuses = ["", "Active", "Deactivated"];
+    // LicensingPlatform writes its enums as names ("Published", "Paid"); numbers are still accepted.
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerOptions.Web) { Converters = { new JsonStringEnumConverter() } };
 
+    // Mirrors of LicensingPlatform's enums (Licensing.Domain), with its numeric values.
+    private enum PlanStatus { Draft = 1, Published = 2, Archived = 3 }
+    private enum PlanKind { Paid = 1, Free = 3 }
+    private enum LicenseStatus { Active = 1, Suspended = 2, Revoked = 3, Expired = 4 }
+    private enum ActivationStatus { Active = 1, Deactivated = 2 }
+
+    /// <summary>
+    /// A published plan never changes; a price change is published as a new version of the same code and the old one may
+    /// stay published for existing licenses. So each plan code is offered at its newest published version.
+    /// (LicensingPlatform's IsCurrent marks the free offer only, so it says nothing about paid plans.)
+    /// </summary>
     public async Task<IReadOnlyList<PlatformPlan>> PublishedPaidPlansAsync(CancellationToken ct)
     {
-        var page = await GetAsync<Paged<PlanBody>>($"api/v1/plans?status={PublishedPlan}&page=1&pageSize=200", ct);
+        var page = await GetAsync<Paged<PlanBody>>($"api/v1/plans?status={PlanStatus.Published}&page=1&pageSize=200", ct);
         return page!.Items
-            .Where(p => p.Kind == PaidPlan && p.Status == PublishedPlan && p.IsCurrent)
+            .Where(p => p.Kind == PlanKind.Paid && p.Status == PlanStatus.Published)
+            .GroupBy(p => (p.ProductCode, p.Code))
+            .Select(versions => versions.MaxBy(p => p.Version)!)
             .Select(p => new PlatformPlan(p.Id, p.ProductCode, p.ProductName, p.Code, p.Name, p.Version, p.Price, p.Currency,
                 p.DurationDays, p.MaxActivations, p.Features ?? []))
             .ToList();
@@ -74,7 +84,7 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
         var details = await GetAsync<LicenseDetailsBody>($"api/v1/licenses/{licenseId}", ct);
         if (details is null) return null;
         return (ToLicense(details.License), details.Activations.Select(a => new PlatformDevice(a.Id, a.DeviceId, a.DeviceName,
-            a.OperatingSystem, a.AppVersion, Name(ActivationStatuses, a.Status), a.ActivatedAt, a.LastHeartbeatAt, a.Online)).ToList());
+            a.OperatingSystem, a.AppVersion, a.Status.ToString(), a.ActivatedAt, a.LastHeartbeatAt, a.Online)).ToList());
     }
 
     public async Task ResetDeviceAsync(Guid licenseId, Guid deviceId, CancellationToken ct)
@@ -84,23 +94,34 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
     }
 
     private static PlatformLicense ToLicense(LicenseBody l) => new(l.Id, l.CustomerId, l.ProductCode, l.PlanCode, l.LicenseNumber,
-        l.ProductKeyPrefix, Name(LicenseStatuses, l.Status), l.IssuedAt, l.ExpiresAt, l.MaxActivations, l.ActiveActivations);
-
-    private static string Name(string[] names, int value) => value > 0 && value < names.Length ? names[value] : "Unknown";
+        l.ProductKeyPrefix, l.Status.ToString(), l.IssuedAt, l.ExpiresAt, l.MaxActivations, l.ActiveActivations);
 
     private async Task<T?> GetAsync<T>(string path, CancellationToken ct) where T : class
     {
         using var response = await SendRawAsync(HttpMethod.Get, path, null, ct);
         if (response.StatusCode == HttpStatusCode.NotFound) return null;
         await EnsureAsync(response);
-        return await response.Content.ReadFromJsonAsync<T>(Json, ct);
+        return await ReadAsync<T>(response, ct);
     }
 
     private async Task<T> SendAsync<T>(HttpMethod method, string path, object body, CancellationToken ct)
     {
         using var response = await SendRawAsync(method, path, body, ct);
         await EnsureAsync(response);
-        return (await response.Content.ReadFromJsonAsync<T>(Json, ct))!;
+        return (await ReadAsync<T>(response, ct))!;
+    }
+
+    /// <summary>A body this client can't read (a renamed field, a new enum value) is treated like any other failure.</summary>
+    private static async Task<T?> ReadAsync<T>(HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<T>(Json, ct);
+        }
+        catch (JsonException ex)
+        {
+            throw new PlatformUnavailableException("LicensingPlatform sent a response this website can't read.", ex);
+        }
     }
 
     private async Task<HttpResponseMessage> SendRawAsync(HttpMethod method, string path, object? body, CancellationToken ct)
@@ -139,14 +160,14 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
     }
 
     private sealed record Paged<T>(IReadOnlyList<T> Items, int Total);
-    private sealed record PlanBody(Guid Id, string ProductCode, string ProductName, string Code, string Name, int Version, int Status,
-        decimal Price, string Currency, int? DurationDays, int? MaxActivations, IReadOnlyList<string>? Features, int Kind, bool IsCurrent);
+    private sealed record PlanBody(Guid Id, string ProductCode, string ProductName, string Code, string Name, int Version, PlanStatus Status,
+        decimal Price, string Currency, int? DurationDays, int? MaxActivations, IReadOnlyList<string>? Features, PlanKind Kind);
     private sealed record IdBody(Guid Id);
     private sealed record CustomerDetailsBody(IdBody Customer);
     private sealed record SubscriptionDetailsBody(IdBody Subscription);
     private sealed record LicenseBody(Guid Id, Guid CustomerId, string ProductCode, string PlanCode, string LicenseNumber,
-        string ProductKeyPrefix, int Status, DateTimeOffset IssuedAt, DateTimeOffset? ExpiresAt, int? MaxActivations, int ActiveActivations);
-    private sealed record ActivationBody(Guid Id, string DeviceId, string? DeviceName, string? AppVersion, int Status,
+        string ProductKeyPrefix, LicenseStatus Status, DateTimeOffset IssuedAt, DateTimeOffset? ExpiresAt, int? MaxActivations, int ActiveActivations);
+    private sealed record ActivationBody(Guid Id, string DeviceId, string? DeviceName, string? AppVersion, ActivationStatus Status,
         DateTimeOffset ActivatedAt, DateTimeOffset? LastHeartbeatAt, string? OperatingSystem, bool Online);
     private sealed record LicenseDetailsBody(LicenseBody License, IReadOnlyList<ActivationBody> Activations);
     private sealed record IssuedLicenseBody(LicenseBody License, string ProductKey);
