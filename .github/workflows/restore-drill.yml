@@ -1,0 +1,38 @@
+name: Restore drill
+
+# Proves a backup of the database restores into a working site: backup with checksums, restore under a new name,
+# DBCC CHECKDB, identical row counts, and an API that reports ready on the copy. Monthly, and on demand.
+on:
+  schedule:
+    - cron: "0 3 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start the stack
+        run: |
+          echo "SQL_SA_PASSWORD=Drill!$(openssl rand -hex 12)Aa1" > .env
+          docker compose up -d --build
+          for i in $(seq 1 60); do curl -fsS http://localhost:5200/health/ready && break; sleep 5; done
+          curl -fsS http://localhost:5200/health/ready
+      - name: Add some data
+        run: |
+          # A few accounts so the comparison covers more than seeded tables. Best effort: the drill itself doesn't need them.
+          for i in 1 2 3; do
+            curl -sS -c jar -b jar http://localhost:5200/api/v1/auth/csrf -o /dev/null
+            token=$(awk '$6 ~ /XSRF-TOKEN/ {print $7}' jar | tail -1)
+            curl -sS -c jar -b jar -H "X-XSRF-TOKEN: $token" -H 'Content-Type: application/json' \
+              -d "{\"email\":\"drill$i@example.test\",\"fullName\":\"Drill $i\",\"password\":\"restore drill password $i\"}" \
+              http://localhost:5200/api/v1/auth/register -o /dev/null -w "%{http_code}\n"
+          done
+      - name: Run the drill
+        run: set -a; . ./.env; set +a; scripts/ops/restore-drill.sh
+      - name: Stop the stack
+        if: always()
+        run: docker compose logs api | tail -50; docker compose down -v
