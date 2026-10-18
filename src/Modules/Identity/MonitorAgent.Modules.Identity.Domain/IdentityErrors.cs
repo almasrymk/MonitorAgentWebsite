@@ -16,6 +16,7 @@ public static class IdentityErrors
     public static readonly Error MfaNotEnabled = Error.Conflict("MFA_NOT_ENABLED", "Two-step verification is not on.");
     public static readonly Error WrongPassword = Error.Validation("WRONG_PASSWORD", "The current password is incorrect.");
     public static readonly Error MfaRequiredForStaff = Error.Forbidden("MFA_REQUIRED_FOR_STAFF", "Staff accounts must keep two-step verification on.");
+    public static readonly Error StaffAccount = Error.Forbidden("STAFF_ACCOUNT", "Staff accounts are closed by an administrator.");
     public static readonly Error Unauthenticated = Error.Unauthorized("UNAUTHENTICATED", "Sign in to continue.");
 
     public static Error PasswordRejected(string reasons) => Error.Validation("PASSWORD_REJECTED", reasons);

@@ -102,11 +102,33 @@ internal sealed class UserAccounts(UserManager<ApplicationUser> users, TimeProvi
 
     public async Task RevokeSessionsAsync(Guid userId) => await users.UpdateSecurityStampAsync(await GetAsync(userId));
 
+    public async Task AnonymizeAsync(Guid userId)
+    {
+        var user = await GetAsync(userId);
+        var placeholder = $"deleted-{user.Id:N}@deleted.invalid";
+        user.UserName = placeholder;
+        user.Email = placeholder;
+        user.FullName = "Deleted user";
+        user.EmailConfirmed = false;
+        user.PhoneNumber = null;
+        user.PasswordHash = null;
+        user.TwoFactorEnabled = false;
+        user.LockoutEnabled = true;
+        user.LockoutEnd = DateTimeOffset.MaxValue;
+        await users.UpdateNormalizedUserNameAsync(user);
+        await users.UpdateNormalizedEmailAsync(user);
+        await users.RemoveAuthenticationTokenAsync(user, "[AspNetUserStore]", "AuthenticatorKey");
+        await users.RemoveAuthenticationTokenAsync(user, "[AspNetUserStore]", "RecoveryCodes");
+        foreach (var login in await users.GetLoginsAsync(user)) await users.RemoveLoginAsync(user, login.LoginProvider, login.ProviderKey);
+        await users.UpdateSecurityStampAsync(user);
+    }
+
     private async Task<ApplicationUser> GetAsync(Guid userId) =>
         await users.FindByIdAsync(userId.ToString()) ?? throw new InvalidOperationException("User not found.");
 
     private async Task<UserAccount> ToAccountAsync(ApplicationUser user) => new(
-        user.Id, user.Email!, user.FullName, user.EmailConfirmed, user.TwoFactorEnabled, (await users.GetRolesAsync(user)).Order().ToList());
+        user.Id, user.Email!, user.FullName, user.EmailConfirmed, user.TwoFactorEnabled, (await users.GetRolesAsync(user)).Order().ToList(),
+        user.CreatedAt);
 
     private static Error ToError(IdentityResult result) =>
         result.Errors.Any(e => e.Code.StartsWith("Password", StringComparison.Ordinal))

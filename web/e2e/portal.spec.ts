@@ -145,3 +145,25 @@ test('a customer sends a suggestion and sees our answers', async ({ page }) => {
   await expect(page.getByRole('status')).toContainText('Thank you');
   await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
 });
+
+test('a customer downloads their data and deletes their account', async ({ page }) => {
+  const api = await open(page);
+  api.signedIn = true;
+  await page.goto(`${portal}/account`);
+  await expect(page.getByRole('heading', { name: 'Your data' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Download my data' })).toHaveAttribute('href', '/api/v1/account/export');
+  await expectAccessible(page);
+
+  const remove = page.getByRole('button', { name: 'Delete my account' });
+  await expect(remove).toBeDisabled();
+  const privacy = page.getByRole('region', { name: 'Your data' });
+  await privacy.getByLabel('Password', { exact: true }).fill('not my password');
+  await page.getByLabel('I understand this cannot be undone').check();
+  await remove.click();
+  await expect(page.getByRole('alert')).toBeVisible();
+
+  await privacy.getByLabel('Password', { exact: true }).fill('correct horse battery');
+  await remove.click();
+  await expect(page.getByRole('status')).toContainText('Your account was deleted');
+  expect(api.calls).toContain('POST /account/delete');
+});

@@ -50,4 +50,16 @@ internal static class Emails
         Your Monitor Agent password was changed and other devices were signed out.
         If this wasn't you, use "Forgot password" right away and contact support.
         """);
+
+    public static EmailMessage AccountDeleted(string to) => new(to,
+        "تم مسح حسابك | Your account was deleted",
+        """
+        حسابك في Monitor Agent اتمسح بناءً على طلبك، ومش هتقدر تدخل بيه تاني.
+        الفواتير والمدفوعات بتفضل محفوظة زي ما القانون بيطلب، من غير اسمك أو بريدك.
+        لو مش انت اللي طلبت ده كلم الدعم فوراً.
+
+        Your Monitor Agent account was deleted as you asked, and you can no longer sign in with it.
+        Invoices and payments are kept as the law requires, without your name or email.
+        If you didn't ask for this, contact support right away.
+        """);
 }

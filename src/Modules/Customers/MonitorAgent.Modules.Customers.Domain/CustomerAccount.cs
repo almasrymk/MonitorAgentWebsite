@@ -47,6 +47,12 @@ public sealed class Invitation : Entity
     public InvitationStatus Status { get; internal set; }
 
     public bool IsOpen(DateTimeOffset now) => Status == InvitationStatus.Pending && now < ExpiresAt;
+
+    internal void ForgetEmail()
+    {
+        Email = $"erased-{Id:N}@deleted.invalid";
+        if (Status == InvitationStatus.Pending) Status = InvitationStatus.Revoked;
+    }
 }
 
 public sealed record CompanyCreated(Guid CompanyId, Guid OwnerUserId) : DomainEvent;
@@ -145,6 +151,27 @@ public sealed class CustomerAccount : AggregateRoot
         if (member.Role == MemberRole.Owner && OwnerCount == 1) return CustomersErrors.LastOwner;
         _members.Remove(member);
         Raise(new MemberRemoved(Id, memberUserId));
+        return Result.Success();
+    }
+
+    /// <summary>Whether this person may delete their account: the last owner of a team with others in it has to hand over first.</summary>
+    public Result CanForget(Guid userId) =>
+        MemberFor(userId) is { Role: MemberRole.Owner } && OwnerCount == 1 && _members.Count > 1 ? CustomersErrors.LastOwner : Result.Success();
+
+    /// <summary>
+    /// The person deleted their account: they leave the company, and invitations sent to their email lose the address.
+    /// A company whose only member leaves stays, with no members, because its invoices and licenses must be kept.
+    /// </summary>
+    public Result Forget(Guid userId, string email)
+    {
+        var allowed = CanForget(userId);
+        if (allowed.IsFailure) return allowed;
+        if (MemberFor(userId) is { } member)
+        {
+            _members.Remove(member);
+            Raise(new MemberRemoved(Id, userId));
+        }
+        foreach (var invitation in _invitations.Where(i => string.Equals(i.Email, email, StringComparison.OrdinalIgnoreCase))) invitation.ForgetEmail();
         return Result.Success();
     }
 

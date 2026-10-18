@@ -71,6 +71,12 @@ internal sealed class CustomerAccounts(CustomersDb db) : ICustomerAccounts
     public Task<CustomerAccount?> ByInvitationTokenAsync(string tokenHash, CancellationToken ct) =>
         Full.SingleOrDefaultAsync(a => a.Invitations.Any(i => i.TokenHash == tokenHash), ct);
 
+    public async Task<IReadOnlyList<CustomerAccount>> WithInvitationsToAsync(string email, CancellationToken ct)
+    {
+        var normalized = email.Trim().ToLowerInvariant();
+        return await Full.Where(a => a.Invitations.Any(i => i.Email == normalized)).ToListAsync(ct);
+    }
+
     public void Add(CustomerAccount account) => db.Accounts.Add(account);
 
     public Task SaveAsync(CancellationToken ct) => db.SaveChangesAsync(ct);

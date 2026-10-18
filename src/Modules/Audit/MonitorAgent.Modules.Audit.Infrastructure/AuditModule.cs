@@ -24,6 +24,7 @@ public static class AuditModule
             sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", AuditDb.Schema)));
         services.AddScoped<IAuditStore, AuditStore>();
         services.AddScoped<IAuditTrail, AuditTrail>();
+        services.AddScoped<IPersonalDataSource, AuditPersonalData>();
         services.AddHttpContextAccessor();
         services.AddHostedService<AuditDbInitializer>();
         services.AddAuditApplication();
