@@ -1,3 +1,4 @@
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using MonitorAgent.BuildingBlocks.Application;
 using MonitorAgent.Modules.Identity.Application;
 using MonitorAgent.Modules.Identity.Contracts;
@@ -26,6 +28,22 @@ public sealed class IdentityModuleOptions
     /// <summary>Creates this admin on startup when no admin exists yet. The password comes from configuration or a secret store, never the repo.</summary>
     public string? BootstrapAdminEmail { get; set; }
     public string? BootstrapAdminPassword { get; set; }
+
+    public KeyProtectionOptions KeyProtection { get; set; } = new();
+}
+
+/// <summary>
+/// The certificate (PKCS#12 file) that encrypts the session-cookie and link-signing keys before they are stored in
+/// the database, so a copy of the database alone cannot forge sign-ins. Required in production.
+/// </summary>
+public sealed class KeyProtectionOptions
+{
+    public string? CertificatePath { get; set; }
+    public string? CertificatePassword { get; set; }
+
+    /// <summary>The certificate being replaced, kept during a rotation so keys it encrypted can still be read.</summary>
+    public string? PreviousCertificatePath { get; set; }
+    public string? PreviousCertificatePassword { get; set; }
 }
 
 public static class IdentityModule
@@ -33,7 +51,7 @@ public static class IdentityModule
     public const string SessionCookie = "__Host-ma.session";
     public const string MfaCookie = "__Host-ma.mfa";
 
-    public static IServiceCollection AddIdentityModule(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddIdentityModule(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
         var options = configuration.GetSection("Identity").Get<IdentityModuleOptions>() ?? new IdentityModuleOptions();
         services.AddSingleton(options);
@@ -41,7 +59,20 @@ public static class IdentityModule
         services.AddDbContext<IdentityDb>(db => db.UseSqlServer(configuration.GetConnectionString("Default"),
             sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", IdentityDb.Schema)));
 
-        services.AddDataProtection().SetApplicationName("MonitorAgentWebsite").PersistKeysToDbContext<IdentityDb>();
+        var dataProtection = services.AddDataProtection().SetApplicationName("MonitorAgentWebsite").PersistKeysToDbContext<IdentityDb>();
+        var keyProtection = options.KeyProtection;
+        if (!string.IsNullOrEmpty(keyProtection.CertificatePath))
+        {
+            var current = X509CertificateLoader.LoadPkcs12FromFile(keyProtection.CertificatePath, keyProtection.CertificatePassword);
+            dataProtection.ProtectKeysWithCertificate(current);
+            if (!string.IsNullOrEmpty(keyProtection.PreviousCertificatePath))
+                dataProtection.UnprotectKeysWithAnyCertificate(current,
+                    X509CertificateLoader.LoadPkcs12FromFile(keyProtection.PreviousCertificatePath, keyProtection.PreviousCertificatePassword));
+            else
+                dataProtection.UnprotectKeysWithAnyCertificate(current);
+        }
+        else if (environment.IsProduction())
+            throw new InvalidOperationException("Set Identity:KeyProtection:CertificatePath (docs/operations/deploy.md).");
 
         services.AddIdentity<ApplicationUser, ApplicationRole>(o =>
             {

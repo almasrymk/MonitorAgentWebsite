@@ -39,7 +39,7 @@ if (string.IsNullOrWhiteSpace(portalUrl))
     throw new InvalidOperationException("Set Portal:Url. Account and invitation emails link into the customer portal.");
 builder.Services.AddSingleton(new PortalLinks(portalUrl));
 
-builder.Services.AddIdentityModule(builder.Configuration);
+builder.Services.AddIdentityModule(builder.Configuration, builder.Environment);
 builder.Services.AddCustomersModule(builder.Configuration);
 builder.Services.AddLicensesModule(builder.Configuration, builder.Environment);
 builder.Services.AddCommerceModule(builder.Configuration, builder.Environment);
