@@ -137,6 +137,11 @@ jobs:
         working-directory: deploy
         run: |
           sa="Ci-$(openssl rand -hex 12)-1a!"
+          keypass="$(openssl rand -hex 16)"
+          mkdir keys
+          openssl req -x509 -newkey rsa:3072 -nodes -days 30 -subj "/CN=MonitorAgent data protection (CI)" -keyout keys/key.pem -out keys/cert.pem
+          openssl pkcs12 -export -inkey keys/key.pem -in keys/cert.pem -out keys/dataprotection.pfx -passout "pass:$keypass"
+          rm keys/key.pem keys/cert.pem && chmod 644 keys/dataprotection.pfx
           {
             echo "DOMAIN=localhost"
             echo "ACME_EMAIL=ops@example.test"
@@ -148,6 +153,7 @@ jobs:
             echo "Email__Smtp__Host=smtp.invalid"
             echo "Email__Smtp__From=no-reply@example.test"
             echo "Licenses__Platform__BaseUrl=http://licensing-platform.invalid"
+            echo "Identity__KeyProtection__CertificatePassword=$keypass"
           } > .env
           docker compose --profile db up -d --build
       - name: Smoke test through the front door

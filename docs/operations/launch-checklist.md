@@ -17,6 +17,7 @@
 - [ ] `Support:DemoRequestsEmail` على إيميل المبيعات الحقيقي بدل القيمة الافتراضية `sales@monitoragent.local`، عشان طلبات العرض التوضيحي توصلهم أول بأول.
 - [ ] `Portal:Url` مظبوط، و`ReverseProxy:KnownNetworks` فيه شبكة الـ proxy بس، وسجل الأمان بيسجّل IP الزائر الحقيقي مش IP الـ proxy.
 - [ ] WAF أو على الأقل حد طلبات في الـ proxy قدام الموقع.
+- [ ] شهادة تشفير المفاتيح `deploy/keys/dataprotection.pfx` معمولة، وليها نسخة هي والـ password بعيد عن نسخ قاعدة البيانات (deploy.md).
 - [ ] حساب أدمن أول عن طريق `Identity:BootstrapAdmin*`، وبعدين تتشال من الإعدادات. الأدمن يفعّل التحقق بخطوتين.
 
 ## 3. الاختبارات (CI أخضر على main)

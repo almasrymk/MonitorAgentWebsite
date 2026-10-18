@@ -59,3 +59,4 @@ Thumbs.db
 
 ## Production settings on the server (deploy/env.example lists them)
 deploy/.env
+deploy/keys/
