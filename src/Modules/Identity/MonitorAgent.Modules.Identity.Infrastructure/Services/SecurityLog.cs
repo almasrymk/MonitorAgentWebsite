@@ -31,11 +31,11 @@ internal sealed class SecurityLog(IdentityDb db, IHttpContextAccessor http, Time
     }
 }
 
-internal sealed class IdentityLinks(IdentityModuleOptions options) : IIdentityLinks
+internal sealed class IdentityLinks(PortalLinks portal) : IIdentityLinks
 {
     public string ConfirmEmail(Guid userId, string token) =>
-        $"{options.PortalUrl.TrimEnd('/')}/auth/confirm-email?userId={userId}&token={Uri.EscapeDataString(token)}";
+        portal.To($"auth/confirm-email?userId={userId}&token={Uri.EscapeDataString(token)}");
 
     public string ResetPassword(string email, string token) =>
-        $"{options.PortalUrl.TrimEnd('/')}/auth/reset-password?email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
+        portal.To($"auth/reset-password?email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}");
 }

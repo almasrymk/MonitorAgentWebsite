@@ -264,7 +264,7 @@ public class IdentityTests(ApiFactory factory) : IClassFixture<ApiFactory>
         await EnableMfaAsync(admin);
         var after = await admin.GetAsync("/api/v1/admin/security-events");
         Assert.Equal(HttpStatusCode.OK, after.StatusCode);
-        Assert.Contains((await JsonAsync(after)).GetProperty("items").EnumerateArray(), e => e.GetProperty("type").GetInt32() >= 0);
+        Assert.Contains((await JsonAsync(after)).GetProperty("items").EnumerateArray(), e => e.GetProperty("type").GetString() == "MfaEnabled");
 
         var disable = await admin.PostAsync("/api/v1/account/mfa/disable", new { password = ApiFactory.AdminPassword });
         Assert.Equal("MFA_REQUIRED_FOR_STAFF", await TestClient.ErrorCodeAsync(disable));
