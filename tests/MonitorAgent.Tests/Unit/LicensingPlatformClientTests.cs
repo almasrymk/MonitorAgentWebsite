@@ -25,21 +25,23 @@ public class LicensingPlatformClientTests
                 "/api/v1/auth/login" => Json($$"""{"accessToken":"token-{{++Logins}}","expiresAt":"2999-01-01T00:00:00Z","refreshToken":"r","user":null}"""),
                 "/api/v1/plans" => Json("""
                     {"items":[
-                      {"id":"11111111-1111-1111-1111-111111111111","productCode":"UBG","productName":"UBG Monitor","code":"STD","name":"Standard","version":2,"status":2,"price":1200.0,"currency":"EGP","durationDays":365,"maxActivations":3,"features":["alerts"],"kind":1,"isCurrent":true},
-                      {"id":"22222222-2222-2222-2222-222222222222","productCode":"UBG","productName":"UBG Monitor","code":"TRIAL","name":"Trial","version":1,"status":2,"price":0,"currency":"EGP","durationDays":14,"maxActivations":1,"features":[],"kind":2,"isCurrent":true},
-                      {"id":"33333333-3333-3333-3333-333333333333","productCode":"UBG","productName":"UBG Monitor","code":"STD","name":"Standard","version":1,"status":2,"price":1000.0,"currency":"EGP","durationDays":365,"maxActivations":3,"features":[],"kind":1,"isCurrent":false}
-                    ],"total":3,"page":1,"pageSize":200}
+                      {"id":"11111111-1111-1111-1111-111111111111","productCode":"UBG","productName":"UBG Monitor","code":"STD","name":"Standard","version":2,"status":"Published","price":1200.0,"currency":"EGP","durationDays":365,"maxActivations":3,"features":["alerts"],"kind":"Paid","isCurrent":false},
+                      {"id":"22222222-2222-2222-2222-222222222222","productCode":"UBG","productName":"UBG Monitor","code":"FREE","name":"Free","version":1,"status":"Published","price":0,"currency":"EGP","durationDays":null,"maxActivations":1,"features":[],"kind":"Free","isCurrent":true},
+                      {"id":"33333333-3333-3333-3333-333333333333","productCode":"UBG","productName":"UBG Monitor","code":"STD","name":"Standard","version":1,"status":"Published","price":1000.0,"currency":"EGP","durationDays":365,"maxActivations":3,"features":[],"kind":"Paid","isCurrent":false},
+                      {"id":"88888888-8888-8888-8888-888888888888","productCode":"UBG","productName":"UBG Monitor","code":"STD","name":"Standard","version":3,"status":"Draft","price":1500.0,"currency":"EGP","durationDays":365,"maxActivations":3,"features":[],"kind":"Paid","isCurrent":false},
+                      {"id":"99999999-9999-9999-9999-999999999999","productCode":"UBG","productName":"UBG Monitor","code":"PRO","name":"Pro","version":1,"status":"Published","price":2500.0,"currency":"EGP","durationDays":365,"maxActivations":10,"features":["alerts","reports"],"kind":"Paid","isCurrent":false}
+                    ],"total":5,"page":1,"pageSize":200}
                     """),
                 "/api/v1/licenses" when request.Method == HttpMethod.Post => Json($$"""{"license":{{License}},"productKey":"UBG-FULL-KEY" }""", HttpStatusCode.Created),
                 _ when path.StartsWith("/api/v1/licenses/", StringComparison.Ordinal) && path.EndsWith("/reset", StringComparison.Ordinal) => new HttpResponseMessage(HttpStatusCode.NoContent),
                 _ when path == "/api/v1/licenses/44444444-4444-4444-4444-444444444444" => Json($$"""
-                    {"license":{{License}},"activations":[{"id":"55555555-5555-5555-5555-555555555555","licenseId":"44444444-4444-4444-4444-444444444444","deviceId":"dev-1","deviceName":"PC","appVersion":"2.4","status":2,"activatedAt":"2026-10-01T00:00:00Z","deactivatedAt":null,"lastHeartbeatAt":null,"lastIpAddress":null,"operatingSystem":"Windows","online":false}]}
+                    {"license":{{License}},"activations":[{"id":"55555555-5555-5555-5555-555555555555","licenseId":"44444444-4444-4444-4444-444444444444","deviceId":"dev-1","deviceName":"PC","appVersion":"2.4","status":"Deactivated","activatedAt":"2026-10-01T00:00:00Z","deactivatedAt":null,"lastHeartbeatAt":null,"lastIpAddress":null,"operatingSystem":"Windows","online":false}]}
                     """),
                 _ => new HttpResponseMessage(HttpStatusCode.NotFound),
             });
         }
 
-        private const string License = """{"id":"44444444-4444-4444-4444-444444444444","tenantId":"00000000-0000-0000-0000-000000000001","customerId":"66666666-6666-6666-6666-666666666666","customerName":"Acme","subscriptionId":"77777777-7777-7777-7777-777777777777","productCode":"UBG","planCode":"STD","planVersion":2,"licenseNumber":"LIC-00042","productKeyPrefix":"UBG-FULL","status":1,"statusReason":null,"issuedAt":"2026-10-01T00:00:00Z","expiresAt":"2027-10-01T00:00:00Z","maxActivations":3,"activeActivations":0,"features":[],"heartbeatIntervalHours":24,"offlineGraceDays":7}""";
+        private const string License = """{"id":"44444444-4444-4444-4444-444444444444","tenantId":"00000000-0000-0000-0000-000000000001","customerId":"66666666-6666-6666-6666-666666666666","customerName":"Acme","subscriptionId":"77777777-7777-7777-7777-777777777777","productCode":"UBG","planCode":"STD","planVersion":2,"licenseNumber":"LIC-00042","productKeyPrefix":"UBG-FULL","status":"Active","statusReason":null,"issuedAt":"2026-10-01T00:00:00Z","expiresAt":"2027-10-01T00:00:00Z","maxActivations":3,"activeActivations":0,"features":[],"heartbeatIntervalHours":24,"offlineGraceDays":7}""";
 
         private static HttpResponseMessage Json(string body, HttpStatusCode status = HttpStatusCode.OK) =>
             new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
@@ -62,11 +64,25 @@ public class LicensingPlatformClientTests
     }
 
     [Fact]
-    public async Task Only_current_published_paid_plans_are_offered()
+    public async Task Each_paid_plan_is_offered_at_its_newest_published_version()
     {
-        var (client, _) = Create();
-        var plan = Assert.Single(await client.PublishedPaidPlansAsync(default));
-        Assert.Equal(("STD", 2, 1200m), (plan.Code, plan.Version, plan.Price));
+        var (client, platform) = Create();
+        var plans = await client.PublishedPaidPlansAsync(default);
+
+        Assert.Equal([("PRO", 1, 2500m), ("STD", 2, 1200m)], plans.Select(p => (p.Code, p.Version, p.Price)).OrderBy(p => p.Code));
+        Assert.Contains(platform.Calls, c => c.Path.StartsWith("/api/v1/plans?status=Published&", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_response_it_cannot_read_surfaces_as_unavailable()
+    {
+        var (client, platform) = Create();
+        platform.Override = r => r.RequestUri!.AbsolutePath == "/api/v1/licenses/44444444-4444-4444-4444-444444444444"
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(
+                """{"license":{"id":"44444444-4444-4444-4444-444444444444","status":"Frozen"},"activations":[]}""", Encoding.UTF8, "application/json") }
+            : null;
+
+        await Assert.ThrowsAsync<PlatformUnavailableException>(() => client.LicenseAsync(Guid.Parse("44444444-4444-4444-4444-444444444444"), default));
     }
 
     [Fact]
@@ -89,7 +105,7 @@ public class LicensingPlatformClientTests
         platform.Override = r => r.RequestUri!.AbsolutePath == "/api/v1/plans" && !refusedOnce && (refusedOnce = true)
             ? new HttpResponseMessage(HttpStatusCode.Unauthorized) : null;
 
-        Assert.Single(await client.PublishedPaidPlansAsync(default));
+        Assert.Equal(2, (await client.PublishedPaidPlansAsync(default)).Count);
         Assert.Equal(2, platform.Logins);
     }
 
