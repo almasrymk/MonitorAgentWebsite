@@ -99,7 +99,7 @@ test('an expired MFA session explains what to do', async ({ page }) => {
 });
 
 for (const lang of ['ar', 'en'] as const) {
-  for (const path of ['', '/orders', '/releases', '/support', '/support/t1', '/suggestions', '/customers', '/customers/c1', '/reports', '/content', '/content/p1', '/content/p2', '/security', '/account']) {
+  for (const path of ['', '/orders', '/releases', '/support', '/support/t1', '/suggestions', '/customers', '/customers/c1', '/reports', '/audit', '/content', '/content/p1', '/content/p2', '/security', '/account']) {
     test(`${lang} ${path || '/'} has no accessibility violations`, async ({ page }) => {
       signedIn(await open(page, lang));
       await page.goto(`${admin}${path}`);
@@ -202,4 +202,14 @@ test('finance picks a period for the money report and can download it', async ({
   await expect(page.getByRole('cell', { name: 'paymob' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Download as spreadsheet (CSV)' })).toHaveAttribute('href', '/api/v1/admin/reports/ledger.csv?from=2026-10-01&to=2026-10-15');
   expect(api.calls).toContain('GET /admin/reports/revenue?from=2026-10-01&to=2026-10-15');
+});
+
+test('an admin narrows the audit trail to orders', async ({ page }) => {
+  const api = signedIn(await open(page));
+  await page.goto(`${admin}/audit`);
+  await expect(page.getByRole('cell', { name: 'license.issue' })).toBeVisible();
+  await page.getByLabel('Area').selectOption('order.');
+  await expect(page.getByRole('cell', { name: 'license.issue' })).toHaveCount(0);
+  await expect(page.getByRole('cell', { name: 'BANK-7781' })).toBeVisible();
+  expect(api.calls).toContain('GET /admin/audit?page=1&pageSize=50&action=order.');
 });

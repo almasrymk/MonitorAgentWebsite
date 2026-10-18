@@ -23,9 +23,21 @@ public sealed record ReleaseDto(Guid Id, string Version, string Channel, string?
 public sealed record SignedManifest(byte[] Manifest, string Signature);
 
 /// <summary>Adds a draft from a manifest signed offline. <c>ManifestBase64</c> is the file's exact bytes.</summary>
-public sealed record AddReleaseCommand(string Channel, string ManifestBase64, string Signature) : ICommand<Result<ReleaseDto>>;
-public sealed record PublishReleaseCommand(Guid ReleaseId) : ICommand<Result<ReleaseDto>>;
-public sealed record WithdrawReleaseCommand(Guid ReleaseId) : ICommand<Result<ReleaseDto>>;
+public sealed record AddReleaseCommand(string Channel, string ManifestBase64, string Signature) : ICommand<Result<ReleaseDto>>, IAuditedCommand
+{
+    public string AuditAction => "release.add";
+    public string AuditTarget => $"channel:{Channel}";
+}
+public sealed record PublishReleaseCommand(Guid ReleaseId) : ICommand<Result<ReleaseDto>>, IAuditedCommand
+{
+    public string AuditAction => "release.publish";
+    public string AuditTarget => $"release:{ReleaseId}";
+}
+public sealed record WithdrawReleaseCommand(Guid ReleaseId) : ICommand<Result<ReleaseDto>>, IAuditedCommand
+{
+    public string AuditAction => "release.withdraw";
+    public string AuditTarget => $"release:{ReleaseId}";
+}
 public sealed record ListReleasesQuery(bool PublishedOnly) : IQuery<Result<IReadOnlyList<ReleaseDto>>>;
 public sealed record CurrentManifestQuery(string Channel) : IQuery<Result<SignedManifest>>;
 
