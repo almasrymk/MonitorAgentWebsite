@@ -17,4 +17,13 @@ internal sealed class CompanyDirectory(CustomersDb db) : ICompanyDirectory
             .Select(a => new CompanySummary(a.Id, a.Name,
                 a.Members.Where(m => m.Role == MemberRole.Owner).OrderBy(m => m.JoinedAt).Select(m => m.UserId).First()))
             .SingleOrDefaultAsync(ct);
+
+    public async Task<IReadOnlyDictionary<Guid, CompanySummary>> FindManyAsync(IReadOnlyCollection<Guid> companyIds, CancellationToken ct)
+    {
+        if (companyIds.Count == 0) return new Dictionary<Guid, CompanySummary>();
+        return await db.Accounts.AsNoTracking().Where(a => companyIds.Contains(a.Id))
+            .Select(a => new CompanySummary(a.Id, a.Name,
+                a.Members.Where(m => m.Role == MemberRole.Owner).OrderBy(m => m.JoinedAt).Select(m => m.UserId).First()))
+            .ToDictionaryAsync(c => c.Id, ct);
+    }
 }

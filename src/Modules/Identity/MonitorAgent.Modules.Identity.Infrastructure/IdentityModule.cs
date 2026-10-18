@@ -109,7 +109,11 @@ public static class IdentityModule
         services.AddAuthorizationBuilder()
             .AddPolicy(AuthPolicies.Customer, p => p.RequireAuthenticatedUser().RequireRole(IdentityRoles.Customer))
             .AddPolicy(AuthPolicies.Staff, p => p.RequireAuthenticatedUser().RequireRole(IdentityRoles.Staff).RequireClaim("amr", "mfa"))
-            .AddPolicy(AuthPolicies.StaffAdmin, p => p.RequireAuthenticatedUser().RequireRole(IdentityRoles.Admin).RequireClaim("amr", "mfa"));
+            .AddPolicy(AuthPolicies.StaffAdmin, p => p.RequireAuthenticatedUser().RequireRole(IdentityRoles.Admin).RequireClaim("amr", "mfa"))
+            .AddPolicy(AuthPolicies.StaffFinance, p => p.RequireAuthenticatedUser().RequireRole(IdentityRoles.Admin, IdentityRoles.Finance)
+                .RequireClaim("amr", "mfa"))
+            .AddPolicy(AuthPolicies.StaffCustomers, p => p.RequireAuthenticatedUser()
+                .RequireRole(IdentityRoles.Admin, IdentityRoles.Support, IdentityRoles.Finance).RequireClaim("amr", "mfa"));
 
         services.AddHttpContextAccessor();
         services.AddScoped<IUserAccounts, UserAccounts>();

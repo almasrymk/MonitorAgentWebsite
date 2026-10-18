@@ -107,6 +107,24 @@ public class ApiFactory : WebApplicationFactory<Program>
     public TestClient CreateTestClient() =>
         new(CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), HandleCookies = true }), Emails);
 
+    /// <summary>A new staff member with only the given role, signed in with two-step verification.</summary>
+    public async Task<TestClient> StaffAsync(string role)
+    {
+        var client = CreateTestClient();
+        var email = $"{role.ToLowerInvariant()}-{Guid.NewGuid():N}@example.test";
+        var password = await client.RegisterConfirmedAsync(email);
+        await using (var scope = Services.CreateAsyncScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
+            var user = (await users.FindByEmailAsync(email))!;
+            await users.RemoveFromRoleAsync(user, MonitorAgent.Modules.Identity.Contracts.IdentityRoles.Customer);
+            await users.AddToRoleAsync(user, role);
+        }
+        await client.SignInAsync(email, password);
+        await client.EnableMfaAsync();
+        return client;
+    }
+
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);

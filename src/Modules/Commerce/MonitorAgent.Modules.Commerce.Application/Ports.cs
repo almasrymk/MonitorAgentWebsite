@@ -30,12 +30,16 @@ public interface IPaymentGateway
 /// <summary>Thrown by <see cref="ICommerceStore.SaveAsync"/> when another request saved the same thing first.</summary>
 public sealed class SaveConflictException(Exception inner) : Exception("A concurrent update won.", inner);
 
+internal sealed record LedgerLine(LedgerEntry Entry, string OrderNumber, string ProductName, string PlanName, Guid CompanyId);
+
 internal interface ICommerceStore
 {
     Task<Order?> OrderAsync(Guid orderId, CancellationToken ct);
     Task<Order?> OrderForPaymentAsync(string provider, string providerReference, CancellationToken ct);
     Task<IReadOnlyList<Order>> OrdersOfAsync(Guid companyId, CancellationToken ct);
-    Task<(IReadOnlyList<Order> Items, int Total)> OrdersAsync(OrderStatus? status, int page, int pageSize, CancellationToken ct);
+    Task<(IReadOnlyList<Order> Items, int Total)> OrdersAsync(OrderStatus? status, Guid? companyId, int page, int pageSize, CancellationToken ct);
+    /// <summary>Money moved between the two instants, oldest first, with the order each line belongs to. At most <paramref name="max"/> lines.</summary>
+    Task<IReadOnlyList<LedgerLine>> LedgerAsync(DateTimeOffset from, DateTimeOffset until, int max, CancellationToken ct);
     Task<IReadOnlyList<Order>> PaidUnfulfilledAsync(int max, CancellationToken ct);
     Task<bool> NotificationSeenAsync(string provider, string eventId, CancellationToken ct);
     void Add(Order order);

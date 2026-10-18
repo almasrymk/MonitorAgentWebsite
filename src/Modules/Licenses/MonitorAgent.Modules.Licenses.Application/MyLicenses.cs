@@ -130,3 +130,23 @@ internal sealed class ResetDeviceHandler(CompanyScope scope, ILicensingPlatform 
         }
     }
 }
+
+/// <summary>Any company's licenses, for staff looking at a customer.</summary>
+public sealed record CompanyLicensesQuery(Guid CompanyId) : IQuery<Result<IReadOnlyList<LicenseSummaryDto>>>;
+
+internal sealed class CompanyLicensesHandler(ILicenseStore store, ILicensingPlatform platform)
+    : IQueryHandler<CompanyLicensesQuery, Result<IReadOnlyList<LicenseSummaryDto>>>
+{
+    public async Task<Result<IReadOnlyList<LicenseSummaryDto>>> HandleAsync(CompanyLicensesQuery query, CancellationToken ct)
+    {
+        if (await store.LinkForAsync(query.CompanyId, ct) is not { } link) return Array.Empty<LicenseSummaryDto>();
+        try
+        {
+            return (await platform.LicensesOfAsync(link.PlatformCustomerId, ct)).Where(l => l.CustomerId == link.PlatformCustomerId).Select(Map.Summary).ToList();
+        }
+        catch (PlatformUnavailableException)
+        {
+            return LicensesErrors.PlatformUnavailable;
+        }
+    }
+}

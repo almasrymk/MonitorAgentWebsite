@@ -99,7 +99,7 @@ test('an expired MFA session explains what to do', async ({ page }) => {
 });
 
 for (const lang of ['ar', 'en'] as const) {
-  for (const path of ['', '/orders', '/releases', '/support', '/support/t1', '/suggestions', '/content', '/content/p1', '/content/p2', '/security', '/account']) {
+  for (const path of ['', '/orders', '/releases', '/support', '/support/t1', '/suggestions', '/customers', '/customers/c1', '/reports', '/content', '/content/p1', '/content/p2', '/security', '/account']) {
     test(`${lang} ${path || '/'} has no accessibility violations`, async ({ page }) => {
       signedIn(await open(page, lang));
       await page.goto(`${admin}${path}`);
@@ -165,4 +165,41 @@ test('a reviewer sends a version back with a reason', async ({ page }) => {
   await page.getByRole('button', { name: 'Send back' }).click();
   await expect(page.getByText('Adel Admin sent this back: Mention Cairo.')).toBeVisible();
   expect(api.pages[0].versions[0]).toMatchObject({ status: 'Draft', reviewNote: 'Mention Cairo.' });
+});
+
+test('support finds a customer by email and sees its people and licenses', async ({ page }) => {
+  signedIn(await open(page));
+  await page.goto(`${admin}/customers`);
+  await page.getByRole('searchbox', { name: 'Company name or exact email' }).fill('omar@delta.test');
+  await page.getByRole('button', { name: 'Find' }).click();
+  await expect(page).toHaveURL(/search=omar(@|%40)delta\.test/);
+  await expect(page.getByRole('link', { name: 'Nile Traders' })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Delta Pharma' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Delta Pharma');
+  await expect(page.getByRole('cell', { name: 'omar@delta.test' })).toBeVisible();
+});
+
+test('an admin issues a license by hand for a payment taken outside the website', async ({ page }) => {
+  const api = signedIn(await open(page));
+  await page.goto(`${admin}/customers/c1`);
+  await expect(page.getByRole('cell', { name: 'LIC-2026-0003' })).toBeVisible();
+  await page.getByLabel('Plan').selectOption('p-std');
+  await page.getByLabel('Payment reference').fill('BANK-7781');
+  await page.getByRole('button', { name: 'Issue license' }).click();
+  await expect(page.getByRole('status')).toHaveText('License LIC-2026-0099 issued.');
+  await expect(page.getByRole('cell', { name: 'LIC-2026-0099' })).toBeVisible();
+  expect(api.grants).toEqual([{ companyId: 'c1', planId: 'p-std', orderReference: 'BANK-7781' }]);
+});
+
+test('finance picks a period for the money report and can download it', async ({ page }) => {
+  const api = signedIn(await open(page));
+  await page.goto(`${admin}/reports`);
+  await page.getByLabel('From').fill('2026-10-01');
+  await page.getByLabel('To').fill('2026-10-15');
+  await page.getByRole('button', { name: 'Show' }).click();
+  await expect(page).toHaveURL(/from=2026-10-01&to=2026-10-15/);
+  await expect(page.getByRole('heading', { name: 'Net in EGP' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'paymob' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Download as spreadsheet (CSV)' })).toHaveAttribute('href', '/api/v1/admin/reports/ledger.csv?from=2026-10-01&to=2026-10-15');
+  expect(api.calls).toContain('GET /admin/reports/revenue?from=2026-10-01&to=2026-10-15');
 });

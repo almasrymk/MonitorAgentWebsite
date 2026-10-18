@@ -63,3 +63,15 @@ public sealed class AdminLicensesController(IDispatcher dispatcher) : Controller
     public async Task<IActionResult> Grant(GrantRequest request, CancellationToken ct) =>
         (await dispatcher.SendAsync(new FulfillLicenseCommand(request.CompanyId, request.PlanId, request.OrderReference), ct)).ToActionResult();
 }
+
+/// <summary>Admins, support and finance: the licenses of one customer company.</summary>
+[ApiController]
+[Route("api/v1/admin/customers/{companyId:guid}/licenses")]
+[Authorize(Policy = AuthPolicies.StaffCustomers)]
+public sealed class AdminCompanyLicensesController(IDispatcher dispatcher) : ControllerBase
+{
+    [HttpGet]
+    [ProducesResponseType<IReadOnlyList<LicenseSummaryDto>>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> List(Guid companyId, CancellationToken ct) =>
+        (await dispatcher.QueryAsync(new CompanyLicensesQuery(companyId), ct)).ToActionResult();
+}

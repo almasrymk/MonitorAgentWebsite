@@ -367,4 +367,88 @@ public class CommerceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         await RemindAsync();
         Assert.Equal(2, Reminders());
     }
+
+    [Fact]
+    public async Task Finance_sees_every_order_with_its_company_and_the_money_report()
+    {
+        var finance = await factory.StaffAsync("Finance");
+        var today = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var reportUrl = $"/api/v1/admin/reports/revenue?from={today}&to={today}";
+        async Task<(decimal Net, int Count)> EgpAsync()
+        {
+            var totals = (await JsonAsync(await finance.GetAsync(reportUrl))).GetProperty("totals").EnumerateArray()
+                .Where(t => t.GetProperty("currency").GetString() == "EGP").ToList();
+            return totals.Count == 0 ? (0m, 0) : (totals[0].GetProperty("net").GetDecimal(), totals[0].GetProperty("paymentCount").GetInt32());
+        }
+
+        var before = await EgpAsync();
+        var (client, email) = await PersonAsync();
+        var company = await JsonAsync(await client.PostAsync("/api/v1/company", new { name = "=HYPERLINK(\"http://evil.test\")" }));
+        var buyer = new Buyer(company.GetProperty("id").GetGuid(), client, email);
+        var orderId = await PlaceAsync(buyer);
+        await NotifyAsync(await CheckoutAsync(buyer, orderId));
+        var number = (await OrderAsync(buyer, orderId)).GetProperty("number").GetString()!;
+
+        var after = await EgpAsync();
+        Assert.Equal(before.Net + 1200m, after.Net);
+        Assert.Equal(before.Count + 1, after.Count);
+        var report = await JsonAsync(await finance.GetAsync(reportUrl));
+        Assert.Contains(report.GetProperty("byPlan").EnumerateArray(), p => p.GetProperty("planName").GetString() == "Standard");
+        Assert.Contains(report.GetProperty("byProvider").EnumerateArray(), p => p.GetProperty("provider").GetString() == "sandbox");
+
+        var orders = await JsonAsync(await finance.GetAsync($"/api/v1/admin/orders?companyId={buyer.CompanyId}"));
+        var order = Assert.Single(orders.GetProperty("items").EnumerateArray());
+        Assert.Equal(number, order.GetProperty("number").GetString());
+        Assert.StartsWith("=HYPERLINK", order.GetProperty("companyName").GetString(), StringComparison.Ordinal);
+
+        var csv = await finance.GetAsync($"/api/v1/admin/reports/ledger.csv?from={today}&to={today}");
+        Assert.Equal("text/csv", csv.Content.Headers.ContentType?.MediaType);
+        var text = await csv.Content.ReadAsStringAsync();
+        var row = Assert.Single(text.Split("\r\n"), l => l.Contains(number, StringComparison.Ordinal));
+        Assert.Contains("\"'=HYPERLINK(\"\"http://evil.test\"\")\"", row, StringComparison.Ordinal);
+        Assert.Contains(",1200.00,EGP,", row, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Money_reports_are_for_finance_and_admins_only()
+    {
+        var url = "/api/v1/admin/reports/revenue?from=2026-01-01&to=2026-12-31";
+        Assert.Equal(HttpStatusCode.OK, (await (await AdminAsync()).GetAsync(url)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await (await factory.StaffAsync("Support")).GetAsync(url)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await (await factory.StaffAsync("ContentEditor")).GetAsync("/api/v1/admin/orders")).StatusCode);
+        var finance = await factory.StaffAsync("Finance");
+        Assert.Equal(HttpStatusCode.BadRequest, (await finance.GetAsync("/api/v1/admin/reports/revenue?from=2026-12-31&to=2026-01-01")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await finance.GetAsync("/api/v1/admin/reports/revenue?from=2020-01-01&to=2026-01-01")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Support_finds_a_customer_by_name_or_email_and_sees_its_people_and_licenses()
+    {
+        var buyer = await BuyerAsync();
+        Assert.True((await buyer.Client.PutAsync("/api/v1/company", new { name = $"Delta Pharma {buyer.CompanyId:N}" })).IsSuccessStatusCode);
+        var orderId = await PlaceAsync(buyer);
+        await NotifyAsync(await CheckoutAsync(buyer, orderId));
+        var support = await factory.StaffAsync("Support");
+
+        var byName = await JsonAsync(await support.GetAsync($"/api/v1/admin/customers?search=Pharma%20{buyer.CompanyId:N}"));
+        var found = Assert.Single(byName.GetProperty("items").EnumerateArray());
+        Assert.Equal(buyer.CompanyId, found.GetProperty("id").GetGuid());
+        Assert.Equal(buyer.Email, found.GetProperty("ownerEmail").GetString());
+
+        var byEmail = await JsonAsync(await support.GetAsync($"/api/v1/admin/customers?search={Uri.EscapeDataString(buyer.Email.ToUpperInvariant())}"));
+        Assert.Equal(buyer.CompanyId, Assert.Single(byEmail.GetProperty("items").EnumerateArray()).GetProperty("id").GetGuid());
+        var nobody = await JsonAsync(await support.GetAsync("/api/v1/admin/customers?search=nobody%40example.test"));
+        Assert.Equal(0, nobody.GetProperty("totalCount").GetInt32());
+
+        var details = await JsonAsync(await support.GetAsync($"/api/v1/admin/customers/{buyer.CompanyId}"));
+        var owner = Assert.Single(details.GetProperty("members").EnumerateArray());
+        Assert.Equal("Owner", owner.GetProperty("role").GetString());
+        Assert.Equal(buyer.Email, owner.GetProperty("email").GetString());
+        var licenses = await JsonAsync(await support.GetAsync($"/api/v1/admin/customers/{buyer.CompanyId}/licenses"));
+        Assert.Equal(1, licenses.GetArrayLength());
+
+        Assert.Equal("COMPANY_NOT_FOUND", await TestClient.ErrorCodeAsync(await support.GetAsync($"/api/v1/admin/customers/{Guid.NewGuid()}")));
+        Assert.Equal(HttpStatusCode.Forbidden, (await (await factory.StaffAsync("ContentEditor")).GetAsync("/api/v1/admin/customers")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await buyer.Client.GetAsync("/api/v1/admin/customers")).StatusCode);
+    }
 }
