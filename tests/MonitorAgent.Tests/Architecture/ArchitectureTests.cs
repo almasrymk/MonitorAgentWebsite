@@ -15,10 +15,21 @@ public class ArchitectureTests
     private static readonly Assembly BuildingBlocks = typeof(IDispatcher).Assembly;
     private static readonly Assembly Host = typeof(Program).Assembly;
 
-    private static IReadOnlyList<Assembly> Modules => Host.GetReferencedAssemblies()
-        .Where(a => a.Name!.StartsWith("MonitorAgent.Modules.", StringComparison.Ordinal))
-        .Select(Assembly.Load)
-        .ToList();
+    private static readonly Assembly WebBlocks = typeof(MonitorAgent.BuildingBlocks.Web.ResultMapping).Assembly;
+
+    // Everything the host reaches, directly or through another module assembly (Domain sits behind Infrastructure).
+    private static readonly Lazy<IReadOnlyList<Assembly>> AllModules = new(() =>
+    {
+        var found = new Dictionary<string, Assembly>();
+        var pending = new Queue<Assembly>([Host]);
+        while (pending.TryDequeue(out var assembly))
+            foreach (var name in assembly.GetReferencedAssemblies().Where(a => a.Name!.StartsWith("MonitorAgent.Modules.", StringComparison.Ordinal)))
+                if (!found.ContainsKey(name.Name!))
+                    pending.Enqueue(found[name.Name!] = Assembly.Load(name));
+        return found.Values.OrderBy(a => a.GetName().Name, StringComparer.Ordinal).ToList();
+    });
+
+    private static IReadOnlyList<Assembly> Modules => AllModules.Value;
 
     private static void AssertPasses(TestResult result) =>
         Assert.True(result.IsSuccessful, "Violations: " + string.Join(", ", result.FailingTypeNames ?? []));
@@ -34,6 +45,28 @@ public class ArchitectureTests
         AssertPasses(Types.InAssembly(BuildingBlocks).ShouldNot()
             .HaveDependencyOnAny("MonitorAgent.Modules", "MonitorAgent.Api", "Microsoft.AspNetCore")
             .GetResult());
+
+    [Fact]
+    public void Web_building_blocks_do_not_depend_on_modules_or_the_host() =>
+        AssertPasses(Types.InAssembly(WebBlocks).ShouldNot()
+            .HaveDependencyOnAny("MonitorAgent.Modules", "MonitorAgent.Api")
+            .GetResult());
+
+    [Fact]
+    public void Every_layer_of_the_identity_module_is_checked() =>
+        Assert.Equal(
+            ["Application", "Contracts", "Domain", "Infrastructure"],
+            Modules.Where(m => m.GetName().Name!.StartsWith("MonitorAgent.Modules.Identity.", StringComparison.Ordinal))
+                .Select(m => m.GetName().Name!.Split('.')[^1]));
+
+    [Fact]
+    public void Module_domain_and_application_layers_stay_free_of_web_and_database_code()
+    {
+        foreach (var module in Modules.Where(m => m.GetName().Name!.EndsWith(".Domain", StringComparison.Ordinal) || m.GetName().Name!.EndsWith(".Application", StringComparison.Ordinal)))
+            AssertPasses(Types.InAssembly(module).ShouldNot()
+                .HaveDependencyOnAny("Microsoft.AspNetCore", "Microsoft.EntityFrameworkCore", "MonitorAgent.BuildingBlocks.Web")
+                .GetResult());
+    }
 
     [Fact]
     public void Modules_do_not_depend_on_the_host()

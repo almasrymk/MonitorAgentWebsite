@@ -9,3 +9,7 @@ trim_trailing_whitespace = true
 
 [*.{json,yml,yaml,ts,html,scss,md}]
 indent_size = 2
+
+# EF Core migrations are generated code.
+[**/Migrations/*.cs]
+generated_code = true

@@ -1,7 +1,8 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using MonitorAgent.SharedKernel;
 
-namespace MonitorAgent.Api.Web;
+namespace MonitorAgent.BuildingBlocks.Web;
 
 /// <summary>Maps <see cref="Result"/> failures to HTTP. The error code travels in <c>code</c> and is part of the API contract.</summary>
 public static class ResultMapping
@@ -28,6 +29,10 @@ public static class ResultMapping
 
     public static IActionResult ToActionResult(this Result result) =>
         result.IsSuccess ? new NoContentResult() : Problem(result.Error!);
+
+    /// <summary>202 on success: the request was taken, and what happens next (an email, say) is deliberately not revealed.</summary>
+    public static IActionResult ToAccepted(this Result result) =>
+        result.IsSuccess ? new AcceptedResult() : Problem(result.Error!);
 
     public static IActionResult ToActionResult<T>(this Result<T> result) =>
         result.IsSuccess ? new OkObjectResult(result.Value) : Problem(result.Error!);
