@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using MonitorAgent.BuildingBlocks.Application;
 using MonitorAgent.Modules.Commerce.Domain;
 using MonitorAgent.Modules.Customers.Contracts;
+using MonitorAgent.Modules.Identity.Contracts;
 using MonitorAgent.Modules.Licenses.Contracts;
 using MonitorAgent.SharedKernel;
 
@@ -33,16 +34,32 @@ internal sealed class ListOrdersValidator : AbstractValidator<ListOrdersQuery>
     }
 }
 
-/// <summary>What happens once an order is paid: ledger line, invoice, then the license.</summary>
-internal sealed class AfterPayment(ICommerceStore store, ICompanyDirectory companies, ILicenseFulfillment licenses, TimeProvider clock)
+/// <summary>
+/// What happens once an order is paid: ledger line, invoice, then the license. The buyer gets a receipt email once the
+/// payment is saved and another once the license is issued. Emails are best effort: the portal shows the same thing.
+/// </summary>
+internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirectory companies, ILicenseFulfillment licenses, IUserDirectory users,
+    IEmailSender email, PortalLinks links, TimeProvider clock, ILogger<AfterPayment> logger)
 {
+    private Invoice? _invoice;
+
     public async Task RecordAsync(Order order, Payment payment)
     {
         var now = clock.GetUtcNow();
         store.Add(new LedgerEntry(order.Id, LedgerEntryKind.Payment, payment.Amount, payment.Currency, payment.Provider, payment.ProviderReference ?? "", now));
         var company = await companies.FindAsync(order.CompanyId, default);
-        store.Add(new Invoice(await store.NextInvoiceNumberAsync(now.Year, default), order.Id, order.CompanyId, company?.Name ?? "",
-            $"{order.ProductName} - {order.PlanName} ({order.Number})", order.Total, order.Currency, now));
+        _invoice = new Invoice(await store.NextInvoiceNumberAsync(now.Year, default), order.Id, order.CompanyId, company?.Name ?? "",
+            $"{order.ProductName} - {order.PlanName} ({order.Number})", order.Total, order.Currency, now);
+        store.Add(_invoice);
+    }
+
+    /// <summary>Call only after the payment from <see cref="RecordAsync"/> is saved, so a receipt is never sent for a payment that was rolled back.</summary>
+    public async Task SendReceiptAsync(Order order, CancellationToken ct)
+    {
+        if (_invoice is not { } invoice) return;
+        _invoice = null;
+        await NotifyAsync(order, buyer => CommerceEmails.Receipt(buyer, order.Number, invoice.Number, order.Total, order.Currency,
+            links.To($"invoices/{invoice.Id}")), ct);
     }
 
     /// <summary>Best effort: a failure leaves the order Paid, and <see cref="FulfillPaidOrdersCommand"/> retries it.</summary>
@@ -57,9 +74,52 @@ internal sealed class AfterPayment(ICommerceStore store, ICompanyDirectory compa
         }
         catch (SaveConflictException)
         {
-            // The license exists; issuing is idempotent per order, so the next retry only records it.
+            // The license exists; issuing is idempotent per order, so the next retry only records it (and that one emails).
+            return;
+        }
+        await NotifyAsync(order, buyer => CommerceEmails.LicenseReady(buyer, order.Number, fulfilled.Value.LicenseNumber, links.To("licenses")), ct);
+    }
+
+    private async Task NotifyAsync(Order order, Func<string, EmailMessage> message, CancellationToken ct)
+    {
+        try
+        {
+            if (await users.FindAsync(order.PlacedBy, ct) is { } buyer) await email.SendAsync(message(buyer.Email), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            EmailFailed(logger, ex, order.Id);
         }
     }
+
+    [LoggerMessage(LogLevel.Warning, "Could not email the buyer of order {OrderId}")]
+    private static partial void EmailFailed(ILogger logger, Exception ex, Guid orderId);
+}
+
+/// <summary>Order emails, Arabic first then English. Product keys are never emailed; the portal shows them after sign-in.</summary>
+internal static class CommerceEmails
+{
+    public static EmailMessage Receipt(string to, string order, string invoice, decimal amount, string currency, string link) => new(to,
+        $"استلمنا الدفع للطلب {order} | Payment received for order {order}",
+        $"""
+        استلمنا {amount:0.00} {currency} للطلب {order}. الفاتورة {invoice} موجودة هنا وتقدر تطبعها:
+        {link}
+        الترخيص بيطلع خلال دقايق، وهنبعتلك إيميل لما يجهز.
+
+        We received {amount:0.00} {currency} for order {order}. Invoice {invoice} is here, ready to print:
+        {link}
+        Your license is being issued; we will email you when it is ready.
+        """);
+
+    public static EmailMessage LicenseReady(string to, string order, string license, string link) => new(to,
+        $"الترخيص {license} جاهز | License {license} is ready",
+        $"""
+        الترخيص {license} للطلب {order} جاهز. ادخل على البوابة عشان تشوف مفتاح المنتج وتفعّل أجهزتك:
+        {link}
+
+        License {license} for order {order} is ready. Sign in to the portal to see the product key and activate your devices:
+        {link}
+        """);
 }
 
 internal sealed partial class HandlePaymentNotificationHandler(
@@ -104,7 +164,11 @@ internal sealed partial class HandlePaymentNotificationHandler(
             return CommerceErrors.PaymentUnavailable;
         }
 
-        if (paid) await after.FulfilAsync(order, ct);
+        if (paid)
+        {
+            await after.SendReceiptAsync(order, ct);
+            await after.FulfilAsync(order, ct);
+        }
         return Result.Success();
     }
 
@@ -134,6 +198,7 @@ internal sealed class RecordManualPaymentHandler(ICommerceStore store, AfterPaym
         if (recorded.IsFailure) return recorded.Error!;
         await after.RecordAsync(order, order.Payments[^1]);
         await store.SaveAsync(ct);
+        await after.SendReceiptAsync(order, ct);
         await after.FulfilAsync(order, ct);
         return order.ToDto();
     }
