@@ -19,11 +19,14 @@ test.afterEach(async ({ page }) => {
 for (const lang of ['ar', 'en'] as const) {
   for (const path of pages) {
     test(`/${lang}${path} has no accessibility violations`, async ({ page }) => {
+      const blocked: string[] = [];
+      page.on('console', (m) => m.type() === 'error' && m.text().includes('Content Security Policy') && blocked.push(m.text()));
       await page.goto(`/${lang}${path}`);
       await expect(page.locator('html')).toHaveAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
       await expect(page.locator('h1')).toBeVisible();
       const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
       expect(results.violations.map((v) => `${v.id}: ${v.help} at ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
+      expect(blocked, 'blocked by the content security policy').toEqual([]);
     });
   }
 }
@@ -87,4 +90,19 @@ test('a published legal page replaces the built-in text, others keep it', async 
   await expect(page.getByText('Published privacy text from the content editor.')).toBeVisible();
   await page.goto('/en/terms');
   await expect(page.locator('h1')).toHaveText('Terms of service');
+});
+
+test('pages carry a per-request nonce and a strict content security policy', async ({ request }) => {
+  const first = await request.get('/en');
+  const second = await request.get('/en');
+  const csp = first.headers()['content-security-policy'];
+  expect(csp).toContain("frame-ancestors 'none'");
+  expect(csp).toContain("object-src 'none'");
+  const nonce = /'nonce-([^']+)'/.exec(csp)![1];
+  expect(second.headers()['content-security-policy']).not.toContain(nonce);
+  const html = await first.text();
+  expect(html.match(/<script(?![^>]*nonce=)/g)).toBeNull();
+  expect(html).toContain(`nonce="${nonce}"`);
+  expect(first.headers()['x-powered-by']).toBeUndefined();
+  expect(first.headers()['x-content-type-options']).toBe('nosniff');
 });

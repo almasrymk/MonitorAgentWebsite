@@ -1,0 +1,21 @@
+# Weekly update pull requests for every dependency the build ships or runs (supply-chain plan, ADR-015).
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      microsoft:
+        patterns: ["Microsoft.*", "System.*"]
+  - package-ecosystem: npm
+    directory: /web
+    schedule: { interval: weekly }
+    groups:
+      angular:
+        patterns: ["@angular/*", "@angular-devkit/*", "@schematics/angular"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: docker
+    directory: /src/Host/MonitorAgent.Api
+    schedule: { interval: weekly }

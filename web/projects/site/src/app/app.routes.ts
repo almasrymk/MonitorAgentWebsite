@@ -1,5 +1,6 @@
 import { Routes, UrlSegment } from '@angular/router';
 import { isLang } from 'shared';
+import { contentResolver, legalResolver } from './pages/content-data';
 import { Shell } from './shell';
 
 /** /ar/... and /en/... so each language has its own indexable address. */
@@ -13,10 +14,10 @@ export const routes: Routes = [
       { path: '', loadComponent: () => import('./pages/home').then((m) => m.HomePage) },
       { path: 'pricing', loadComponent: () => import('./pages/pricing').then((m) => m.PricingPage) },
       { path: 'download', loadComponent: () => import('./pages/download').then((m) => m.DownloadPage) },
-      { path: 'terms', data: { page: 'terms' }, loadComponent: () => import('./pages/legal').then((m) => m.LegalPage) },
-      { path: 'privacy', data: { page: 'privacy' }, loadComponent: () => import('./pages/legal').then((m) => m.LegalPage) },
-      { path: 'refunds', data: { page: 'refunds' }, loadComponent: () => import('./pages/legal').then((m) => m.LegalPage) },
-      { path: 'pages/:slug', loadComponent: () => import('./pages/content').then((m) => m.ContentPage) },
+      { path: 'terms', data: { page: 'terms' }, resolve: { cms: legalResolver }, loadComponent: () => import('./pages/legal').then((m) => m.LegalPage) },
+      { path: 'privacy', data: { page: 'privacy' }, resolve: { cms: legalResolver }, loadComponent: () => import('./pages/legal').then((m) => m.LegalPage) },
+      { path: 'refunds', data: { page: 'refunds' }, resolve: { cms: legalResolver }, loadComponent: () => import('./pages/legal').then((m) => m.LegalPage) },
+      { path: 'pages/:slug', resolve: { page: contentResolver }, loadComponent: () => import('./pages/content').then((m) => m.ContentPage) },
       { path: '**', loadComponent: () => import('./pages/not-found').then((m) => m.NotFoundPage) },
     ],
   },
