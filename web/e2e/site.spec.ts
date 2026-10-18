@@ -82,7 +82,7 @@ test('a published page is rendered on the server, and markup in it stays text', 
 test('an unpublished page answers 404', async ({ request }) => {
   const response = await request.get('/ar/pages/not-yet');
   expect(response.status()).toBe(404);
-  expect(await response.text()).toContain('الصفحة مش موجودة');
+  expect(await response.text()).toContain('الصفحة غير موجودة');
 });
 
 test('a published legal page replaces the built-in text, others keep it', async ({ page }) => {

@@ -273,3 +273,21 @@ main:focus {
   display: flex;
   gap: 1rem;
 }
+
+.quote {
+  margin-top: 1.5rem;
+  padding-inline-start: 1rem;
+  border-inline-start: 4px solid var(--ink);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat strong {
+  font-size: 1.75rem;
+}
