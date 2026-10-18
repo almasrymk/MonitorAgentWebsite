@@ -99,7 +99,7 @@ test('an expired MFA session explains what to do', async ({ page }) => {
 });
 
 for (const lang of ['ar', 'en'] as const) {
-  for (const path of ['', '/orders', '/releases', '/support', '/support/t1', '/suggestions', '/security', '/account']) {
+  for (const path of ['', '/orders', '/releases', '/support', '/support/t1', '/suggestions', '/content', '/content/p1', '/content/p2', '/security', '/account']) {
     test(`${lang} ${path || '/'} has no accessibility violations`, async ({ page }) => {
       signedIn(await open(page, lang));
       await page.goto(`${admin}${path}`);
@@ -132,4 +132,37 @@ test('support answers a suggestion', async ({ page }) => {
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('status')).toContainText('Weekly report');
   expect(api.suggestions[0]).toMatchObject({ status: 'Planned', staffNote: 'Coming in 2.6.' });
+});
+
+test('a reviewer publishes the version an editor sent', async ({ page }) => {
+  const api = signedIn(await open(page));
+  await page.goto(`${admin}/content`);
+  await expect(page.getByRole('cell', { name: 'Waiting for review' })).toBeVisible();
+  await page.getByRole('link', { name: 'About Monitor Agent' }).click();
+  await expect(page.getByRole('heading', { name: 'Version 2 by Eman Editor is waiting for review' })).toBeVisible();
+  await expect(page.getByRole('strong').filter({ hasText: 'Monitor Agent' }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Approve and publish' }).click();
+  await expect(page.getByRole('status')).toHaveText('Published. The website shows it within a minute.');
+  await expect(page.getByText('Version 2 is live')).toBeVisible();
+  expect(api.calls).toContain('POST /admin/content/pages/p1/approve');
+});
+
+test('an editor writes a draft and sends it for review, and cannot approve their own', async ({ page }) => {
+  const api = signedIn(await open(page));
+  await page.goto(`${admin}/content/p2`);
+  await page.getByLabel('Text (English)').fill('## What we keep\n- Your name and email');
+  await page.getByRole('button', { name: 'Save and send for review' }).click();
+  await expect(page.getByRole('status')).toHaveText('Sent for review.');
+  expect(api.pages[1].versions[0]).toMatchObject({ status: 'InReview', bodyEn: '## What we keep\n- Your name and email' });
+  await page.getByRole('button', { name: 'Approve and publish' }).click();
+  await expect(page.getByRole('alert')).toHaveText('Someone other than the last editor has to review this version.');
+});
+
+test('a reviewer sends a version back with a reason', async ({ page }) => {
+  const api = signedIn(await open(page));
+  await page.goto(`${admin}/content/p1`);
+  await page.getByLabel('What needs to change').fill('Mention Cairo.');
+  await page.getByRole('button', { name: 'Send back' }).click();
+  await expect(page.getByText('Adel Admin sent this back: Mention Cairo.')).toBeVisible();
+  expect(api.pages[0].versions[0]).toMatchObject({ status: 'Draft', reviewNote: 'Mention Cairo.' });
 });

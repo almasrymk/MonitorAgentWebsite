@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
-const pages = ['', '/pricing', '/download', '/terms', '/privacy', '/refunds'];
+const pages = ['', '/pricing', '/download', '/terms', '/privacy', '/refunds', '/pages/about-us'];
 
 // In production a reverse proxy serves /api from the same origin; here the browser's API calls go to the mock.
 test.beforeEach(async ({ page }) => {
@@ -9,6 +9,11 @@ test.beforeEach(async ({ page }) => {
     const url = new URL(route.request().url());
     await route.fulfill({ response: await route.fetch({ url: `http://localhost:5099${url.pathname}${url.search}` }) });
   });
+});
+
+// Pages keep asking the API after a test's last check (the legal pages look for published text); let those go.
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
 for (const lang of ['ar', 'en'] as const) {
@@ -54,4 +59,32 @@ test('an unknown page answers 404 and an address without a language gets one', a
   expect((await request.get('/en/nothing-here')).status()).toBe(404);
   await page.goto('/pricing');
   await expect(page).toHaveURL(/\/ar\/pricing$/);
+});
+
+test('a published page is rendered on the server, and markup in it stays text', async ({ request, page }) => {
+  const response = await request.get('/en/pages/about-us');
+  expect(response.status()).toBe(200);
+  const html = await response.text();
+  expect(html).toContain('<title>About us | ');
+  expect(html).toContain('<strong>Monitor Agent</strong>');
+  expect(html).not.toContain('<script>window.hacked');
+
+  await page.goto('/en/pages/about-us');
+  await expect(page.getByRole('heading', { level: 2, name: 'Who we are' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'See prices' })).toHaveAttribute('href', '/en/pricing');
+  await expect(page.getByText('<script>window.hacked = true</script>')).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { hacked?: boolean }).hacked)).toBeUndefined();
+});
+
+test('an unpublished page answers 404', async ({ request }) => {
+  const response = await request.get('/ar/pages/not-yet');
+  expect(response.status()).toBe(404);
+  expect(await response.text()).toContain('الصفحة مش موجودة');
+});
+
+test('a published legal page replaces the built-in text, others keep it', async ({ page }) => {
+  await page.goto('/en/privacy');
+  await expect(page.getByText('Published privacy text from the content editor.')).toBeVisible();
+  await page.goto('/en/terms');
+  await expect(page.locator('h1')).toHaveText('Terms of service');
 });

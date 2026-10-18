@@ -49,7 +49,7 @@ export class StatusBadge {
   protected readonly tone = computed(() => {
     const value = this.value();
     if (['Active', 'Fulfilled', 'Succeeded', 'Paid', 'Answered', 'Planned', 'Done', 'Published'].includes(value)) return 'ok';
-    if (['PendingPayment', 'Pending', 'Suspended', 'Open', 'New', 'Draft'].includes(value)) return 'warn';
+    if (['PendingPayment', 'Pending', 'Suspended', 'Open', 'New', 'Draft', 'InReview'].includes(value)) return 'warn';
     if (['Expired', 'Revoked', 'Cancelled', 'Failed'].includes(value)) return 'bad';
     return '';
   });

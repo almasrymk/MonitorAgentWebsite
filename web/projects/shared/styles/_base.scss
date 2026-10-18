@@ -278,3 +278,23 @@ textarea {
   font-size: 0.9em;
   word-break: break-all;
 }
+
+/* Page bodies written in the content editor. */
+.rich-text {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.rich-text > :first-child {
+  margin-top: 0;
+}
+
+.rich-text h2,
+.rich-text h3 {
+  margin-block: 1.5rem 0.5rem;
+}
+
+.rich-text ul,
+.rich-text ol {
+  padding-inline-start: 1.5rem;
+}
