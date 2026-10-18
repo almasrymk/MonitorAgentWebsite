@@ -20,6 +20,7 @@ import { I18n, isLang, TranslatePipe } from 'shared';
           <a [routerLink]="['/', lang()]" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">{{ 'nav.home' | t }}</a>
           <a [routerLink]="['/', lang(), 'pricing']" routerLinkActive="active" ariaCurrentWhenActive="page">{{ 'nav.pricing' | t }}</a>
           <a [routerLink]="['/', lang(), 'download']" routerLinkActive="active" ariaCurrentWhenActive="page">{{ 'nav.download' | t }}</a>
+          <a [routerLink]="['/', lang(), 'demo']" routerLinkActive="active" ariaCurrentWhenActive="page">{{ 'nav.demo' | t }}</a>
         </nav>
         <div class="actions">
           <a class="lang" [routerLink]="otherLangPath()"><span class="visually-hidden">{{ 'lang.switchLabel' | t }}: </span><span [attr.lang]="i18n.other()">{{ 'lang.switch' | t }}</span></a>

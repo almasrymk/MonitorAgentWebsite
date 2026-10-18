@@ -125,6 +125,7 @@ public static class SupportErrors
     public static readonly Error NotAllowed = Error.Forbidden("NOT_ALLOWED", "Your role in the company can't do this.");
     public static readonly Error TicketNotFound = Error.NotFound("TICKET_NOT_FOUND", "No such ticket.");
     public static readonly Error SuggestionNotFound = Error.NotFound("SUGGESTION_NOT_FOUND", "No such suggestion.");
+    public static readonly Error DemoRequestNotFound = Error.NotFound("DEMO_REQUEST_NOT_FOUND", "No such demo request.");
     public static readonly Error AlreadyClosed = Error.Conflict("TICKET_CLOSED", "The ticket is already closed.");
     public static readonly Error TooManyMessages = Error.Conflict("TICKET_TOO_LONG", "This ticket has too many messages. Open a new one.");
     public static readonly Error TooManyOpenTickets = Error.Conflict("TOO_MANY_OPEN_TICKETS", "Your company has too many open tickets. Close some first.");

@@ -291,3 +291,16 @@ main:focus {
 .stat strong {
   font-size: 1.75rem;
 }
+
+/* The demo form's hidden field: off screen for people, still in the form for bots. */
+.trap {
+  position: absolute;
+  inset-inline-start: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.small {
+  font-size: 0.9rem;
+}

@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
-const pages = ['', '/pricing', '/download', '/terms', '/privacy', '/refunds', '/pages/about-us'];
+const pages = ['', '/demo', '/pricing', '/download', '/terms', '/privacy', '/refunds', '/pages/about-us'];
 
 // In production a reverse proxy serves /api from the same origin; here the browser's API calls go to the mock.
 test.beforeEach(async ({ page }) => {
@@ -105,4 +105,37 @@ test('pages carry a per-request nonce and a strict content security policy', asy
   expect(html).toContain(`nonce="${nonce}"`);
   expect(first.headers()['x-powered-by']).toBeUndefined();
   expect(first.headers()['x-content-type-options']).toBe('nosniff');
+});
+
+test('a visitor asks for a demo', async ({ page }) => {
+  let sent: Record<string, unknown> | undefined;
+  await page.route('**/api/v1/auth/csrf', (route) =>
+    route.fulfill({ status: 204, headers: { 'set-cookie': 'XSRF-TOKEN=token-1; Path=/; SameSite=Strict' } }));
+  await page.route('**/api/v1/demo-requests', (route) => {
+    expect(route.request().headers()['x-xsrf-token']).toBe('token-1');
+    sent = route.request().postDataJSON();
+    return route.fulfill({ status: 202 });
+  });
+  await page.goto('/en');
+  await page.getByRole('link', { name: 'Contact us to request a demo' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Request a demo');
+  await page.getByLabel('Your name').fill('Mona Adel');
+  await page.getByLabel('Company').fill('Nile Gas Stations');
+  await page.getByLabel('Email').fill('mona@nilegas.example');
+  await page.getByLabel('Number of sites (optional)').fill('50');
+  await page.getByRole('button', { name: 'Send request' }).click();
+  await expect(page.getByRole('status')).toContainText('We received your request');
+  expect(sent).toMatchObject({ name: 'Mona Adel', company: 'Nile Gas Stations', email: 'mona@nilegas.example', sites: 50, phone: null, language: 'en', website: '' });
+});
+
+test('the demo form says what went wrong', async ({ page }) => {
+  await page.route('**/api/v1/auth/csrf', (route) => route.fulfill({ status: 204 }));
+  await page.route('**/api/v1/demo-requests', (route) =>
+    route.fulfill({ status: 429, contentType: 'application/json', body: JSON.stringify({ status: 429 }) }));
+  await page.goto('/ar/demo');
+  await page.getByLabel('الاسم').fill('منى');
+  await page.getByLabel('الشركة').fill('محطات النيل');
+  await page.getByLabel('البريد الإلكتروني').fill('mona@nilegas.example');
+  await page.getByRole('button', { name: 'أرسل الطلب' }).click();
+  await expect(page.getByRole('alert')).toContainText('انتظر دقيقة');
 });

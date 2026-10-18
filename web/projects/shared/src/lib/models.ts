@@ -190,6 +190,24 @@ export interface Suggestion {
   companyName: string | null;
 }
 
+export type DemoRequestStatus = 'New' | 'Contacted' | 'Closed';
+
+/** A visitor asking for a demo from the public site. Staff record the follow-up. */
+export interface DemoRequest {
+  id: string;
+  name: string;
+  company: string;
+  email: string;
+  phone: string | null;
+  sites: number | null;
+  message: string | null;
+  language: 'ar' | 'en';
+  status: DemoRequestStatus;
+  staffNote: string | null;
+  createdAt: string;
+  handledAt: string | null;
+}
+
 export type VersionStatus = 'Draft' | 'InReview' | 'Published' | 'Superseded';
 
 /** What a page says in both languages, as editors write it. */
