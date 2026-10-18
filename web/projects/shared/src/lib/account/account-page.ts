@@ -1,14 +1,19 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, input, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Api, errorText, I18n, Session, TranslatePipe } from 'shared';
+import { Api } from '../api';
+import { I18n, TranslatePipe } from '../i18n';
+import { errorText, Session } from '../session';
 
 @Component({
-  selector: 'portal-account',
+  selector: 'ma-account',
   imports: [FormsModule, TranslatePipe],
   template: `
     <h1>{{ 'account.title' | t }}</h1>
     <div class="stack">
+      @if (setup() === 'mfa' && !session.me()?.mfaEnabled) {
+        <p class="alert" role="alert">{{ 'account.mfaRequired' | t }}</p>
+      }
       @if (message()) {
         <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">{{ message() }}</p>
       }
@@ -42,6 +47,12 @@ import { Api, errorText, I18n, Session, TranslatePipe } from 'shared';
       <section class="card" aria-labelledby="mfa-title">
         <h2 id="mfa-title">{{ 'account.mfa' | t }}</h2>
         @if (codes().length) {
+          @if (setup() === 'mfa') {
+            <p class="alert ok" role="status">
+              {{ 'account.mfaSignInAgain' | t }}
+              <button class="btn" type="button" (click)="signInAgain()">{{ 'account.signInAgain' | t }}</button>
+            </p>
+          }
           <p>{{ 'account.recoveryCodes' | t }}</p>
           <ul class="mono" data-testid="recovery-codes">
             @for (code of codes(); track code) {
@@ -86,6 +97,8 @@ import { Api, errorText, I18n, Session, TranslatePipe } from 'shared';
   `,
 })
 export class AccountPage implements OnInit {
+  /** "mfa" when the admin app sent a staff member here because two-step verification is required. */
+  readonly setup = input<string>();
   private readonly api = inject(Api);
   private readonly i18n = inject(I18n);
   private readonly router = inject(Router);
@@ -154,6 +167,12 @@ export class AccountPage implements OnInit {
       await this.session.signOut();
       await this.router.navigateByUrl('/sign-in');
     });
+  }
+
+  /** Admin calls need a session that was signed in with the second factor, so turning it on is followed by a new sign-in. */
+  protected async signInAgain(): Promise<void> {
+    await this.session.signOut();
+    await this.router.navigateByUrl('/sign-in');
   }
 
   private async act(action: () => Promise<void>): Promise<void> {

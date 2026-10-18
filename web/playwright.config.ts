@@ -22,5 +22,6 @@ export default defineConfig({
       env: { PORT: '4400', API_URL: 'http://localhost:5099', NG_ALLOWED_HOSTS: 'localhost' },
     },
     { command: 'node e2e/serve.mjs portal 4401', port: 4401, reuseExistingServer: !process.env['CI'] },
+    { command: 'node e2e/serve.mjs admin 4402', port: 4402, reuseExistingServer: !process.env['CI'] },
   ],
 });

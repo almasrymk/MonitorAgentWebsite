@@ -1,7 +1,6 @@
 import { Component, computed, inject, input, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Api, Invoice, Loader, MoneyPipe, TranslatePipe, WhenPipe } from 'shared';
-import { LoadError, Skeleton } from './ui';
+import { Api, Invoice, Loader, LoadError, MoneyPipe, Skeleton, TranslatePipe, WhenPipe } from 'shared';
 
 @Component({
   selector: 'portal-invoices',
@@ -9,9 +8,9 @@ import { LoadError, Skeleton } from './ui';
   template: `
     <h1>{{ 'invoices.title' | t }}</h1>
     @if (invoices.loading()) {
-      <portal-skeleton />
+      <ma-skeleton />
     } @else if (invoices.error()) {
-      <portal-load-error [error]="invoices.error()" (retry)="invoices.load()" />
+      <ma-load-error [error]="invoices.error()" (retry)="invoices.load()" />
     } @else if (invoices.value()?.length === 0) {
       <p class="card">{{ 'invoices.empty' | t }}</p>
     } @else {
@@ -58,9 +57,9 @@ export class InvoicesPage implements OnInit {
   template: `
     <p class="no-print"><a routerLink="/invoices">← {{ 'invoices.title' | t }}</a></p>
     @if (invoices.loading()) {
-      <portal-skeleton />
+      <ma-skeleton />
     } @else if (invoices.error()) {
-      <portal-load-error [error]="invoices.error()" (retry)="invoices.load()" />
+      <ma-load-error [error]="invoices.error()" (retry)="invoices.load()" />
     } @else if (invoice(); as value) {
       <article class="card stack">
         <div class="page-head">
