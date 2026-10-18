@@ -46,6 +46,12 @@ jobs:
       - name: Build
         run: |
           for p in shared site portal admin; do npx ng build $p; done
+      - name: Browsers for end-to-end tests
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end and accessibility tests (axe, desktop and mobile)
+        run: npx playwright test
+        env:
+          CI: 'true'
 
   docker:
     runs-on: ubuntu-latest
