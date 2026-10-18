@@ -166,11 +166,16 @@ public class ApiFactory : WebApplicationFactory<Program>
 public sealed class CapturedEmails : IEmailSender
 {
     private readonly ConcurrentQueue<EmailMessage> _sent = new();
+    private readonly ConcurrentDictionary<string, bool> _unreachable = new(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyList<EmailMessage> To(string address) => _sent.Where(m => m.To.Equals(address, StringComparison.OrdinalIgnoreCase)).ToList();
 
+    /// <summary>From now on, sending to this address fails the way an unreachable mail server does.</summary>
+    public void FailFor(string address) => _unreachable[address] = true;
+
     public Task SendAsync(EmailMessage message, CancellationToken ct)
     {
+        if (_unreachable.ContainsKey(message.To)) throw new System.Net.Mail.SmtpException("The mail server is unreachable.");
         _sent.Enqueue(message);
         return Task.CompletedTask;
     }

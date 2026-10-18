@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using MonitorAgent.BuildingBlocks.Application;
 using MonitorAgent.Modules.Identity.Domain;
 using MonitorAgent.SharedKernel;
@@ -38,7 +39,7 @@ internal sealed class ChangePasswordValidator : AbstractValidator<ChangePassword
     }
 }
 
-internal sealed class ForgotPasswordHandler(IUserAccounts users, IEmailSender email, IIdentityLinks links, ISecurityLog log)
+internal sealed class ForgotPasswordHandler(IUserAccounts users, IEmailSender email, IIdentityLinks links, ISecurityLog log, ILogger<ForgotPasswordHandler> logger)
     : ICommandHandler<ForgotPasswordCommand, Result>
 {
     public async Task<Result> HandleAsync(ForgotPasswordCommand command, CancellationToken ct)
@@ -46,13 +47,13 @@ internal sealed class ForgotPasswordHandler(IUserAccounts users, IEmailSender em
         var user = await users.FindByEmailAsync(command.Email);
         if (user is null || !user.EmailConfirmed) return Result.Success();
         var token = await users.CreatePasswordResetTokenAsync(user.Id);
-        await email.SendAsync(Emails.ResetPassword(user.Email, links.ResetPassword(user.Email, token)), ct);
         await log.RecordAsync(user.Id, SecurityEventType.PasswordResetRequested, ct);
+        await email.TrySendAsync(Emails.ResetPassword(user.Email, links.ResetPassword(user.Email, token)), logger, ct);
         return Result.Success();
     }
 }
 
-internal sealed class ResetPasswordHandler(IUserAccounts users, IEmailSender email, ISecurityLog log) : ICommandHandler<ResetPasswordCommand, Result>
+internal sealed class ResetPasswordHandler(IUserAccounts users, IEmailSender email, ISecurityLog log, ILogger<ResetPasswordHandler> logger) : ICommandHandler<ResetPasswordCommand, Result>
 {
     public async Task<Result> HandleAsync(ResetPasswordCommand command, CancellationToken ct)
     {
@@ -61,13 +62,14 @@ internal sealed class ResetPasswordHandler(IUserAccounts users, IEmailSender ema
         var reset = await users.ResetPasswordAsync(user.Id, command.Token, command.NewPassword);
         if (reset.IsFailure) return reset;
         await users.RevokeSessionsAsync(user.Id);
-        await email.SendAsync(Emails.PasswordChanged(user.Email), ct);
         await log.RecordAsync(user.Id, SecurityEventType.PasswordReset, ct);
+        await email.TrySendAsync(Emails.PasswordChanged(user.Email), logger, ct);
         return Result.Success();
     }
 }
 
-internal sealed class ChangePasswordHandler(IUserAccounts users, ISignInSession session, ICurrentUser me, IEmailSender email, ISecurityLog log)
+internal sealed class ChangePasswordHandler(IUserAccounts users, ISignInSession session, ICurrentUser me, IEmailSender email, ISecurityLog log,
+    ILogger<ChangePasswordHandler> logger)
     : ICommandHandler<ChangePasswordCommand, Result>
 {
     public async Task<Result> HandleAsync(ChangePasswordCommand command, CancellationToken ct)
@@ -76,8 +78,9 @@ internal sealed class ChangePasswordHandler(IUserAccounts users, ISignInSession 
         var changed = await users.ChangePasswordAsync(userId, command.CurrentPassword, command.NewPassword);
         if (changed.IsFailure) return changed;
         await session.RefreshAsync(userId);
-        await email.SendAsync(Emails.PasswordChanged(user.Email), ct);
+        // The password has changed; a lost notice must not report the change as failed.
         await log.RecordAsync(userId, SecurityEventType.PasswordChanged, ct);
+        await email.TrySendAsync(Emails.PasswordChanged(user.Email), logger, ct);
         return Result.Success();
     }
 }

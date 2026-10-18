@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 using MonitorAgent.BuildingBlocks.Application;
 using MonitorAgent.Modules.Identity.Contracts;
 using MonitorAgent.Modules.Identity.Domain;
@@ -46,7 +47,7 @@ internal sealed class ExportMyDataHandler(IUserAccounts users, ICurrentUser me, 
 }
 
 internal sealed class DeleteMyAccountHandler(IUserAccounts users, ISignInSession session, ICurrentUser me, IEnumerable<IPersonalDataSource> sources,
-    IEmailSender email, ISecurityLog log) : ICommandHandler<DeleteMyAccountCommand, Result>
+    IEmailSender email, ISecurityLog log, ILogger<DeleteMyAccountHandler> logger) : ICommandHandler<DeleteMyAccountCommand, Result>
 {
     public async Task<Result> HandleAsync(DeleteMyAccountCommand command, CancellationToken ct)
     {
@@ -67,7 +68,7 @@ internal sealed class DeleteMyAccountHandler(IUserAccounts users, ISignInSession
         await users.AnonymizeAsync(userId);
         await session.SignOutAsync();
         await log.RecordAsync(userId, SecurityEventType.AccountDeleted, ct);
-        await email.SendAsync(Emails.AccountDeleted(address), ct);
+        await email.TrySendAsync(Emails.AccountDeleted(address), logger, ct);
         return Result.Success();
     }
 }
