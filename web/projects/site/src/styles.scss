@@ -225,12 +225,6 @@ main:focus {
   padding-block: clamp(3rem, 7vw, 6rem);
 }
 
-// The home page is long: its sections skip layout and paint until they near the viewport.
-site-home .section {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 720px;
-}
-
 .section.alt {
   background: var(--band);
 }
