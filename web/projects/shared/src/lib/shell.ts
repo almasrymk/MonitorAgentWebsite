@@ -17,16 +17,7 @@ export interface NavItem {
     <div class="app">
       <aside class="sidebar">
         <a class="logo" routerLink="/">
-          <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24">
-            <path
-              d="M2 12h4l3-7 4 14 3-7h6"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.4"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <img class="logo-mark" src="logo.png" width="28" height="28" alt="" />
           {{ 'brand' | t }}
         </a>
         <nav [attr.aria-label]="'nav.label' | t">
