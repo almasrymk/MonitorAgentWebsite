@@ -1,4 +1,4 @@
-import { Component, inject, input, output, signal } from '@angular/core';
+import { Component, inject, input, output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { WhenPipe } from './format';
 import { I18n, TranslatePipe } from './i18n';
@@ -12,6 +12,7 @@ export const TICKET_CATEGORIES: TicketCategory[] = ['Technical', 'Licensing', 'B
 @Component({
   selector: 'ma-ticket-thread',
   imports: [FormsModule, TranslatePipe, WhenPipe, StatusBadge],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page-head">
       <div>
@@ -29,7 +30,10 @@ export const TICKET_CATEGORIES: TicketCategory[] = ['Technical', 'Licensing', 'B
     <ol class="thread" [attr.aria-label]="'support.conversation' | t">
       @for (message of ticket().messages; track message.id) {
         <li class="card message" [class.staff]="message.fromStaff">
-          <p class="meta"><strong>{{ message.authorName }}</strong> · <span class="muted">{{ message.postedAt | when: true }}</span></p>
+          <p class="meta">
+            <strong>{{ message.authorName }}</strong> ·
+            <span class="muted">{{ message.postedAt | when: true }}</span>
+          </p>
           <p class="body">{{ message.body }}</p>
         </li>
       }
@@ -39,13 +43,24 @@ export const TICKET_CATEGORIES: TicketCategory[] = ['Technical', 'Licensing', 'B
     }
     <form class="card" (ngSubmit)="send()">
       <div class="field">
-        <label for="reply">{{ (ticket().status === 'Closed' ? 'support.reopen' : 'support.reply') | t }}</label>
-        <textarea id="reply" name="reply" rows="5" required maxlength="5000" [(ngModel)]="body"></textarea>
+        <label for="reply">{{
+          (ticket().status === 'Closed' ? 'support.reopen' : 'support.reply') | t
+        }}</label>
+        <textarea
+          id="reply"
+          name="reply"
+          rows="5"
+          required
+          maxlength="5000"
+          [(ngModel)]="body"
+        ></textarea>
       </div>
       <div class="row">
         <button class="btn" type="submit" [disabled]="busy()">{{ 'support.send' | t }}</button>
         @if (ticket().status !== 'Closed') {
-          <button class="btn secondary" type="button" (click)="close.emit()" [disabled]="busy()">{{ 'support.close' | t }}</button>
+          <button class="btn secondary" type="button" (click)="close.emit()" [disabled]="busy()">
+            {{ 'support.close' | t }}
+          </button>
         }
       </div>
     </form>
@@ -84,7 +99,8 @@ const en = {
   'support.subject': 'Subject',
   'support.categoryLabel': 'Topic',
   'support.message': 'What happened?',
-  'support.messageHelp': 'Include the program version and what you were doing. Never send passwords or product keys.',
+  'support.messageHelp':
+    'Include the program version and what you were doing. Never send passwords or product keys.',
   'support.statusLabel': 'Status',
   'support.updated': 'Last update',
   'support.open': 'Open',
@@ -103,7 +119,8 @@ const en = {
   'support.status.Answered': 'Answered',
   'support.status.Closed': 'Closed',
   'suggestions.title': 'Suggestions',
-  'suggestions.lead': 'Tell us what would make Monitor Agent better. Our team reads every suggestion.',
+  'suggestions.lead':
+    'Tell us what would make Monitor Agent better. Our team reads every suggestion.',
   'suggestions.new': 'Your idea',
   'suggestions.titleLabel': 'Title',
   'suggestions.body': 'Details',
@@ -118,7 +135,8 @@ const en = {
   'error.TICKET_NOT_FOUND': 'This ticket does not exist or is not yours.',
   'error.TICKET_CLOSED': 'This ticket is already closed.',
   'error.TICKET_TOO_LONG': 'This ticket has too many messages. Please open a new one.',
-  'error.TOO_MANY_OPEN_TICKETS': 'Your company has too many open tickets. Close the ones that are solved first.',
+  'error.TOO_MANY_OPEN_TICKETS':
+    'Your company has too many open tickets. Close the ones that are solved first.',
   'error.SUGGESTION_NOT_FOUND': 'This suggestion does not exist.',
 } as const;
 
@@ -130,7 +148,8 @@ const ar: Record<keyof typeof en, string> = {
   'support.subject': 'الموضوع',
   'support.categoryLabel': 'النوع',
   'support.message': 'ماذا حدث؟',
-  'support.messageHelp': 'اذكر إصدار البرنامج وما كنت تفعله. لا ترسل أبداً كلمة مرور أو مفتاح منتج.',
+  'support.messageHelp':
+    'اذكر إصدار البرنامج وما كنت تفعله. لا ترسل أبداً كلمة مرور أو مفتاح منتج.',
   'support.statusLabel': 'الحالة',
   'support.updated': 'آخر تحديث',
   'support.open': 'فتح',

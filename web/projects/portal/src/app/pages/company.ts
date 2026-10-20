@@ -1,25 +1,43 @@
-import { Component, inject, input, OnInit, signal } from '@angular/core';
+import { Component, inject, input, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Api, ApiError, Company, errorText, I18n, Loader, LoadError, Member, MemberRole, Skeleton, TranslatePipe, WhenPipe } from 'shared';
+import {
+  Api,
+  ApiError,
+  Company,
+  errorText,
+  I18n,
+  Loader,
+  LoadError,
+  Member,
+  MemberRole,
+  Skeleton,
+  TranslatePipe,
+  WhenPipe,
+} from 'shared';
 
 const roles: MemberRole[] = ['Owner', 'Billing', 'Technical', 'Viewer'];
 
 @Component({
   selector: 'portal-company',
   imports: [FormsModule, RouterLink, TranslatePipe, WhenPipe, LoadError, Skeleton],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h1>{{ 'company.title' | t }}</h1>
     @if (company.loading()) {
       <ma-skeleton />
     } @else if (noCompany()) {
-      <p class="card">{{ 'overview.noCompanyBody' | t }} <a routerLink="/">{{ 'nav.overview' | t }}</a></p>
+      <p class="card">
+        {{ 'overview.noCompanyBody' | t }} <a routerLink="/">{{ 'nav.overview' | t }}</a>
+      </p>
     } @else if (company.error()) {
       <ma-load-error [error]="company.error()" (retry)="company.load()" />
     } @else if (company.value(); as value) {
       <div class="stack">
         @if (message()) {
-          <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">{{ message() }}</p>
+          <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">
+            {{ message() }}
+          </p>
         }
         <section class="card">
           @if (value.myRole === 'Owner') {
@@ -28,7 +46,14 @@ const roles: MemberRole[] = ['Owner', 'Billing', 'Technical', 'Viewer'];
                 <label for="company-name">{{ 'company.name' | t }}</label>
                 <input id="company-name" name="name" required maxlength="150" [(ngModel)]="name" />
               </div>
-              <button class="btn secondary" type="submit" [disabled]="busy()" style="align-self: flex-end">{{ 'company.rename' | t }}</button>
+              <button
+                class="btn secondary"
+                type="submit"
+                [disabled]="busy()"
+                style="align-self: flex-end"
+              >
+                {{ 'company.rename' | t }}
+              </button>
             </form>
           } @else {
             <h2>{{ value.name }}</h2>
@@ -46,7 +71,9 @@ const roles: MemberRole[] = ['Owner', 'Billing', 'Technical', 'Viewer'];
                 <th scope="col">{{ 'company.role' | t }}</th>
                 <th scope="col">{{ 'company.joined' | t }}</th>
                 @if (value.myRole === 'Owner') {
-                  <th scope="col"><span class="visually-hidden">{{ 'company.remove' | t }}</span></th>
+                  <th scope="col">
+                    <span class="visually-hidden">{{ 'company.remove' | t }}</span>
+                  </th>
                 }
               </tr>
             </thead>
@@ -57,9 +84,15 @@ const roles: MemberRole[] = ['Owner', 'Billing', 'Technical', 'Viewer'];
                   <td>{{ member.email }}</td>
                   <td>
                     @if (value.myRole === 'Owner') {
-                      <select [attr.aria-label]="'company.changeRole' | t: { name: member.fullName }" (change)="changeRole(member, $any($event.target).value)" [disabled]="busy()">
+                      <select
+                        [attr.aria-label]="'company.changeRole' | t: { name: member.fullName }"
+                        (change)="changeRole(member, $any($event.target).value)"
+                        [disabled]="busy()"
+                      >
                         @for (role of roles; track role) {
-                          <option [value]="role" [selected]="role === member.role">{{ 'common.role.' + role | t }}</option>
+                          <option [value]="role" [selected]="role === member.role">
+                            {{ 'common.role.' + role | t }}
+                          </option>
                         }
                       </select>
                     } @else {
@@ -68,7 +101,16 @@ const roles: MemberRole[] = ['Owner', 'Billing', 'Technical', 'Viewer'];
                   </td>
                   <td>{{ member.joinedAt | when }}</td>
                   @if (value.myRole === 'Owner') {
-                    <td><button class="btn secondary" type="button" (click)="remove(member)" [disabled]="busy()">{{ 'company.remove' | t }}</button></td>
+                    <td>
+                      <button
+                        class="btn secondary"
+                        type="button"
+                        (click)="remove(member)"
+                        [disabled]="busy()"
+                      >
+                        {{ 'company.remove' | t }}
+                      </button>
+                    </td>
                   }
                 </tr>
               }
@@ -82,7 +124,13 @@ const roles: MemberRole[] = ['Owner', 'Billing', 'Technical', 'Viewer'];
             <form class="row" (ngSubmit)="invite()">
               <div style="flex: 2; min-width: 220px">
                 <label for="invite-email">{{ 'common.email' | t }}</label>
-                <input id="invite-email" name="email" type="email" required [(ngModel)]="inviteEmail" />
+                <input
+                  id="invite-email"
+                  name="email"
+                  type="email"
+                  required
+                  [(ngModel)]="inviteEmail"
+                />
               </div>
               <div style="flex: 1; min-width: 160px">
                 <label for="invite-role">{{ 'company.role' | t }}</label>
@@ -92,7 +140,9 @@ const roles: MemberRole[] = ['Owner', 'Billing', 'Technical', 'Viewer'];
                   }
                 </select>
               </div>
-              <button class="btn" type="submit" [disabled]="busy()" style="align-self: flex-end">{{ 'company.inviteSend' | t }}</button>
+              <button class="btn" type="submit" [disabled]="busy()" style="align-self: flex-end">
+                {{ 'company.inviteSend' | t }}
+              </button>
             </form>
             @if (value.invitations.length) {
               <h3>{{ 'company.invitations' | t }}</h3>
@@ -104,7 +154,16 @@ const roles: MemberRole[] = ['Owner', 'Billing', 'Technical', 'Viewer'];
                         <td>{{ invitation.email }}</td>
                         <td>{{ 'common.role.' + invitation.role | t }}</td>
                         <td>{{ 'company.expires' | t }} {{ invitation.expiresAt | when }}</td>
-                        <td><button class="btn secondary" type="button" (click)="revoke(invitation.id)" [disabled]="busy()">{{ 'company.revoke' | t }}</button></td>
+                        <td>
+                          <button
+                            class="btn secondary"
+                            type="button"
+                            (click)="revoke(invitation.id)"
+                            [disabled]="busy()"
+                          >
+                            {{ 'company.revoke' | t }}
+                          </button>
+                        </td>
                       </tr>
                     }
                   </tbody>
@@ -152,7 +211,10 @@ export class CompanyPage implements OnInit {
 
   protected invite(): Promise<void> {
     return this.act(async () => {
-      await this.api.post('/api/v1/company/invitations', { email: this.inviteEmail, role: this.inviteRole });
+      await this.api.post('/api/v1/company/invitations', {
+        email: this.inviteEmail,
+        role: this.inviteRole,
+      });
       this.message.set(this.i18n.t('company.invited', { email: this.inviteEmail }));
       this.inviteEmail = '';
       await this.company.load(true);
@@ -174,7 +236,8 @@ export class CompanyPage implements OnInit {
   }
 
   protected remove(member: Member): Promise<void> {
-    if (!confirm(this.i18n.t('company.removeConfirm', { name: member.fullName }))) return Promise.resolve();
+    if (!confirm(this.i18n.t('company.removeConfirm', { name: member.fullName })))
+      return Promise.resolve();
     return this.act(async () => {
       await this.api.delete(`/api/v1/company/members/${member.userId}`);
       await this.company.load(true);
@@ -201,6 +264,7 @@ export class CompanyPage implements OnInit {
 @Component({
   selector: 'portal-accept-invitation',
   imports: [RouterLink, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="card">
       <h1>{{ 'invite.title' | t }}</h1>
@@ -225,7 +289,9 @@ export class AcceptInvitationPage implements OnInit {
 
   async ngOnInit(): Promise<void> {
     try {
-      const company = await this.api.post<Company>('/api/v1/company/invitations/accept', { token: this.token() });
+      const company = await this.api.post<Company>('/api/v1/company/invitations/accept', {
+        token: this.token(),
+      });
       this.joined.set(company.name);
     } catch (error) {
       this.error.set(errorText(this.i18n, error));

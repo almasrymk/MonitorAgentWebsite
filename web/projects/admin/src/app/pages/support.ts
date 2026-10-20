@@ -1,9 +1,31 @@
-import { Component, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  Component,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import {
-  Api, errorText, I18n, Loader, LoadError, Paged, Skeleton, StatusBadge, Suggestion, SuggestionStatus, Ticket, TicketStatus, TicketSummary,
-  TicketThread, TranslatePipe, WhenPipe,
+  Api,
+  errorText,
+  I18n,
+  Loader,
+  LoadError,
+  Paged,
+  Skeleton,
+  StatusBadge,
+  Suggestion,
+  SuggestionStatus,
+  Ticket,
+  TicketStatus,
+  TicketSummary,
+  TicketThread,
+  TranslatePipe,
+  WhenPipe,
 } from 'shared';
 
 const ticketStatuses: TicketStatus[] = ['Open', 'Answered', 'Closed'];
@@ -14,6 +36,7 @@ const pageSize = 25;
 @Component({
   selector: 'admin-support',
   imports: [RouterLink, TranslatePipe, WhenPipe, LoadError, Skeleton, StatusBadge],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page-head">
       <h1>{{ 'support.title' | t }}</h1>
@@ -21,7 +44,9 @@ const pageSize = 25;
         <label for="ticket-filter">{{ 'support.statusLabel' | t }}</label>
         <select id="ticket-filter" (change)="filter($any($event.target).value)">
           @for (s of statuses; track s) {
-            <option [value]="s" [selected]="s === current()">{{ 'support.status.' + s | t }}</option>
+            <option [value]="s" [selected]="s === current()">
+              {{ 'support.status.' + s | t }}
+            </option>
           }
           <option value="all" [selected]="current() === 'all'">{{ 'orders.all' | t }}</option>
         </select>
@@ -49,7 +74,10 @@ const pageSize = 25;
             <tbody>
               @for (ticket of value.items; track ticket.id) {
                 <tr>
-                  <td><a [routerLink]="['/support', ticket.id]">{{ ticket.subject }}</a> <span class="muted mono">{{ ticket.number }}</span></td>
+                  <td>
+                    <a [routerLink]="['/support', ticket.id]">{{ ticket.subject }}</a>
+                    <span class="muted mono">{{ ticket.number }}</span>
+                  </td>
                   <td>{{ ticket.companyName ?? '—' }}</td>
                   <td>{{ 'support.category.' + ticket.category | t }}</td>
                   <td><ma-status [value]="ticket.status" prefix="support.status." /></td>
@@ -60,9 +88,23 @@ const pageSize = 25;
           </table>
         </div>
         <nav class="row" style="margin-top: 1rem" [attr.aria-label]="'common.pages' | t">
-          <button class="btn secondary" type="button" [disabled]="page() <= 1" (click)="go(page() - 1)">{{ 'common.previous' | t }}</button>
+          <button
+            class="btn secondary"
+            type="button"
+            [disabled]="page() <= 1"
+            (click)="go(page() - 1)"
+          >
+            {{ 'common.previous' | t }}
+          </button>
           <span>{{ 'common.pageOf' | t: { page: page(), pages: pages(value) } }}</span>
-          <button class="btn secondary" type="button" [disabled]="page() >= pages(value)" (click)="go(page() + 1)">{{ 'common.next' | t }}</button>
+          <button
+            class="btn secondary"
+            type="button"
+            [disabled]="page() >= pages(value)"
+            (click)="go(page() + 1)"
+          >
+            {{ 'common.next' | t }}
+          </button>
         </nav>
       }
     }
@@ -107,8 +149,11 @@ export class SupportQueuePage {
 @Component({
   selector: 'admin-ticket',
   imports: [RouterLink, TranslatePipe, LoadError, Skeleton, TicketThread],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <p><a routerLink="/support">← {{ 'support.title' | t }}</a></p>
+    <p>
+      <a routerLink="/support">← {{ 'support.title' | t }}</a>
+    </p>
     @if (ticket.loading()) {
       <ma-skeleton />
     } @else if (ticket.error()) {
@@ -122,10 +167,14 @@ export class AdminTicketPage {
   readonly id = input.required<string>();
   private readonly api = inject(Api);
   private readonly i18n = inject(I18n);
-  protected readonly ticket = new Loader(() => this.api.get<Ticket>(`/api/v1/admin/support/tickets/${this.id()}`));
+  protected readonly ticket = new Loader(() =>
+    this.api.get<Ticket>(`/api/v1/admin/support/tickets/${this.id()}`),
+  );
 
   protected readonly reply = async (body: string) =>
-    this.ticket.set(await this.api.post<Ticket>(`/api/v1/admin/support/tickets/${this.id()}/messages`, { body }));
+    this.ticket.set(
+      await this.api.post<Ticket>(`/api/v1/admin/support/tickets/${this.id()}/messages`, { body }),
+    );
 
   constructor() {
     effect(() => {
@@ -136,13 +185,16 @@ export class AdminTicketPage {
 
   protected async close(): Promise<void> {
     if (!confirm(this.i18n.t('support.closeConfirm'))) return;
-    this.ticket.set(await this.api.post<Ticket>(`/api/v1/admin/support/tickets/${this.id()}/close`));
+    this.ticket.set(
+      await this.api.post<Ticket>(`/api/v1/admin/support/tickets/${this.id()}/close`),
+    );
   }
 }
 
 @Component({
   selector: 'admin-suggestions',
   imports: [FormsModule, TranslatePipe, WhenPipe, LoadError, Skeleton, StatusBadge],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page-head">
       <h1>{{ 'suggestions.title' | t }}</h1>
@@ -151,13 +203,17 @@ export class AdminTicketPage {
         <select id="suggestion-filter" (change)="filter($any($event.target).value)">
           <option value="" [selected]="!status()">{{ 'orders.all' | t }}</option>
           @for (s of statuses; track s) {
-            <option [value]="s" [selected]="s === status()">{{ 'suggestions.status.' + s | t }}</option>
+            <option [value]="s" [selected]="s === status()">
+              {{ 'suggestions.status.' + s | t }}
+            </option>
           }
         </select>
       </div>
     </div>
     @if (message()) {
-      <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">{{ message() }}</p>
+      <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">
+        {{ message() }}
+      </p>
     }
     @if (suggestions.loading()) {
       <ma-skeleton />
@@ -181,24 +237,52 @@ export class AdminTicketPage {
                 <label [for]="'status-' + s.id">{{ 'support.statusLabel' | t }}</label>
                 <select #statusSelect [id]="'status-' + s.id">
                   @for (option of statuses; track option) {
-                    <option [value]="option" [selected]="option === s.status">{{ 'suggestions.status.' + option | t }}</option>
+                    <option [value]="option" [selected]="option === s.status">
+                      {{ 'suggestions.status.' + option | t }}
+                    </option>
                   }
                 </select>
               </div>
               <div style="flex: 1; min-width: 200px">
                 <label [for]="'note-' + s.id">{{ 'suggestions.answer' | t }}</label>
-                <input #noteInput [id]="'note-' + s.id" maxlength="1000" [value]="s.staffNote ?? ''" />
+                <input
+                  #noteInput
+                  [id]="'note-' + s.id"
+                  maxlength="1000"
+                  [value]="s.staffNote ?? ''"
+                />
               </div>
-              <button class="btn secondary" type="submit" [disabled]="busy()" style="align-self: flex-end">{{ 'common.save' | t }}</button>
+              <button
+                class="btn secondary"
+                type="submit"
+                [disabled]="busy()"
+                style="align-self: flex-end"
+              >
+                {{ 'common.save' | t }}
+              </button>
             </form>
           </article>
         }
       </div>
       @if (pages(value) > 1) {
         <nav class="row" style="margin-top: 1rem" [attr.aria-label]="'common.pages' | t">
-          <button class="btn secondary" type="button" [disabled]="page() <= 1" (click)="go(page() - 1)">{{ 'common.previous' | t }}</button>
+          <button
+            class="btn secondary"
+            type="button"
+            [disabled]="page() <= 1"
+            (click)="go(page() - 1)"
+          >
+            {{ 'common.previous' | t }}
+          </button>
           <span>{{ 'common.pageOf' | t: { page: page(), pages: pages(value) } }}</span>
-          <button class="btn secondary" type="button" [disabled]="page() >= pages(value)" (click)="go(page() + 1)">{{ 'common.next' | t }}</button>
+          <button
+            class="btn secondary"
+            type="button"
+            [disabled]="page() >= pages(value)"
+            (click)="go(page() + 1)"
+          >
+            {{ 'common.next' | t }}
+          </button>
         </nav>
       }
     }
@@ -242,12 +326,19 @@ export class AdminSuggestionsPage {
     void this.router.navigate([], { queryParams: { page }, queryParamsHandling: 'merge' });
   }
 
-  protected async answer(suggestion: Suggestion, status: SuggestionStatus, note: string): Promise<void> {
+  protected async answer(
+    suggestion: Suggestion,
+    status: SuggestionStatus,
+    note: string,
+  ): Promise<void> {
     this.busy.set(true);
     this.failed.set(false);
     this.message.set('');
     try {
-      await this.api.put(`/api/v1/admin/support/suggestions/${suggestion.id}`, { status, note: note.trim() || null });
+      await this.api.put(`/api/v1/admin/support/suggestions/${suggestion.id}`, {
+        status,
+        note: note.trim() || null,
+      });
       this.message.set(this.i18n.t('suggestions.saved', { title: suggestion.title }));
       await this.suggestions.load(true);
     } catch (error) {

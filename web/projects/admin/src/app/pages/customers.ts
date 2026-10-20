@@ -1,9 +1,33 @@
-import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import {
-  Api, CatalogPlan, CompanyDetails, CompanyListItem, errorText, I18n, LicenseSummary, Loader, LoadError, MoneyPipe, Order, Paged, Session, Skeleton,
-  StatusBadge, TranslatePipe, WhenPipe,
+  Api,
+  CatalogPlan,
+  CompanyDetails,
+  CompanyListItem,
+  errorText,
+  I18n,
+  LicenseSummary,
+  Loader,
+  LoadError,
+  MoneyPipe,
+  Order,
+  Paged,
+  Session,
+  Skeleton,
+  StatusBadge,
+  TranslatePipe,
+  WhenPipe,
 } from 'shared';
 
 const pageSize = 25;
@@ -12,12 +36,20 @@ const pageSize = 25;
 @Component({
   selector: 'admin-customers',
   imports: [FormsModule, RouterLink, TranslatePipe, WhenPipe, LoadError, Skeleton],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page-head">
       <h1>{{ 'customers.title' | t }}</h1>
       <form class="row" role="search" (ngSubmit)="find()">
         <label class="visually-hidden" for="customer-search">{{ 'customers.search' | t }}</label>
-        <input id="customer-search" name="search" type="search" maxlength="150" [placeholder]="'customers.search' | t" [(ngModel)]="text" />
+        <input
+          id="customer-search"
+          name="search"
+          type="search"
+          maxlength="150"
+          [placeholder]="'customers.search' | t"
+          [(ngModel)]="text"
+        />
         <button class="btn secondary" type="submit">{{ 'customers.find' | t }}</button>
       </form>
     </div>
@@ -42,8 +74,13 @@ const pageSize = 25;
             <tbody>
               @for (company of value.items; track company.id) {
                 <tr>
-                  <td><a [routerLink]="['/customers', company.id]">{{ company.name }}</a></td>
-                  <td>{{ company.ownerName ?? '—' }} <span class="muted" dir="ltr">{{ company.ownerEmail }}</span></td>
+                  <td>
+                    <a [routerLink]="['/customers', company.id]">{{ company.name }}</a>
+                  </td>
+                  <td>
+                    {{ company.ownerName ?? '—' }}
+                    <span class="muted" dir="ltr">{{ company.ownerEmail }}</span>
+                  </td>
                   <td>{{ company.members }}</td>
                   <td>{{ company.createdAt | when }}</td>
                 </tr>
@@ -53,9 +90,23 @@ const pageSize = 25;
         </div>
         @if (pages(value) > 1) {
           <nav class="row" style="margin-top: 1rem" [attr.aria-label]="'common.pages' | t">
-            <button class="btn secondary" type="button" [disabled]="page() <= 1" (click)="go(page() - 1)">{{ 'common.previous' | t }}</button>
+            <button
+              class="btn secondary"
+              type="button"
+              [disabled]="page() <= 1"
+              (click)="go(page() - 1)"
+            >
+              {{ 'common.previous' | t }}
+            </button>
             <span>{{ 'common.pageOf' | t: { page: page(), pages: pages(value) } }}</span>
-            <button class="btn secondary" type="button" [disabled]="page() >= pages(value)" (click)="go(page() + 1)">{{ 'common.next' | t }}</button>
+            <button
+              class="btn secondary"
+              type="button"
+              [disabled]="page() >= pages(value)"
+              (click)="go(page() + 1)"
+            >
+              {{ 'common.next' | t }}
+            </button>
           </nav>
         }
       }
@@ -89,7 +140,9 @@ export class CustomersPage {
   }
 
   protected find(): void {
-    void this.router.navigate([], { queryParams: { search: this.text.trim() || null, page: null } });
+    void this.router.navigate([], {
+      queryParams: { search: this.text.trim() || null, page: null },
+    });
   }
 
   protected go(page: number): void {
@@ -100,9 +153,21 @@ export class CustomersPage {
 /** One company: its people, licenses and orders. Admins can also issue a license by hand here. */
 @Component({
   selector: 'admin-customer',
-  imports: [FormsModule, RouterLink, TranslatePipe, WhenPipe, MoneyPipe, LoadError, Skeleton, StatusBadge],
+  imports: [
+    FormsModule,
+    RouterLink,
+    TranslatePipe,
+    WhenPipe,
+    MoneyPipe,
+    LoadError,
+    Skeleton,
+    StatusBadge,
+  ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <p><a routerLink="/customers">← {{ 'customers.title' | t }}</a></p>
+    <p>
+      <a routerLink="/customers">← {{ 'customers.title' | t }}</a>
+    </p>
     @if (company.loading()) {
       <ma-skeleton />
     } @else if (company.error()) {
@@ -136,7 +201,9 @@ export class CustomersPage {
                 <td class="muted">{{ 'customers.invited' | t }}</td>
                 <td dir="ltr">{{ invite.email }}</td>
                 <td>{{ 'common.role.' + invite.role | t }}</td>
-                <td class="muted">{{ 'customers.inviteUntil' | t: { date: (invite.expiresAt | when) } }}</td>
+                <td class="muted">
+                  {{ 'customers.inviteUntil' | t: { date: (invite.expiresAt | when) } }}
+                </td>
               </tr>
             }
           </tbody>
@@ -189,19 +256,35 @@ export class CustomersPage {
               <select id="grant-plan" name="plan" required [(ngModel)]="planId">
                 <option value="" disabled>{{ 'customers.pickPlan' | t }}</option>
                 @for (plan of plans.value() ?? []; track plan.id) {
-                  <option [value]="plan.id">{{ plan.productName }} · {{ plan.name }} ({{ plan.price | money: plan.currency }})</option>
+                  <option [value]="plan.id">
+                    {{ plan.productName }} · {{ plan.name }} ({{
+                      plan.price | money: plan.currency
+                    }})
+                  </option>
                 }
               </select>
             </div>
             <div style="flex: 1; min-width: 200px">
               <label for="grant-reference">{{ 'customers.grantReference' | t }}</label>
-              <input id="grant-reference" name="reference" required maxlength="100" [(ngModel)]="reference" />
+              <input
+                id="grant-reference"
+                name="reference"
+                required
+                maxlength="100"
+                [(ngModel)]="reference"
+              />
             </div>
           </div>
           @if (message()) {
-            <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">{{ message() }}</p>
+            <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">
+              {{ message() }}
+            </p>
           }
-          <div><button class="btn" type="submit" [disabled]="busy() || !planId || !reference.trim()">{{ 'customers.grantButton' | t }}</button></div>
+          <div>
+            <button class="btn" type="submit" [disabled]="busy() || !planId || !reference.trim()">
+              {{ 'customers.grantButton' | t }}
+            </button>
+          </div>
         </form>
       }
 
@@ -252,10 +335,18 @@ export class CustomerPage {
   private readonly session = inject(Session);
   protected readonly isAdmin = computed(() => !!this.session.me()?.roles.includes('Admin'));
   /** Orders are for finance and admins; support sees people and licenses only. */
-  protected readonly canSeeOrders = computed(() => !!this.session.me()?.roles.some((r) => r === 'Admin' || r === 'Finance'));
-  protected readonly company = new Loader(() => this.api.get<CompanyDetails>(`/api/v1/admin/customers/${this.id()}`));
-  protected readonly licenses = new Loader(() => this.api.get<LicenseSummary[]>(`/api/v1/admin/customers/${this.id()}/licenses`));
-  protected readonly orders = new Loader(() => this.api.get<Paged<Order>>(`/api/v1/admin/orders?companyId=${this.id()}&pageSize=100`));
+  protected readonly canSeeOrders = computed(
+    () => !!this.session.me()?.roles.some((r) => r === 'Admin' || r === 'Finance'),
+  );
+  protected readonly company = new Loader(() =>
+    this.api.get<CompanyDetails>(`/api/v1/admin/customers/${this.id()}`),
+  );
+  protected readonly licenses = new Loader(() =>
+    this.api.get<LicenseSummary[]>(`/api/v1/admin/customers/${this.id()}/licenses`),
+  );
+  protected readonly orders = new Loader(() =>
+    this.api.get<Paged<Order>>(`/api/v1/admin/orders?companyId=${this.id()}&pageSize=100`),
+  );
   protected readonly plans = new Loader(() => this.api.get<CatalogPlan[]>('/api/v1/catalog/plans'));
   protected planId = '';
   protected reference = '';
@@ -283,11 +374,14 @@ export class CustomerPage {
     this.failed.set(false);
     this.message.set('');
     try {
-      const issued = await this.api.post<{ licenseNumber: string }>('/api/v1/admin/licenses/grants', {
-        companyId: this.id(),
-        planId: this.planId,
-        orderReference: this.reference.trim(),
-      });
+      const issued = await this.api.post<{ licenseNumber: string }>(
+        '/api/v1/admin/licenses/grants',
+        {
+          companyId: this.id(),
+          planId: this.planId,
+          orderReference: this.reference.trim(),
+        },
+      );
       this.message.set(this.i18n.t('customers.granted', { number: issued.licenseNumber }));
       this.reference = '';
       await this.licenses.load(true);

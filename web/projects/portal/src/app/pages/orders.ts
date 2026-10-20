@@ -1,17 +1,42 @@
-import { Component, computed, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  input,
+  OnInit,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Api, CatalogPlan, errorText, I18n, Loader, LoadError, MoneyPipe, Order, Skeleton, StatusBadge, TranslatePipe, WhenPipe } from 'shared';
+import {
+  Api,
+  CatalogPlan,
+  errorText,
+  I18n,
+  Loader,
+  LoadError,
+  MoneyPipe,
+  Order,
+  Skeleton,
+  StatusBadge,
+  TranslatePipe,
+  WhenPipe,
+} from 'shared';
 
 /** Sends the browser to the provider's hosted payment page for this order. */
 async function pay(api: Api, orderId: string): Promise<void> {
   const providers = await api.get<string[]>('/api/v1/payments/providers');
-  const checkout = await api.post<{ redirectUrl: string }>(`/api/v1/orders/${orderId}/pay`, { provider: providers[0] });
+  const checkout = await api.post<{ redirectUrl: string }>(`/api/v1/orders/${orderId}/pay`, {
+    provider: providers[0],
+  });
   window.location.assign(checkout.redirectUrl);
 }
 
 @Component({
   selector: 'portal-checkout',
   imports: [RouterLink, TranslatePipe, MoneyPipe, LoadError, Skeleton],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h1>{{ 'checkout.title' | t }}</h1>
     <p class="muted">{{ 'checkout.lead' | t }}</p>
@@ -24,11 +49,22 @@ async function pay(api: Api, orderId: string): Promise<void> {
         <legend class="eyebrow">{{ 'checkout.choose' | t }}</legend>
         @for (plan of plans.value(); track plan.id) {
           <label class="checkbox card" style="cursor: pointer">
-            <input type="radio" name="plan" [value]="plan.id" [checked]="selectedId() === plan.id" (change)="selectedId.set(plan.id)" />
+            <input
+              type="radio"
+              name="plan"
+              [value]="plan.id"
+              [checked]="selectedId() === plan.id"
+              (change)="selectedId.set(plan.id)"
+            />
             <span style="flex: 1">
-              <strong>{{ plan.productName }} · {{ plan.name }}</strong><br />
+              <strong>{{ plan.productName }} · {{ plan.name }}</strong
+              ><br />
               <span class="muted">
-                {{ plan.maxDevices ? ('checkout.devices' | t: { count: plan.maxDevices }) : ('checkout.unlimited' | t) }}
+                {{
+                  plan.maxDevices
+                    ? ('checkout.devices' | t: { count: plan.maxDevices })
+                    : ('checkout.unlimited' | t)
+                }}
                 @if (plan.durationDays) {
                   · {{ 'checkout.duration' | t: { days: plan.durationDays } }}
                 }
@@ -48,10 +84,14 @@ async function pay(api: Api, orderId: string): Promise<void> {
           @if (error()) {
             <p class="alert" role="alert">{{ error() }}</p>
           }
-          <button class="btn" type="button" (click)="checkout(plan)" [disabled]="busy()">{{ 'checkout.pay' | t }}</button>
+          <button class="btn" type="button" (click)="checkout(plan)" [disabled]="busy()">
+            {{ 'checkout.pay' | t }}
+          </button>
         </section>
       }
-      <p><a routerLink="/orders">{{ 'orders.title' | t }}</a></p>
+      <p>
+        <a routerLink="/orders">{{ 'orders.title' | t }}</a>
+      </p>
     }
   `,
 })
@@ -61,7 +101,9 @@ export class CheckoutPage implements OnInit {
   private readonly i18n = inject(I18n);
   protected readonly plans = new Loader(() => this.api.get<CatalogPlan[]>('/api/v1/catalog/plans'));
   protected readonly selectedId = signal<string | null>(null);
-  protected readonly selected = computed(() => this.plans.value()?.find((p) => p.id === this.selectedId()) ?? null);
+  protected readonly selected = computed(
+    () => this.plans.value()?.find((p) => p.id === this.selectedId()) ?? null,
+  );
   protected readonly busy = signal(false);
   protected readonly error = signal('');
 
@@ -88,6 +130,7 @@ export class CheckoutPage implements OnInit {
 @Component({
   selector: 'portal-sandbox-checkout',
   imports: [RouterLink, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="card">
       <h1>{{ 'sandbox.title' | t }}</h1>
@@ -104,6 +147,7 @@ export class SandboxCheckoutPage {
 @Component({
   selector: 'portal-orders',
   imports: [RouterLink, TranslatePipe, MoneyPipe, WhenPipe, LoadError, Skeleton, StatusBadge],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page-head">
       <h1>{{ 'orders.title' | t }}</h1>
@@ -130,7 +174,9 @@ export class SandboxCheckoutPage {
           <tbody>
             @for (order of orders.value(); track order.id) {
               <tr>
-                <td><a [routerLink]="['/orders', order.id]" class="mono">{{ order.number }}</a></td>
+                <td>
+                  <a [routerLink]="['/orders', order.id]" class="mono">{{ order.number }}</a>
+                </td>
                 <td>{{ order.productName }} · {{ order.planName }}</td>
                 <td>{{ order.total | money: order.currency }}</td>
                 <td><ma-status [value]="order.status" prefix="order.status." /></td>
@@ -155,8 +201,11 @@ export class OrdersPage implements OnInit {
 @Component({
   selector: 'portal-order',
   imports: [RouterLink, TranslatePipe, MoneyPipe, WhenPipe, LoadError, Skeleton, StatusBadge],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <p><a routerLink="/orders">← {{ 'orders.title' | t }}</a></p>
+    <p>
+      <a routerLink="/orders">← {{ 'orders.title' | t }}</a>
+    </p>
     @if (order.loading()) {
       <ma-skeleton />
     } @else if (order.error()) {
@@ -171,14 +220,21 @@ export class OrdersPage implements OnInit {
           @switch (value.status) {
             @case ('PendingPayment') {
               @if (value.payments.length) {
-                <p class="alert" style="background: var(--warn-bg); color: var(--warn)">{{ 'order.pending' | t }}</p>
+                <p class="alert" style="background: var(--warn-bg); color: var(--warn)">
+                  {{ 'order.pending' | t }}
+                </p>
               }
             }
             @case ('Paid') {
-              <p class="alert" style="background: var(--warn-bg); color: var(--warn)">{{ 'order.paid' | t }}</p>
+              <p class="alert" style="background: var(--warn-bg); color: var(--warn)">
+                {{ 'order.paid' | t }}
+              </p>
             }
             @case ('Fulfilled') {
-              <p class="alert ok">{{ 'order.fulfilled' | t: { license: value.licenseNumber ?? '' } }} <a routerLink="/licenses">{{ 'order.openLicenses' | t }}</a></p>
+              <p class="alert ok">
+                {{ 'order.fulfilled' | t: { license: value.licenseNumber ?? '' } }}
+                <a routerLink="/licenses">{{ 'order.openLicenses' | t }}</a>
+              </p>
             }
           }
         </div>
@@ -196,8 +252,17 @@ export class OrdersPage implements OnInit {
               <p class="alert" role="alert">{{ error() }}</p>
             }
             <div class="row" style="margin-top: 1rem">
-              <button class="btn" type="button" (click)="payNow(value)" [disabled]="busy()">{{ 'order.pay' | t }}</button>
-              <button class="btn secondary" type="button" (click)="cancel(value)" [disabled]="busy()">{{ 'order.cancel' | t }}</button>
+              <button class="btn" type="button" (click)="payNow(value)" [disabled]="busy()">
+                {{ 'order.pay' | t }}
+              </button>
+              <button
+                class="btn secondary"
+                type="button"
+                (click)="cancel(value)"
+                [disabled]="busy()"
+              >
+                {{ 'order.cancel' | t }}
+              </button>
             </div>
           }
         </section>
@@ -235,7 +300,9 @@ export class OrderPage implements OnInit {
     let checks = 0;
     const timer = setInterval(() => {
       const status = this.order.value()?.status;
-      const waiting = status === 'Paid' || (status === 'PendingPayment' && (this.order.value()?.payments.length ?? 0) > 0);
+      const waiting =
+        status === 'Paid' ||
+        (status === 'PendingPayment' && (this.order.value()?.payments.length ?? 0) > 0);
       if (waiting && ++checks <= 100) void this.order.load(true);
     }, 3000);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
@@ -269,4 +336,3 @@ export class OrderPage implements OnInit {
     }
   }
 }
-

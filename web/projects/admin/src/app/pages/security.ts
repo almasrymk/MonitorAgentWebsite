@@ -1,4 +1,11 @@
-import { Component, effect, inject, input, untracked } from '@angular/core';
+import {
+  Component,
+  effect,
+  inject,
+  input,
+  untracked,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import { Api, Loader, LoadError, Paged, Skeleton, TranslatePipe, WhenPipe } from 'shared';
 
@@ -16,13 +23,16 @@ const pageSize = 50;
 @Component({
   selector: 'admin-security',
   imports: [TranslatePipe, WhenPipe, LoadError, Skeleton],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h1>{{ 'security.title' | t }}</h1>
     <p class="muted">{{ 'security.lead' | t }}</p>
     @if (userId()) {
       <p class="row">
         {{ 'security.forUser' | t: { user: userId()! } }}
-        <button class="btn secondary" type="button" (click)="show(null)">{{ 'security.everyone' | t }}</button>
+        <button class="btn secondary" type="button" (click)="show(null)">
+          {{ 'security.everyone' | t }}
+        </button>
       </p>
     }
     @if (events.loading()) {
@@ -50,7 +60,9 @@ const pageSize = 50;
                   <td>{{ 'security.type.' + event.type | t }}</td>
                   <td>
                     @if (event.userId) {
-                      <button class="link-button mono" type="button" (click)="show(event.userId)">{{ event.userId.slice(0, 8) }}</button>
+                      <button class="link-button mono" type="button" (click)="show(event.userId)">
+                        {{ event.userId.slice(0, 8) }}
+                      </button>
                     } @else {
                       —
                     }
@@ -62,9 +74,23 @@ const pageSize = 50;
           </table>
         </div>
         <nav class="row" style="margin-top: 1rem" [attr.aria-label]="'common.pages' | t">
-          <button class="btn secondary" type="button" [disabled]="page() <= 1" (click)="go(page() - 1)">{{ 'common.previous' | t }}</button>
+          <button
+            class="btn secondary"
+            type="button"
+            [disabled]="page() <= 1"
+            (click)="go(page() - 1)"
+          >
+            {{ 'common.previous' | t }}
+          </button>
           <span>{{ 'common.pageOf' | t: { page: page(), pages: pages(value) } }}</span>
-          <button class="btn secondary" type="button" [disabled]="page() >= pages(value)" (click)="go(page() + 1)">{{ 'common.next' | t }}</button>
+          <button
+            class="btn secondary"
+            type="button"
+            [disabled]="page() >= pages(value)"
+            (click)="go(page() + 1)"
+          >
+            {{ 'common.next' | t }}
+          </button>
         </nav>
       }
     }

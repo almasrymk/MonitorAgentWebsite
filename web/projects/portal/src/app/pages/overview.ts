@@ -1,7 +1,21 @@
-import { Component, computed, inject, OnInit } from '@angular/core';
+import { Component, computed, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Api, ApiError, Company, errorText, I18n, LicenseSummary, Loader, LoadError, Order, Session, Skeleton, TranslatePipe, WhenPipe } from 'shared';
+import {
+  Api,
+  ApiError,
+  Company,
+  errorText,
+  I18n,
+  LicenseSummary,
+  Loader,
+  LoadError,
+  Order,
+  Session,
+  Skeleton,
+  TranslatePipe,
+  WhenPipe,
+} from 'shared';
 import { signal } from '@angular/core';
 
 interface Overview {
@@ -13,6 +27,7 @@ interface Overview {
 @Component({
   selector: 'portal-overview',
   imports: [FormsModule, RouterLink, TranslatePipe, WhenPipe, LoadError, Skeleton],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page-head">
       <div>
@@ -36,9 +51,17 @@ interface Overview {
           <form class="row" (ngSubmit)="createCompany()">
             <div style="flex: 1; min-width: 220px">
               <label for="company-name">{{ 'company.name' | t }}</label>
-              <input id="company-name" name="name" required maxlength="150" [(ngModel)]="companyName" />
+              <input
+                id="company-name"
+                name="name"
+                required
+                maxlength="150"
+                [(ngModel)]="companyName"
+              />
             </div>
-            <button class="btn" type="submit" [disabled]="busy()" style="align-self: flex-end">{{ 'company.create' | t }}</button>
+            <button class="btn" type="submit" [disabled]="busy()" style="align-self: flex-end">
+              {{ 'company.create' | t }}
+            </button>
           </form>
           @if (error()) {
             <p class="alert" role="alert">{{ error() }}</p>
@@ -54,7 +77,9 @@ interface Overview {
             <div class="muted">{{ 'overview.devices' | t }}</div>
             <div class="value">{{ devices().used }}</div>
             @if (devices().allowed) {
-              <div class="muted">{{ 'overview.devicesOf' | t: { used: devices().used, allowed: devices().allowed } }}</div>
+              <div class="muted">
+                {{ 'overview.devicesOf' | t: { used: devices().used, allowed: devices().allowed } }}
+              </div>
             }
           </div>
           <div class="card kpi">
@@ -92,15 +117,21 @@ export class OverviewPage implements OnInit {
     return { company, licenses, orders };
   });
 
-  protected readonly activeLicenses = computed(() => this.data.value()?.licenses.filter((l) => l.status === 'Active').length ?? 0);
+  protected readonly activeLicenses = computed(
+    () => this.data.value()?.licenses.filter((l) => l.status === 'Active').length ?? 0,
+  );
   protected readonly devices = computed(() => {
     const licenses = this.data.value()?.licenses ?? [];
     return {
       used: licenses.reduce((sum, l) => sum + l.activeDevices, 0),
-      allowed: licenses.every((l) => l.maxDevices) ? licenses.reduce((sum, l) => sum + (l.maxDevices ?? 0), 0) : 0,
+      allowed: licenses.every((l) => l.maxDevices)
+        ? licenses.reduce((sum, l) => sum + (l.maxDevices ?? 0), 0)
+        : 0,
     };
   });
-  protected readonly pendingOrders = computed(() => this.data.value()?.orders.filter((o) => o.status === 'PendingPayment').length ?? 0);
+  protected readonly pendingOrders = computed(
+    () => this.data.value()?.orders.filter((o) => o.status === 'PendingPayment').length ?? 0,
+  );
   protected readonly nextExpiry = computed(
     () =>
       this.data

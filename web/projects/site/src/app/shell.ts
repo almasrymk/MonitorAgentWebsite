@@ -1,6 +1,13 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, ChangeDetectionStrategy } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import {
+  ActivatedRoute,
+  NavigationEnd,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet,
+} from '@angular/router';
 import { filter, map } from 'rxjs';
 import { I18n, isLang, TranslatePipe } from 'shared';
 
@@ -8,22 +15,56 @@ import { I18n, isLang, TranslatePipe } from 'shared';
 @Component({
   selector: 'site-shell',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <a class="skip-link" href="#main">{{ 'skip' | t }}</a>
     <header class="site-header">
       <div class="container bar">
         <a class="logo" [routerLink]="['/', lang()]">
-          <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24">
+            <path
+              d="M2 12h4l3-7 4 14 3-7h6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
           {{ 'brand' | t }}
         </a>
         <nav [attr.aria-label]="'nav.menu' | t">
-          <a [routerLink]="['/', lang()]" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">{{ 'nav.home' | t }}</a>
-          <a [routerLink]="['/', lang(), 'pricing']" routerLinkActive="active" ariaCurrentWhenActive="page">{{ 'nav.pricing' | t }}</a>
-          <a [routerLink]="['/', lang(), 'download']" routerLinkActive="active" ariaCurrentWhenActive="page">{{ 'nav.download' | t }}</a>
-          <a [routerLink]="['/', lang(), 'demo']" routerLinkActive="active" ariaCurrentWhenActive="page">{{ 'nav.demo' | t }}</a>
+          <a
+            [routerLink]="['/', lang()]"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: true }"
+            ariaCurrentWhenActive="page"
+            >{{ 'nav.home' | t }}</a
+          >
+          <a
+            [routerLink]="['/', lang(), 'pricing']"
+            routerLinkActive="active"
+            ariaCurrentWhenActive="page"
+            >{{ 'nav.pricing' | t }}</a
+          >
+          <a
+            [routerLink]="['/', lang(), 'download']"
+            routerLinkActive="active"
+            ariaCurrentWhenActive="page"
+            >{{ 'nav.download' | t }}</a
+          >
+          <a
+            [routerLink]="['/', lang(), 'demo']"
+            routerLinkActive="active"
+            ariaCurrentWhenActive="page"
+            >{{ 'nav.demo' | t }}</a
+          >
         </nav>
         <div class="actions">
-          <a class="lang" [routerLink]="otherLangPath()"><span class="visually-hidden">{{ 'lang.switchLabel' | t }}: </span><span [attr.lang]="i18n.other()">{{ 'lang.switch' | t }}</span></a>
+          <a class="lang" [routerLink]="otherLangPath()"
+            ><span class="visually-hidden">{{ 'lang.switchLabel' | t }}: </span
+            ><span [attr.lang]="i18n.other()">{{ 'lang.switch' | t }}</span></a
+          >
           <a class="btn secondary" href="/portal/sign-in">{{ 'nav.signIn' | t }}</a>
           <a class="btn" [routerLink]="['/', lang(), 'pricing']">{{ 'nav.getStarted' | t }}</a>
         </div>

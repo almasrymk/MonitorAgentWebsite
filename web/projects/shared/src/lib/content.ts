@@ -1,10 +1,14 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, input, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 
 /** A piece of a line: plain text, bold text, or a link. */
-export type Inline = { kind: 'text'; text: string } | { kind: 'strong'; text: string } | { kind: 'link'; text: string; href: string };
+export type Inline =
+  | { kind: 'text'; text: string }
+  | { kind: 'strong'; text: string }
+  | { kind: 'link'; text: string; href: string };
 
-export type Block = { kind: 'h2' | 'h3' | 'p'; inlines: Inline[] } | { kind: 'ul' | 'ol'; items: Inline[][] };
+export type Block =
+  { kind: 'h2' | 'h3' | 'p'; inlines: Inline[] } | { kind: 'ul' | 'ol'; items: Inline[][] };
 
 /**
  * Only https addresses and paths on this site may be linked. Anything else (javascript:, data:, //other-host) is shown
@@ -61,7 +65,10 @@ export function parseRichText(text: string): Block[] {
       flush();
     } else if (heading) {
       flush();
-      blocks.push({ kind: heading[1].length === 2 ? 'h2' : 'h3', inlines: parseInline(heading[2]) });
+      blocks.push({
+        kind: heading[1].length === 2 ? 'h2' : 'h3',
+        inlines: parseInline(heading[2]),
+      });
     } else if (bullet || numbered) {
       const kind = bullet ? 'ul' : 'ol';
       if (paragraph.length || (list && list.kind !== kind)) flush();
@@ -87,7 +94,9 @@ export function parseRichText(text: string): Block[] {
             <strong>{{ part.text }}</strong>
           }
           @case ('link') {
-            <a [href]="part.href" [attr.rel]="part.href.startsWith('/') ? null : 'noopener'">{{ part.text }}</a>
+            <a [href]="part.href" [attr.rel]="part.href.startsWith('/') ? null : 'noopener'">{{
+              part.text
+            }}</a>
           }
           @default {
             {{ part.text }}
@@ -124,6 +133,7 @@ export function parseRichText(text: string): Block[] {
     }
   `,
   imports: [NgTemplateOutlet],
+  changeDetection: ChangeDetectionStrategy.Eager,
   host: { class: 'rich-text' },
 })
 export class RichText {

@@ -1,6 +1,18 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Api, compareVersions, Loader, LoadError, Order, Paged, Release, Session, Skeleton, TranslatePipe, WhenPipe } from 'shared';
+import {
+  Api,
+  compareVersions,
+  Loader,
+  LoadError,
+  Order,
+  Paged,
+  Release,
+  Session,
+  Skeleton,
+  TranslatePipe,
+  WhenPipe,
+} from 'shared';
 
 interface Overview {
   awaitingPayment: number;
@@ -11,6 +23,7 @@ interface Overview {
 @Component({
   selector: 'admin-overview',
   imports: [RouterLink, TranslatePipe, WhenPipe, LoadError, Skeleton],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h1>{{ 'overview.title' | t: { name: session.me()?.fullName ?? '' } }}</h1>
     @if (data.loading()) {
@@ -59,9 +72,17 @@ export class OverviewPage implements OnInit {
     const current = new Map<string, Release>();
     for (const release of releases) {
       const seen = current.get(release.channel);
-      if (release.status === 'Published' && (!seen || compareVersions(release.version, seen.version) > 0)) current.set(release.channel, release);
+      if (
+        release.status === 'Published' &&
+        (!seen || compareVersions(release.version, seen.version) > 0)
+      )
+        current.set(release.channel, release);
     }
-    return { awaitingPayment: pending.totalCount, awaitingLicense: paid.totalCount, releases: [...current.values()] };
+    return {
+      awaitingPayment: pending.totalCount,
+      awaitingLicense: paid.totalCount,
+      releases: [...current.values()],
+    };
   });
 
   ngOnInit(): void {

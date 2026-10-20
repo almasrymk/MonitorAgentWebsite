@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output } from '@angular/core';
+import { Component, computed, inject, input, output, ChangeDetectionStrategy } from '@angular/core';
 import { I18n, TranslatePipe } from './i18n';
 import { errorText } from './session';
 
@@ -6,10 +6,13 @@ import { errorText } from './session';
 @Component({
   selector: 'ma-load-error',
   imports: [TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="alert" role="alert">
       {{ message() }}
-      <button class="btn secondary" type="button" (click)="retry.emit()">{{ 'common.retry' | t }}</button>
+      <button class="btn secondary" type="button" (click)="retry.emit()">
+        {{ 'common.retry' | t }}
+      </button>
     </div>
   `,
 })
@@ -24,6 +27,7 @@ export class LoadError {
 @Component({
   selector: 'ma-skeleton',
   imports: [TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="card" aria-busy="true">
       <span class="visually-hidden" role="status">{{ 'common.loading' | t }}</span>
@@ -41,15 +45,38 @@ export class Skeleton {
 @Component({
   selector: 'ma-status',
   imports: [TranslatePipe],
-  template: `<span class="badge" [class.ok]="tone() === 'ok'" [class.warn]="tone() === 'warn'" [class.bad]="tone() === 'bad'">{{ prefix() + value() | t }}</span>`,
+  changeDetection: ChangeDetectionStrategy.Eager,
+  template: `<span
+    class="badge"
+    [class.ok]="tone() === 'ok'"
+    [class.warn]="tone() === 'warn'"
+    [class.bad]="tone() === 'bad'"
+    >{{ prefix() + value() | t }}</span
+  >`,
 })
 export class StatusBadge {
   readonly value = input.required<string>();
   readonly prefix = input('status.');
   protected readonly tone = computed(() => {
     const value = this.value();
-    if (['Active', 'Fulfilled', 'Succeeded', 'Paid', 'Answered', 'Planned', 'Done', 'Published', 'Contacted'].includes(value)) return 'ok';
-    if (['PendingPayment', 'Pending', 'Suspended', 'Open', 'New', 'Draft', 'InReview'].includes(value)) return 'warn';
+    if (
+      [
+        'Active',
+        'Fulfilled',
+        'Succeeded',
+        'Paid',
+        'Answered',
+        'Planned',
+        'Done',
+        'Published',
+        'Contacted',
+      ].includes(value)
+    )
+      return 'ok';
+    if (
+      ['PendingPayment', 'Pending', 'Suspended', 'Open', 'New', 'Draft', 'InReview'].includes(value)
+    )
+      return 'warn';
     if (['Expired', 'Revoked', 'Cancelled', 'Failed'].includes(value)) return 'bad';
     return '';
   });

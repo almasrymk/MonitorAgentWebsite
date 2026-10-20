@@ -1,10 +1,20 @@
-import { Component, computed, inject, input, OnInit } from '@angular/core';
+import { Component, computed, inject, input, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Api, Invoice, Loader, LoadError, MoneyPipe, Skeleton, TranslatePipe, WhenPipe } from 'shared';
+import {
+  Api,
+  Invoice,
+  Loader,
+  LoadError,
+  MoneyPipe,
+  Skeleton,
+  TranslatePipe,
+  WhenPipe,
+} from 'shared';
 
 @Component({
   selector: 'portal-invoices',
   imports: [RouterLink, TranslatePipe, MoneyPipe, WhenPipe, LoadError, Skeleton],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h1>{{ 'invoices.title' | t }}</h1>
     @if (invoices.loading()) {
@@ -22,7 +32,9 @@ import { Api, Invoice, Loader, LoadError, MoneyPipe, Skeleton, TranslatePipe, Wh
               <th scope="col">{{ 'invoices.date' | t }}</th>
               <th scope="col">{{ 'invoices.description' | t }}</th>
               <th scope="col">{{ 'invoices.amount' | t }}</th>
-              <th scope="col"><span class="visually-hidden">{{ 'invoices.open' | t }}</span></th>
+              <th scope="col">
+                <span class="visually-hidden">{{ 'invoices.open' | t }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -32,7 +44,14 @@ import { Api, Invoice, Loader, LoadError, MoneyPipe, Skeleton, TranslatePipe, Wh
                 <td>{{ invoice.issuedAt | when }}</td>
                 <td>{{ invoice.description }}</td>
                 <td>{{ invoice.amount | money: invoice.currency }}</td>
-                <td><a class="btn secondary" [routerLink]="['/invoices', invoice.id]" [attr.aria-label]="('invoices.open' | t) + ' ' + invoice.number">{{ 'invoices.open' | t }}</a></td>
+                <td>
+                  <a
+                    class="btn secondary"
+                    [routerLink]="['/invoices', invoice.id]"
+                    [attr.aria-label]="('invoices.open' | t) + ' ' + invoice.number"
+                    >{{ 'invoices.open' | t }}</a
+                  >
+                </td>
               </tr>
             }
           </tbody>
@@ -54,8 +73,11 @@ export class InvoicesPage implements OnInit {
 @Component({
   selector: 'portal-invoice',
   imports: [RouterLink, TranslatePipe, MoneyPipe, WhenPipe, LoadError, Skeleton],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <p class="no-print"><a routerLink="/invoices">← {{ 'invoices.title' | t }}</a></p>
+    <p class="no-print">
+      <a routerLink="/invoices">← {{ 'invoices.title' | t }}</a>
+    </p>
     @if (invoices.loading()) {
       <ma-skeleton />
     } @else if (invoices.error()) {
@@ -90,12 +112,16 @@ export class InvoicesPage implements OnInit {
               </tr>
               <tr>
                 <th scope="row">{{ 'checkout.total' | t }}</th>
-                <td><strong>{{ value.amount | money: value.currency }}</strong></td>
+                <td>
+                  <strong>{{ value.amount | money: value.currency }}</strong>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <button class="btn no-print" type="button" (click)="print()">{{ 'invoice.print' | t }}</button>
+        <button class="btn no-print" type="button" (click)="print()">
+          {{ 'invoice.print' | t }}
+        </button>
       </article>
     } @else {
       <p class="card">{{ 'error.generic' | t }}</p>
@@ -106,7 +132,9 @@ export class InvoicePage implements OnInit {
   readonly id = input.required<string>();
   private readonly api = inject(Api);
   protected readonly invoices = new Loader(() => this.api.get<Invoice[]>('/api/v1/invoices'));
-  protected readonly invoice = computed(() => this.invoices.value()?.find((i) => i.id === this.id()) ?? null);
+  protected readonly invoice = computed(
+    () => this.invoices.value()?.find((i) => i.id === this.id()) ?? null,
+  );
 
   ngOnInit(): void {
     void this.invoices.load();
