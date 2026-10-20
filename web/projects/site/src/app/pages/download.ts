@@ -1,4 +1,11 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  inject,
+  OnInit,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { Api, BytesPipe, I18n, Release, TranslatePipe, WhenPipe } from 'shared';
 import { useSeo } from '../seo';
 
@@ -7,6 +14,7 @@ type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; releases
 @Component({
   selector: 'site-download',
   imports: [TranslatePipe, WhenPipe, BytesPipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <section class="section">
       <div class="container">
@@ -15,7 +23,9 @@ type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; releases
 
         @switch (state().kind) {
           @case ('loading') {
-            <div class="card" aria-busy="true"><div class="skeleton" style="height: 10rem"></div></div>
+            <div class="card" aria-busy="true">
+              <div class="skeleton" style="height: 10rem"></div>
+            </div>
           }
           @case ('error') {
             <div class="alert" role="alert">{{ 'download.error' | t }}</div>
@@ -24,8 +34,12 @@ type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; releases
             @if (latest(); as release) {
               <article class="card" aria-labelledby="latest-title">
                 <p class="eyebrow">{{ 'download.latest' | t }}</p>
-                <h2 id="latest-title">{{ 'download.version' | t: { version: release.version } }}</h2>
-                <p class="muted">{{ 'download.released' | t: { date: (release.publishedAt | when) } }}</p>
+                <h2 id="latest-title">
+                  {{ 'download.version' | t: { version: release.version } }}
+                </h2>
+                <p class="muted">
+                  {{ 'download.released' | t: { date: (release.publishedAt | when) } }}
+                </p>
                 <div class="table-wrap">
                   <table>
                     <thead>
@@ -33,7 +47,9 @@ type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; releases
                         <th scope="col">{{ 'download.platform' | t }}</th>
                         <th scope="col">{{ 'download.size' | t }}</th>
                         <th scope="col">{{ 'download.checksum' | t }}</th>
-                        <th scope="col"><span class="visually-hidden">{{ 'download.file' | t }}</span></th>
+                        <th scope="col">
+                          <span class="visually-hidden">{{ 'download.file' | t }}</span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -41,9 +57,19 @@ type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; releases
                         <tr>
                           <td>{{ pkg.platform }}</td>
                           <td>{{ pkg.size | bytes }}</td>
-                          <td><code class="mono checksum">{{ pkg.sha256 }}</code></td>
                           <td>
-                            <a class="btn" [href]="pkg.url" rel="noopener" [attr.aria-label]="'download.downloadFor' | t: { platform: pkg.platform }">{{ 'download.file' | t }}</a>
+                            <code class="mono checksum">{{ pkg.sha256 }}</code>
+                          </td>
+                          <td>
+                            <a
+                              class="btn"
+                              [href]="pkg.url"
+                              rel="noopener"
+                              [attr.aria-label]="
+                                'download.downloadFor' | t: { platform: pkg.platform }
+                              "
+                              >{{ 'download.file' | t }}</a
+                            >
                           </td>
                         </tr>
                       }
@@ -62,9 +88,12 @@ type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; releases
                 @for (old of earlier(); track old.id) {
                   <details class="faq">
                     <summary>
-                      {{ 'download.version' | t: { version: old.version } }} · {{ old.publishedAt | when }}
+                      {{ 'download.version' | t: { version: old.version } }} ·
+                      {{ old.publishedAt | when }}
                       @if (old.channel !== 'stable') {
-                        <span class="badge">{{ 'download.channel' | t: { channel: old.channel } }}</span>
+                        <span class="badge">{{
+                          'download.channel' | t: { channel: old.channel }
+                        }}</span>
                       }
                     </summary>
                     @if (old.notes) {
@@ -93,7 +122,9 @@ export class DownloadPage implements OnInit {
   });
 
   /** The newest stable version: the one the agent is offered too. */
-  protected readonly latest = computed(() => this.releases().find((r) => r.channel === 'stable') ?? null);
+  protected readonly latest = computed(
+    () => this.releases().find((r) => r.channel === 'stable') ?? null,
+  );
   protected readonly earlier = computed(() => this.releases().filter((r) => r !== this.latest()));
 
   constructor() {
@@ -103,7 +134,9 @@ export class DownloadPage implements OnInit {
   async ngOnInit(): Promise<void> {
     try {
       const releases = await this.api.get<Release[]>('/api/v1/releases');
-      const sorted = [...releases].sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''));
+      const sorted = [...releases].sort((a, b) =>
+        (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''),
+      );
       this.state.set({ kind: 'ready', releases: sorted });
     } catch {
       this.state.set({ kind: 'error' });

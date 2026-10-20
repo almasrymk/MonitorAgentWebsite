@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Api, CatalogPlan, I18n, MoneyPipe, TranslatePipe } from 'shared';
 import { useSeo } from '../seo';
@@ -8,6 +8,7 @@ type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; plans: C
 @Component({
   selector: 'site-pricing',
   imports: [RouterLink, TranslatePipe, MoneyPipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <section class="section">
       <div class="container">
@@ -25,7 +26,9 @@ type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; plans: C
           @case ('error') {
             <div class="alert" role="alert">
               {{ 'pricing.error' | t }}
-              <button class="btn secondary" type="button" (click)="load()">{{ 'pricing.retry' | t }}</button>
+              <button class="btn secondary" type="button" (click)="load()">
+                {{ 'pricing.retry' | t }}
+              </button>
             </div>
           }
           @case ('ready') {
@@ -42,7 +45,11 @@ type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; plans: C
                       <span class="muted">{{ period(plan) }}</span>
                     </p>
                     <p>
-                      {{ plan.maxDevices ? ('pricing.devices' | t: { count: plan.maxDevices }) : ('pricing.unlimitedDevices' | t) }}
+                      {{
+                        plan.maxDevices
+                          ? ('pricing.devices' | t: { count: plan.maxDevices })
+                          : ('pricing.unlimitedDevices' | t)
+                      }}
                     </p>
                     @if (plan.features.length) {
                       <ul class="checks">
@@ -51,7 +58,9 @@ type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready'; plans: C
                         }
                       </ul>
                     }
-                    <a class="btn" [href]="'/portal/checkout?plan=' + plan.id">{{ 'pricing.buy' | t: { plan: plan.name } }}</a>
+                    <a class="btn" [href]="'/portal/checkout?plan=' + plan.id">{{
+                      'pricing.buy' | t: { plan: plan.name }
+                    }}</a>
                   </article>
                 }
               </div>

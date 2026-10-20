@@ -1,7 +1,28 @@
-import { Component, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  Component,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Api, DemoRequest, DemoRequestStatus, errorText, I18n, Loader, LoadError, Paged, Skeleton, StatusBadge, TranslatePipe, WhenPipe } from 'shared';
+import {
+  Api,
+  DemoRequest,
+  DemoRequestStatus,
+  errorText,
+  I18n,
+  Loader,
+  LoadError,
+  Paged,
+  Skeleton,
+  StatusBadge,
+  TranslatePipe,
+  WhenPipe,
+} from 'shared';
 
 const statuses: DemoRequestStatus[] = ['New', 'Contacted', 'Closed'];
 const pageSize = 25;
@@ -10,6 +31,7 @@ const pageSize = 25;
 @Component({
   selector: 'admin-demo-requests',
   imports: [FormsModule, TranslatePipe, WhenPipe, LoadError, Skeleton, StatusBadge],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page-head">
       <div>
@@ -27,7 +49,9 @@ const pageSize = 25;
       </div>
     </div>
     @if (message()) {
-      <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">{{ message() }}</p>
+      <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">
+        {{ message() }}
+      </p>
     }
     @if (requests.loading()) {
       <ma-skeleton />
@@ -65,24 +89,52 @@ const pageSize = 25;
                 <label [for]="'status-' + r.id">{{ 'support.statusLabel' | t }}</label>
                 <select #statusSelect [id]="'status-' + r.id">
                   @for (option of statuses; track option) {
-                    <option [value]="option" [selected]="option === r.status">{{ 'demo.status.' + option | t }}</option>
+                    <option [value]="option" [selected]="option === r.status">
+                      {{ 'demo.status.' + option | t }}
+                    </option>
                   }
                 </select>
               </div>
               <div style="flex: 1; min-width: 200px">
                 <label [for]="'note-' + r.id">{{ 'demo.note' | t }}</label>
-                <input #noteInput [id]="'note-' + r.id" maxlength="1000" [value]="r.staffNote ?? ''" />
+                <input
+                  #noteInput
+                  [id]="'note-' + r.id"
+                  maxlength="1000"
+                  [value]="r.staffNote ?? ''"
+                />
               </div>
-              <button class="btn secondary" type="submit" [disabled]="busy()" style="align-self: flex-end">{{ 'common.save' | t }}</button>
+              <button
+                class="btn secondary"
+                type="submit"
+                [disabled]="busy()"
+                style="align-self: flex-end"
+              >
+                {{ 'common.save' | t }}
+              </button>
             </form>
           </article>
         }
       </div>
       @if (pages(value) > 1) {
         <nav class="row" style="margin-top: 1rem" [attr.aria-label]="'common.pages' | t">
-          <button class="btn secondary" type="button" [disabled]="page() <= 1" (click)="go(page() - 1)">{{ 'common.previous' | t }}</button>
+          <button
+            class="btn secondary"
+            type="button"
+            [disabled]="page() <= 1"
+            (click)="go(page() - 1)"
+          >
+            {{ 'common.previous' | t }}
+          </button>
           <span>{{ 'common.pageOf' | t: { page: page(), pages: pages(value) } }}</span>
-          <button class="btn secondary" type="button" [disabled]="page() >= pages(value)" (click)="go(page() + 1)">{{ 'common.next' | t }}</button>
+          <button
+            class="btn secondary"
+            type="button"
+            [disabled]="page() >= pages(value)"
+            (click)="go(page() + 1)"
+          >
+            {{ 'common.next' | t }}
+          </button>
         </nav>
       }
     }
@@ -128,12 +180,19 @@ export class DemoRequestsPage {
     void this.router.navigate([], { queryParams: { page }, queryParamsHandling: 'merge' });
   }
 
-  protected async save(request: DemoRequest, status: DemoRequestStatus, note: string): Promise<void> {
+  protected async save(
+    request: DemoRequest,
+    status: DemoRequestStatus,
+    note: string,
+  ): Promise<void> {
     this.busy.set(true);
     this.failed.set(false);
     this.message.set('');
     try {
-      await this.api.put(`/api/v1/admin/support/demo-requests/${request.id}`, { status, note: note.trim() || null });
+      await this.api.put(`/api/v1/admin/support/demo-requests/${request.id}`, {
+        status,
+        note: note.trim() || null,
+      });
       this.message.set(this.i18n.t('demo.saved', { company: request.company }));
       await this.requests.load(true);
     } catch (error) {

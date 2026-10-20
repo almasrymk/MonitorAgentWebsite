@@ -1,4 +1,4 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, inject, input, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { I18n, RichText, TranslatePipe, WhenPipe } from 'shared';
 import { useSeoText } from '../seo';
@@ -11,6 +11,7 @@ import { Loaded, localized } from './content-data';
 @Component({
   selector: 'site-legal',
   imports: [RichText, TranslatePipe, WhenPipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <section class="section">
       <article class="container narrow card legal">
@@ -39,6 +40,12 @@ export class LegalPage {
   });
 
   constructor() {
-    useSeoText(() => this.published() ?? { title: this.i18n.t(`legal.${this.name}.title`), description: this.i18n.t(`legal.${this.name}.body`) });
+    useSeoText(
+      () =>
+        this.published() ?? {
+          title: this.i18n.t(`legal.${this.name}.title`),
+          description: this.i18n.t(`legal.${this.name}.body`),
+        },
+    );
   }
 }

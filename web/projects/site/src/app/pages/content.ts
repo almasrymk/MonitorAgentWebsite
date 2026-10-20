@@ -1,4 +1,11 @@
-import { Component, computed, inject, input, RESPONSE_INIT } from '@angular/core';
+import {
+  Component,
+  computed,
+  inject,
+  input,
+  RESPONSE_INIT,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { I18n, RichText, TranslatePipe, WhenPipe } from 'shared';
 import { useSeoText } from '../seo';
@@ -8,6 +15,7 @@ import { Loaded, localized } from './content-data';
 @Component({
   selector: 'site-content',
   imports: [RichText, RouterLink, TranslatePipe, WhenPipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <section class="section">
       <article class="container narrow card legal">
@@ -46,11 +54,17 @@ export class ContentPage {
     // Search engines and caches must see a missing page as missing, and an outage as temporary.
     const response = inject(RESPONSE_INIT, { optional: true });
     const resolved: Loaded = inject(ActivatedRoute).snapshot.data['page'];
-    if (response && resolved.kind !== 'ready') response.status = resolved.kind === 'missing' ? 404 : 503;
+    if (response && resolved.kind !== 'ready')
+      response.status = resolved.kind === 'missing' ? 404 : 503;
     useSeoText(() => {
       const kind = this.page().kind;
-      if (kind === 'missing') return { title: this.i18n.t('notFound.title'), description: this.i18n.t('notFound.body') };
-      if (kind === 'error') return { title: this.i18n.t('content.errorTitle'), description: this.i18n.t('content.error') };
+      if (kind === 'missing')
+        return { title: this.i18n.t('notFound.title'), description: this.i18n.t('notFound.body') };
+      if (kind === 'error')
+        return {
+          title: this.i18n.t('content.errorTitle'),
+          description: this.i18n.t('content.error'),
+        };
       return this.text();
     });
   }

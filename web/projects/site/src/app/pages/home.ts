@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { I18n, TranslatePipe } from 'shared';
 import { useSeo } from '../seo';
@@ -7,6 +7,7 @@ import { useSeo } from '../seo';
 @Component({
   selector: 'site-home',
   imports: [RouterLink, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <section class="hero">
       <div class="container hero-grid">
@@ -15,8 +16,12 @@ import { useSeo } from '../seo';
           <h1>{{ 'home.title' | t }}</h1>
           <p class="lead">{{ 'home.lead' | t }}</p>
           <div class="cta-row">
-            <a class="btn" [routerLink]="['/', i18n.lang(), 'pricing']">{{ 'home.ctaPrimary' | t }}</a>
-            <a class="btn secondary" [routerLink]="['/', i18n.lang(), 'download']">{{ 'home.ctaSecondary' | t }}</a>
+            <a class="btn" [routerLink]="['/', i18n.lang(), 'pricing']">{{
+              'home.ctaPrimary' | t
+            }}</a>
+            <a class="btn secondary" [routerLink]="['/', i18n.lang(), 'download']">{{
+              'home.ctaSecondary' | t
+            }}</a>
           </div>
           <ul class="checks">
             <li>{{ 'home.point1' | t }}</li>
@@ -29,7 +34,13 @@ import { useSeo } from '../seo';
           @for (row of previewRows; track row.name) {
             <div class="preview-row">
               <span class="mono">{{ row.name }}</span>
-              <span class="badge" [class.ok]="row.state === 'ok'" [class.warn]="row.state === 'warn'" [class.bad]="row.state === 'bad'">{{ row.label }}</span>
+              <span
+                class="badge"
+                [class.ok]="row.state === 'ok'"
+                [class.warn]="row.state === 'warn'"
+                [class.bad]="row.state === 'bad'"
+                >{{ row.label }}</span
+              >
             </div>
           }
         </div>
@@ -101,7 +112,13 @@ import { useSeo } from '../seo';
         <div class="grid-3">
           @for (state of ['ok', 'warn', 'bad']; track state) {
             <article class="card">
-              <span class="badge" [class.ok]="state === 'ok'" [class.warn]="state === 'warn'" [class.bad]="state === 'bad'">{{ 'state.' + state + '.title' | t }}</span>
+              <span
+                class="badge"
+                [class.ok]="state === 'ok'"
+                [class.warn]="state === 'warn'"
+                [class.bad]="state === 'bad'"
+                >{{ 'state.' + state + '.title' | t }}</span
+              >
               <p class="muted">{{ 'state.' + state + '.body' | t }}</p>
             </article>
           }
@@ -174,14 +191,24 @@ import { useSeo } from '../seo';
           <table>
             <thead>
               <tr>
-                <th scope="col"><span class="visually-hidden">{{ 'roi.colMeasure' | t }}</span></th>
+                <th scope="col">
+                  <span class="visually-hidden">{{ 'roi.colMeasure' | t }}</span>
+                </th>
                 <th scope="col">{{ 'roi.colWithout' | t }}</th>
                 <th scope="col">{{ 'roi.colWith' | t }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr><th scope="row">{{ 'roi.downtime' | t }}</th><td>{{ 'roi.downtimeWithout' | t }}</td><td>{{ 'roi.downtimeWith' | t }}</td></tr>
-              <tr><th scope="row">{{ 'roi.visits' | t }}</th><td>{{ 'roi.visitsWithout' | t }}</td><td>{{ 'roi.visitsWith' | t }}</td></tr>
+              <tr>
+                <th scope="row">{{ 'roi.downtime' | t }}</th>
+                <td>{{ 'roi.downtimeWithout' | t }}</td>
+                <td>{{ 'roi.downtimeWith' | t }}</td>
+              </tr>
+              <tr>
+                <th scope="row">{{ 'roi.visits' | t }}</th>
+                <td>{{ 'roi.visitsWithout' | t }}</td>
+                <td>{{ 'roi.visitsWith' | t }}</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -275,7 +302,9 @@ import { useSeo } from '../seo';
         </div>
         <div class="cta-row">
           <a class="btn" [routerLink]="['/', i18n.lang(), 'demo']">{{ 'home.ctaDemo' | t }}</a>
-          <a class="btn secondary" [routerLink]="['/', i18n.lang(), 'pricing']">{{ 'home.ctaPrimary' | t }}</a>
+          <a class="btn secondary" [routerLink]="['/', i18n.lang(), 'pricing']">{{
+            'home.ctaPrimary' | t
+          }}</a>
         </div>
       </div>
     </section>
@@ -283,7 +312,16 @@ import { useSeo } from '../seo';
 })
 export class HomePage {
   protected readonly i18n = inject(I18n);
-  protected readonly features = ['device', 'network', 'siteDevices', 'databases', 'web', 'apps', 'logs', 'specs'];
+  protected readonly features = [
+    'device',
+    'network',
+    'siteDevices',
+    'databases',
+    'web',
+    'apps',
+    'logs',
+    'specs',
+  ];
   protected readonly reports = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
   protected readonly faqs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   // An illustration of the product, not real customer data.

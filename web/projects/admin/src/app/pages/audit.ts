@@ -1,4 +1,11 @@
-import { Component, effect, inject, input, untracked } from '@angular/core';
+import {
+  Component,
+  effect,
+  inject,
+  input,
+  untracked,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import { Api, Loader, LoadError, Paged, Skeleton, TranslatePipe, WhenPipe } from 'shared';
 
@@ -22,6 +29,7 @@ const pageSize = 50;
 @Component({
   selector: 'admin-audit',
   imports: [TranslatePipe, WhenPipe, LoadError, Skeleton],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page-head">
       <h1>{{ 'audit.title' | t }}</h1>
@@ -30,7 +38,9 @@ const pageSize = 50;
         <select id="audit-area" (change)="filter($any($event.target).value)">
           <option value="" [selected]="!action()">{{ 'orders.all' | t }}</option>
           @for (area of areas; track area) {
-            <option [value]="area" [selected]="area === action()">{{ 'audit.area.' + area | t }}</option>
+            <option [value]="area" [selected]="area === action()">
+              {{ 'audit.area.' + area | t }}
+            </option>
           }
         </select>
       </div>
@@ -39,7 +49,9 @@ const pageSize = 50;
     @if (actor()) {
       <p class="row">
         {{ 'audit.forActor' | t }}
-        <button class="btn secondary" type="button" (click)="byActor(null)">{{ 'security.everyone' | t }}</button>
+        <button class="btn secondary" type="button" (click)="byActor(null)">
+          {{ 'security.everyone' | t }}
+        </button>
       </p>
     }
     @if (entries.loading()) {
@@ -50,7 +62,12 @@ const pageSize = 50;
       @if (value.items.length === 0) {
         <p class="card muted">{{ 'common.none' | t }}</p>
       } @else {
-        <div class="card table-wrap" tabindex="0" role="region" [attr.aria-label]="'audit.title' | t">
+        <div
+          class="card table-wrap"
+          tabindex="0"
+          role="region"
+          [attr.aria-label]="'audit.title' | t"
+        >
           <table>
             <thead>
               <tr>
@@ -68,7 +85,13 @@ const pageSize = 50;
                   <td>{{ entry.at | when: true }}</td>
                   <td>
                     @if (entry.actorUserId) {
-                      <button class="link-button" type="button" (click)="byActor(entry.actorUserId)">{{ entry.actorName ?? entry.actorUserId.slice(0, 8) }}</button>
+                      <button
+                        class="link-button"
+                        type="button"
+                        (click)="byActor(entry.actorUserId)"
+                      >
+                        {{ entry.actorName ?? entry.actorUserId.slice(0, 8) }}
+                      </button>
                       <div class="muted" dir="ltr">{{ entry.actorEmail }}</div>
                     } @else {
                       {{ 'audit.system' | t }}
@@ -85,9 +108,23 @@ const pageSize = 50;
         </div>
         @if (pages(value) > 1) {
           <nav class="row" style="margin-top: 1rem" [attr.aria-label]="'common.pages' | t">
-            <button class="btn secondary" type="button" [disabled]="page() <= 1" (click)="go(page() - 1)">{{ 'common.previous' | t }}</button>
+            <button
+              class="btn secondary"
+              type="button"
+              [disabled]="page() <= 1"
+              (click)="go(page() - 1)"
+            >
+              {{ 'common.previous' | t }}
+            </button>
             <span>{{ 'common.pageOf' | t: { page: page(), pages: pages(value) } }}</span>
-            <button class="btn secondary" type="button" [disabled]="page() >= pages(value)" (click)="go(page() + 1)">{{ 'common.next' | t }}</button>
+            <button
+              class="btn secondary"
+              type="button"
+              [disabled]="page() >= pages(value)"
+              (click)="go(page() + 1)"
+            >
+              {{ 'common.next' | t }}
+            </button>
           </nav>
         }
       }
@@ -124,11 +161,17 @@ export class AuditPage {
   }
 
   protected filter(action: string): void {
-    void this.router.navigate([], { queryParams: { action: action || null, page: null }, queryParamsHandling: 'merge' });
+    void this.router.navigate([], {
+      queryParams: { action: action || null, page: null },
+      queryParamsHandling: 'merge',
+    });
   }
 
   protected byActor(actor: string | null): void {
-    void this.router.navigate([], { queryParams: { actor, page: null }, queryParamsHandling: 'merge' });
+    void this.router.navigate([], {
+      queryParams: { actor, page: null },
+      queryParamsHandling: 'merge',
+    });
   }
 
   protected go(page: number): void {

@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { I18n, TranslatePipe } from 'shared';
 import { useSeo } from '../seo';
@@ -6,6 +6,7 @@ import { useSeo } from '../seo';
 @Component({
   selector: 'site-not-found',
   imports: [RouterLink, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <section class="section">
       <div class="container narrow card">

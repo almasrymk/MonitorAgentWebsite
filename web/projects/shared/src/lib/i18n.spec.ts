@@ -1,15 +1,24 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { DOCUMENT } from '@angular/common';
 import { DICTIONARY, I18n, isLang, TranslatePipe } from './i18n';
 
-@Component({ imports: [TranslatePipe], template: `{{ 'hello' | t: { name: 'Mona' } }}` })
+@Component({
+  imports: [TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
+  template: `{{ 'hello' | t: { name: 'Mona' } }}`,
+})
 class Host {}
 
 describe('I18n', () => {
   beforeEach(() =>
     TestBed.configureTestingModule({
-      providers: [{ provide: DICTIONARY, useValue: { en: { hello: 'Hello {name}', only: 'x' }, ar: { hello: 'أهلاً {name}' } } }],
+      providers: [
+        {
+          provide: DICTIONARY,
+          useValue: { en: { hello: 'Hello {name}', only: 'x' }, ar: { hello: 'أهلاً {name}' } },
+        },
+      ],
     }),
   );
 

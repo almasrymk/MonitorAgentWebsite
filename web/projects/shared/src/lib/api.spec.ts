@@ -1,11 +1,16 @@
-import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Api, API_BASE_URL, ApiError } from './api';
 
 describe('ApiError', () => {
   it('keeps the stable error code from ProblemDetails', () => {
-    const error = ApiError.from(new HttpErrorResponse({ status: 409, error: { code: 'ORDER_NOT_PAYABLE', title: 'Conflict' } }));
+    const error = ApiError.from(
+      new HttpErrorResponse({
+        status: 409,
+        error: { code: 'ORDER_NOT_PAYABLE', title: 'Conflict' },
+      }),
+    );
     expect(error.status).toBe(409);
     expect(error.code).toBe('ORDER_NOT_PAYABLE');
   });
@@ -26,7 +31,11 @@ describe('ApiError', () => {
 describe('Api', () => {
   function setUp(base = '') {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: API_BASE_URL, useValue: base }],
+      providers: [
+        provideHttpClient(withXhr()),
+        provideHttpClientTesting(),
+        { provide: API_BASE_URL, useValue: base },
+      ],
     });
     return { api: TestBed.inject(Api), http: TestBed.inject(HttpTestingController) };
   }
@@ -56,7 +65,9 @@ describe('Api', () => {
   it('turns failures into ApiError with the code', async () => {
     const { api, http } = setUp();
     const call = api.post('/x');
-    http.expectOne('/x').flush({ code: 'LAST_OWNER', title: 'Conflict' }, { status: 409, statusText: 'Conflict' });
+    http
+      .expectOne('/x')
+      .flush({ code: 'LAST_OWNER', title: 'Conflict' }, { status: 409, statusText: 'Conflict' });
     await expect(call).rejects.toMatchObject({ status: 409, code: 'LAST_OWNER' });
   });
 });

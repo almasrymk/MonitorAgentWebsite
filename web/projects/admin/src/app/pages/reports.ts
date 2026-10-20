@@ -1,4 +1,12 @@
-import { Component, computed, effect, inject, input, untracked } from '@angular/core';
+import {
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  untracked,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Api, Loader, LoadError, MoneyPipe, RevenueReport, Skeleton, TranslatePipe } from 'shared';
@@ -9,6 +17,7 @@ const day = (d: Date) => d.toISOString().slice(0, 10);
 @Component({
   selector: 'admin-reports',
   imports: [FormsModule, TranslatePipe, MoneyPipe, LoadError, Skeleton],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page-head">
       <h1>{{ 'reports.title' | t }}</h1>
@@ -22,8 +31,12 @@ const day = (d: Date) => d.toISOString().slice(0, 10);
         <label for="report-to">{{ 'reports.to' | t }}</label>
         <input id="report-to" name="to" type="date" required [(ngModel)]="toText" />
       </div>
-      <button class="btn" type="submit" style="align-self: flex-end">{{ 'reports.show' | t }}</button>
-      <a class="btn secondary" style="align-self: flex-end" [href]="csvUrl()" download>{{ 'reports.download' | t }}</a>
+      <button class="btn" type="submit" style="align-self: flex-end">
+        {{ 'reports.show' | t }}
+      </button>
+      <a class="btn secondary" style="align-self: flex-end" [href]="csvUrl()" download>{{
+        'reports.download' | t
+      }}</a>
     </form>
     <p class="muted">{{ 'reports.utc' | t }}</p>
 
@@ -41,7 +54,9 @@ const day = (d: Date) => d.toISOString().slice(0, 10);
         <div class="kpis">
           @for (total of value.totals; track total.currency) {
             <article class="card kpi">
-              <h2 class="muted" style="font-size: 1rem; margin: 0">{{ 'reports.net' | t: { currency: total.currency } }}</h2>
+              <h2 class="muted" style="font-size: 1rem; margin: 0">
+                {{ 'reports.net' | t: { currency: total.currency } }}
+              </h2>
               <p class="value">{{ total.net | money: total.currency }}</p>
               <dl class="dl">
                 <dt>{{ 'reports.received' | t }}</dt>
@@ -135,12 +150,16 @@ export class ReportsPage {
       to: this.to() ?? day(now),
     };
   });
-  protected readonly csvUrl = computed(() => `/api/v1/admin/reports/ledger.csv?${new URLSearchParams(this.range())}`);
+  protected readonly csvUrl = computed(
+    () => `/api/v1/admin/reports/ledger.csv?${new URLSearchParams(this.range())}`,
+  );
   protected fromText = '';
   protected toText = '';
 
   protected readonly report = new Loader(() =>
-    this.api.get<RevenueReport>(`/api/v1/admin/reports/revenue?${new URLSearchParams(this.range())}`),
+    this.api.get<RevenueReport>(
+      `/api/v1/admin/reports/revenue?${new URLSearchParams(this.range())}`,
+    ),
   );
 
   constructor() {

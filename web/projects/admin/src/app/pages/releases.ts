@@ -1,18 +1,32 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Api, BytesPipe, errorText, I18n, Loader, LoadError, Release, Skeleton, StatusBadge, TranslatePipe, WhenPipe } from 'shared';
+import {
+  Api,
+  BytesPipe,
+  errorText,
+  I18n,
+  Loader,
+  LoadError,
+  Release,
+  Skeleton,
+  StatusBadge,
+  TranslatePipe,
+  WhenPipe,
+} from 'shared';
 
 /** The manifest is uploaded byte for byte: the signature covers these exact bytes, so nothing may re-encode them. */
 async function toBase64(file: File): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   let binary = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(binary);
 }
 
 @Component({
   selector: 'admin-releases',
   imports: [FormsModule, TranslatePipe, WhenPipe, BytesPipe, LoadError, Skeleton, StatusBadge],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h1>{{ 'releases.title' | t }}</h1>
     <div class="stack">
@@ -23,15 +37,37 @@ async function toBase64(file: File): Promise<string> {
           <div class="row">
             <div class="field" style="flex: 2; min-width: 220px">
               <label for="manifest">{{ 'releases.manifest' | t }}</label>
-              <input id="manifest" name="manifest" type="file" accept=".json,application/json" required (change)="manifest = $any($event.target).files?.[0] ?? null" />
+              <input
+                id="manifest"
+                name="manifest"
+                type="file"
+                accept=".json,application/json"
+                required
+                (change)="manifest = $any($event.target).files?.[0] ?? null"
+              />
             </div>
             <div class="field" style="flex: 2; min-width: 220px">
               <label for="signature">{{ 'releases.signature' | t }}</label>
-              <input id="signature" name="signature" type="file" accept=".sig,text/plain" required (change)="signature = $any($event.target).files?.[0] ?? null" />
+              <input
+                id="signature"
+                name="signature"
+                type="file"
+                accept=".sig,text/plain"
+                required
+                (change)="signature = $any($event.target).files?.[0] ?? null"
+              />
             </div>
             <div class="field" style="flex: 1; min-width: 140px">
               <label for="channel">{{ 'releases.channel' | t }}</label>
-              <input id="channel" name="channel" required pattern="[a-z][a-z0-9\\-]*" maxlength="20" aria-describedby="channel-help" [(ngModel)]="channel" />
+              <input
+                id="channel"
+                name="channel"
+                required
+                pattern="[a-z][a-z0-9\\-]*"
+                maxlength="20"
+                aria-describedby="channel-help"
+                [(ngModel)]="channel"
+              />
               <p id="channel-help" class="muted">{{ 'releases.channelHelp' | t }}</p>
             </div>
           </div>
@@ -40,7 +76,9 @@ async function toBase64(file: File): Promise<string> {
       </section>
 
       @if (message()) {
-        <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">{{ message() }}</p>
+        <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">
+          {{ message() }}
+        </p>
       }
 
       @if (releases.loading()) {
@@ -61,7 +99,9 @@ async function toBase64(file: File): Promise<string> {
                   <th scope="col">{{ 'releases.packages' | t }}</th>
                   <th scope="col">{{ 'releases.added' | t }}</th>
                   <th scope="col">{{ 'releases.published' | t }}</th>
-                  <th scope="col"><span class="visually-hidden">{{ 'orders.actions' | t }}</span></th>
+                  <th scope="col">
+                    <span class="visually-hidden">{{ 'orders.actions' | t }}</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -79,9 +119,23 @@ async function toBase64(file: File): Promise<string> {
                     <td>{{ release.publishedAt | when }}</td>
                     <td>
                       @if (release.status === 'Draft') {
-                        <button class="btn" type="button" (click)="publish(release)" [disabled]="busy()">{{ 'releases.publish' | t }}</button>
+                        <button
+                          class="btn"
+                          type="button"
+                          (click)="publish(release)"
+                          [disabled]="busy()"
+                        >
+                          {{ 'releases.publish' | t }}
+                        </button>
                       } @else if (release.status === 'Published') {
-                        <button class="btn secondary" type="button" (click)="withdraw(release)" [disabled]="busy()">{{ 'releases.withdraw' | t }}</button>
+                        <button
+                          class="btn secondary"
+                          type="button"
+                          (click)="withdraw(release)"
+                          [disabled]="busy()"
+                        >
+                          {{ 'releases.withdraw' | t }}
+                        </button>
                       }
                     </td>
                   </tr>
@@ -126,7 +180,15 @@ export class ReleasesPage implements OnInit {
   }
 
   protected publish(release: Release): Promise<void> {
-    if (!confirm(this.i18n.t('releases.publishConfirm', { version: release.version, channel: release.channel }))) return Promise.resolve();
+    if (
+      !confirm(
+        this.i18n.t('releases.publishConfirm', {
+          version: release.version,
+          channel: release.channel,
+        }),
+      )
+    )
+      return Promise.resolve();
     return this.act(async () => {
       await this.api.post(`/api/v1/admin/releases/${release.id}/publish`);
       this.message.set(this.i18n.t('releases.publishedNow', { version: release.version }));
@@ -134,7 +196,8 @@ export class ReleasesPage implements OnInit {
   }
 
   protected withdraw(release: Release): Promise<void> {
-    if (!confirm(this.i18n.t('releases.withdrawConfirm', { version: release.version }))) return Promise.resolve();
+    if (!confirm(this.i18n.t('releases.withdrawConfirm', { version: release.version })))
+      return Promise.resolve();
     return this.act(async () => {
       await this.api.post(`/api/v1/admin/releases/${release.id}/withdraw`);
       this.message.set(this.i18n.t('releases.withdrawn', { version: release.version }));

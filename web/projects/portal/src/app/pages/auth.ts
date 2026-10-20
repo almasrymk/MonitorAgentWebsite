@@ -1,4 +1,4 @@
-import { Component, input, OnInit } from '@angular/core';
+import { Component, input, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthForm, languageSwitch, logo, TranslatePipe } from 'shared';
@@ -8,6 +8,7 @@ export { SignInPage } from 'shared';
 @Component({
   selector: 'portal-register',
   imports: [FormsModule, RouterLink, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <main class="auth-page">
       <div class="card auth-card">
@@ -19,15 +20,38 @@ export { SignInPage } from 'shared';
           <form (ngSubmit)="register()">
             <div class="field">
               <label for="name">{{ 'common.fullName' | t }}</label>
-              <input id="name" name="name" autocomplete="name" required maxlength="100" [(ngModel)]="fullName" />
+              <input
+                id="name"
+                name="name"
+                autocomplete="name"
+                required
+                maxlength="100"
+                [(ngModel)]="fullName"
+              />
             </div>
             <div class="field">
               <label for="email">{{ 'common.email' | t }}</label>
-              <input id="email" name="email" type="email" autocomplete="email" required [(ngModel)]="email" />
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                required
+                [(ngModel)]="email"
+              />
             </div>
             <div class="field">
               <label for="password">{{ 'common.password' | t }}</label>
-              <input id="password" name="password" type="password" autocomplete="new-password" required minlength="12" aria-describedby="password-help" [(ngModel)]="password" />
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                required
+                minlength="12"
+                aria-describedby="password-help"
+                [(ngModel)]="password"
+              />
               <p id="password-help" class="muted">{{ 'auth.passwordHelp' | t }}</p>
             </div>
             @if (error()) {
@@ -36,7 +60,9 @@ export { SignInPage } from 'shared';
             <button class="btn" type="submit" [disabled]="busy()">{{ 'auth.register' | t }}</button>
           </form>
         }
-        <p>{{ 'auth.haveAccount' | t }} <a routerLink="/sign-in">{{ 'auth.signIn' | t }}</a></p>
+        <p>
+          {{ 'auth.haveAccount' | t }} <a routerLink="/sign-in">{{ 'auth.signIn' | t }}</a>
+        </p>
         ${languageSwitch}
       </div>
     </main>
@@ -49,7 +75,11 @@ export class RegisterPage extends AuthForm {
 
   protected register(): Promise<void> {
     return this.run(async () => {
-      await this.api.post('/api/v1/auth/register', { email: this.email, password: this.password, fullName: this.fullName });
+      await this.api.post('/api/v1/auth/register', {
+        email: this.email,
+        password: this.password,
+        fullName: this.fullName,
+      });
       this.done.set(this.i18n.t('auth.registered'));
     });
   }
@@ -58,6 +88,7 @@ export class RegisterPage extends AuthForm {
 @Component({
   selector: 'portal-confirm-email',
   imports: [RouterLink, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <main class="auth-page">
       <div class="card auth-card">
@@ -80,7 +111,10 @@ export class ConfirmEmailPage extends AuthForm implements OnInit {
 
   ngOnInit(): void {
     void this.run(async () => {
-      await this.api.post('/api/v1/auth/confirm-email', { userId: this.userId(), token: this.token() });
+      await this.api.post('/api/v1/auth/confirm-email', {
+        userId: this.userId(),
+        token: this.token(),
+      });
       this.done.set(this.i18n.t('auth.confirmed'));
     });
   }
@@ -89,6 +123,7 @@ export class ConfirmEmailPage extends AuthForm implements OnInit {
 @Component({
   selector: 'portal-forgot-password',
   imports: [FormsModule, RouterLink, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <main class="auth-page">
       <div class="card auth-card">
@@ -101,7 +136,14 @@ export class ConfirmEmailPage extends AuthForm implements OnInit {
           <form (ngSubmit)="send()">
             <div class="field">
               <label for="email">{{ 'common.email' | t }}</label>
-              <input id="email" name="email" type="email" autocomplete="email" required [(ngModel)]="email" />
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                required
+                [(ngModel)]="email"
+              />
             </div>
             @if (error()) {
               <p class="alert" role="alert">{{ error() }}</p>
@@ -109,7 +151,9 @@ export class ConfirmEmailPage extends AuthForm implements OnInit {
             <button class="btn" type="submit" [disabled]="busy()">{{ 'auth.sendLink' | t }}</button>
           </form>
         }
-        <p><a routerLink="/sign-in">{{ 'auth.signIn' | t }}</a></p>
+        <p>
+          <a routerLink="/sign-in">{{ 'auth.signIn' | t }}</a>
+        </p>
         ${languageSwitch}
       </div>
     </main>
@@ -129,6 +173,7 @@ export class ForgotPasswordPage extends AuthForm {
 @Component({
   selector: 'portal-reset-password',
   imports: [FormsModule, RouterLink, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <main class="auth-page">
       <div class="card auth-card">
@@ -141,7 +186,16 @@ export class ForgotPasswordPage extends AuthForm {
           <form (ngSubmit)="reset()">
             <div class="field">
               <label for="password">{{ 'auth.newPassword' | t }}</label>
-              <input id="password" name="password" type="password" autocomplete="new-password" required minlength="12" aria-describedby="password-help" [(ngModel)]="password" />
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                required
+                minlength="12"
+                aria-describedby="password-help"
+                [(ngModel)]="password"
+              />
               <p id="password-help" class="muted">{{ 'auth.passwordHelp' | t }}</p>
             </div>
             @if (error()) {
@@ -162,7 +216,11 @@ export class ResetPasswordPage extends AuthForm {
 
   protected reset(): Promise<void> {
     return this.run(async () => {
-      await this.api.post('/api/v1/auth/reset-password', { email: this.email(), token: this.token(), newPassword: this.password });
+      await this.api.post('/api/v1/auth/reset-password', {
+        email: this.email(),
+        token: this.token(),
+        newPassword: this.password,
+      });
       this.done.set(this.i18n.t('auth.resetDone'));
     });
   }

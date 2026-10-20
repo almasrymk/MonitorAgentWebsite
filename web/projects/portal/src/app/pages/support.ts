@@ -1,14 +1,28 @@
-import { Component, inject, input, OnInit, signal } from '@angular/core';
+import { Component, inject, input, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import {
-  Api, errorText, I18n, Loader, LoadError, Skeleton, StatusBadge, Suggestion, Ticket, TICKET_CATEGORIES, TicketCategory, TicketSummary,
-  TicketThread, TranslatePipe, WhenPipe,
+  Api,
+  errorText,
+  I18n,
+  Loader,
+  LoadError,
+  Skeleton,
+  StatusBadge,
+  Suggestion,
+  Ticket,
+  TICKET_CATEGORIES,
+  TicketCategory,
+  TicketSummary,
+  TicketThread,
+  TranslatePipe,
+  WhenPipe,
 } from 'shared';
 
 @Component({
   selector: 'portal-support',
   imports: [RouterLink, TranslatePipe, WhenPipe, LoadError, Skeleton, StatusBadge],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page-head">
       <h1>{{ 'support.title' | t }}</h1>
@@ -34,7 +48,9 @@ import {
           <tbody>
             @for (ticket of tickets.value(); track ticket.id) {
               <tr>
-                <td><a [routerLink]="['/support', ticket.id]">{{ ticket.subject }}</a></td>
+                <td>
+                  <a [routerLink]="['/support', ticket.id]">{{ ticket.subject }}</a>
+                </td>
                 <td class="mono">{{ ticket.number }}</td>
                 <td><ma-status [value]="ticket.status" prefix="support.status." /></td>
                 <td>{{ ticket.lastActivityAt | when: true }}</td>
@@ -48,7 +64,9 @@ import {
 })
 export class SupportPage implements OnInit {
   private readonly api = inject(Api);
-  protected readonly tickets = new Loader(() => this.api.get<TicketSummary[]>('/api/v1/support/tickets'));
+  protected readonly tickets = new Loader(() =>
+    this.api.get<TicketSummary[]>('/api/v1/support/tickets'),
+  );
 
   ngOnInit(): void {
     void this.tickets.load();
@@ -58,8 +76,11 @@ export class SupportPage implements OnInit {
 @Component({
   selector: 'portal-new-ticket',
   imports: [FormsModule, RouterLink, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <p><a routerLink="/support">← {{ 'support.title' | t }}</a></p>
+    <p>
+      <a routerLink="/support">← {{ 'support.title' | t }}</a>
+    </p>
     <h1>{{ 'support.new' | t }}</h1>
     <form class="card" (ngSubmit)="submit()">
       <div class="field">
@@ -76,7 +97,15 @@ export class SupportPage implements OnInit {
       </div>
       <div class="field">
         <label for="body">{{ 'support.message' | t }}</label>
-        <textarea id="body" name="body" rows="8" required maxlength="5000" aria-describedby="body-help" [(ngModel)]="body"></textarea>
+        <textarea
+          id="body"
+          name="body"
+          rows="8"
+          required
+          maxlength="5000"
+          aria-describedby="body-help"
+          [(ngModel)]="body"
+        ></textarea>
         <p id="body-help" class="muted">{{ 'support.messageHelp' | t }}</p>
       </div>
       @if (error()) {
@@ -101,7 +130,11 @@ export class NewTicketPage {
     this.busy.set(true);
     this.error.set('');
     try {
-      const ticket = await this.api.post<Ticket>('/api/v1/support/tickets', { subject: this.subject, category: this.category, body: this.body });
+      const ticket = await this.api.post<Ticket>('/api/v1/support/tickets', {
+        subject: this.subject,
+        category: this.category,
+        body: this.body,
+      });
       await this.router.navigate(['/support', ticket.id]);
     } catch (error) {
       this.error.set(errorText(this.i18n, error));
@@ -114,8 +147,11 @@ export class NewTicketPage {
 @Component({
   selector: 'portal-ticket',
   imports: [RouterLink, TranslatePipe, LoadError, Skeleton, TicketThread],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <p><a routerLink="/support">← {{ 'support.title' | t }}</a></p>
+    <p>
+      <a routerLink="/support">← {{ 'support.title' | t }}</a>
+    </p>
     @if (ticket.loading()) {
       <ma-skeleton />
     } @else if (ticket.error()) {
@@ -129,10 +165,14 @@ export class TicketPage implements OnInit {
   readonly id = input.required<string>();
   private readonly api = inject(Api);
   private readonly i18n = inject(I18n);
-  protected readonly ticket = new Loader(() => this.api.get<Ticket>(`/api/v1/support/tickets/${this.id()}`));
+  protected readonly ticket = new Loader(() =>
+    this.api.get<Ticket>(`/api/v1/support/tickets/${this.id()}`),
+  );
 
   protected readonly reply = async (body: string) =>
-    this.ticket.set(await this.api.post<Ticket>(`/api/v1/support/tickets/${this.id()}/messages`, { body }));
+    this.ticket.set(
+      await this.api.post<Ticket>(`/api/v1/support/tickets/${this.id()}/messages`, { body }),
+    );
 
   ngOnInit(): void {
     void this.ticket.load();
@@ -147,6 +187,7 @@ export class TicketPage implements OnInit {
 @Component({
   selector: 'portal-suggestions',
   imports: [FormsModule, TranslatePipe, WhenPipe, LoadError, Skeleton, StatusBadge],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <h1>{{ 'suggestions.title' | t }}</h1>
     <p class="muted">{{ 'suggestions.lead' | t }}</p>
@@ -159,12 +200,23 @@ export class TicketPage implements OnInit {
         </div>
         <div class="field">
           <label for="details">{{ 'suggestions.body' | t }}</label>
-          <textarea id="details" name="details" rows="4" required maxlength="5000" [(ngModel)]="body"></textarea>
+          <textarea
+            id="details"
+            name="details"
+            rows="4"
+            required
+            maxlength="5000"
+            [(ngModel)]="body"
+          ></textarea>
         </div>
         @if (message()) {
-          <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">{{ message() }}</p>
+          <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">
+            {{ message() }}
+          </p>
         }
-        <button class="btn" type="submit" [disabled]="busy()">{{ 'suggestions.submit' | t }}</button>
+        <button class="btn" type="submit" [disabled]="busy()">
+          {{ 'suggestions.submit' | t }}
+        </button>
       </form>
 
       @if (suggestions.loading()) {
@@ -183,7 +235,9 @@ export class TicketPage implements OnInit {
             <p class="muted">{{ s.createdAt | when }}</p>
             <p class="pre">{{ s.body }}</p>
             @if (s.staffNote) {
-              <p><strong>{{ 'suggestions.answer' | t }}:</strong> {{ s.staffNote }}</p>
+              <p>
+                <strong>{{ 'suggestions.answer' | t }}:</strong> {{ s.staffNote }}
+              </p>
             }
           </article>
         }
@@ -199,7 +253,9 @@ export class SuggestionsPage implements OnInit {
   protected readonly failed = signal(false);
   protected title = '';
   protected body = '';
-  protected readonly suggestions = new Loader(() => this.api.get<Suggestion[]>('/api/v1/support/suggestions'));
+  protected readonly suggestions = new Loader(() =>
+    this.api.get<Suggestion[]>('/api/v1/support/suggestions'),
+  );
 
   ngOnInit(): void {
     void this.suggestions.load();

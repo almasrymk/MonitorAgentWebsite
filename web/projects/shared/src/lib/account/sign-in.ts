@@ -1,4 +1,11 @@
-import { Component, inject, InjectionToken, input, signal } from '@angular/core';
+import {
+  Component,
+  inject,
+  InjectionToken,
+  input,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Api, ApiError } from '../api';
@@ -10,7 +17,9 @@ export interface SignInOptions {
   selfService: boolean;
 }
 
-export const SIGN_IN_OPTIONS = new InjectionToken<SignInOptions>('SIGN_IN_OPTIONS', { factory: () => ({ selfService: true }) });
+export const SIGN_IN_OPTIONS = new InjectionToken<SignInOptions>('SIGN_IN_OPTIONS', {
+  factory: () => ({ selfService: true }),
+});
 
 export const logo = `<div class="logo"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Monitor Agent</div>`;
 export const languageSwitch = `<button class="link-button" type="button" (click)="switchLanguage()"><span class="visually-hidden">{{ 'lang.switchLabel' | t }}: </span><span [attr.lang]="i18n.other()">{{ 'lang.switch' | t }}</span></button>`;
@@ -54,6 +63,7 @@ export function safeReturnUrl(url: string | undefined): string {
 @Component({
   selector: 'ma-sign-in',
   imports: [FormsModule, RouterLink, TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <main class="auth-page">
       <div class="card auth-card">
@@ -64,17 +74,38 @@ export function safeReturnUrl(url: string | undefined): string {
             <form (ngSubmit)="signIn()">
               <div class="field">
                 <label for="email">{{ 'common.email' | t }}</label>
-                <input id="email" name="email" type="email" autocomplete="username" required [(ngModel)]="email" />
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autocomplete="username"
+                  required
+                  [(ngModel)]="email"
+                />
               </div>
               <div class="field">
                 <label for="password">{{ 'common.password' | t }}</label>
-                <input id="password" name="password" type="password" autocomplete="current-password" required [(ngModel)]="password" />
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                  [(ngModel)]="password"
+                />
               </div>
-              <label class="checkbox field"><input type="checkbox" name="remember" [(ngModel)]="remember" /> {{ 'auth.remember' | t }}</label>
+              <label class="checkbox field"
+                ><input type="checkbox" name="remember" [(ngModel)]="remember" />
+                {{ 'auth.remember' | t }}</label
+              >
               @if (error()) {
                 <p class="alert" role="alert">{{ error() }}</p>
                 @if (unconfirmed()) {
-                  <p><button class="link-button" type="button" (click)="resend()">{{ 'auth.resend' | t }}</button></p>
+                  <p>
+                    <button class="link-button" type="button" (click)="resend()">
+                      {{ 'auth.resend' | t }}
+                    </button>
+                  </p>
                 }
               }
               @if (done()) {
@@ -83,10 +114,17 @@ export function safeReturnUrl(url: string | undefined): string {
               <button class="btn" type="submit" [disabled]="busy()">{{ 'auth.signIn' | t }}</button>
             </form>
             @if (options.selfService) {
-              <p><a routerLink="/forgot-password">{{ 'auth.forgot' | t }}</a></p>
-              <p>{{ 'auth.noAccount' | t }} <a routerLink="/register">{{ 'auth.createAccount' | t }}</a></p>
+              <p>
+                <a routerLink="/forgot-password">{{ 'auth.forgot' | t }}</a>
+              </p>
+              <p>
+                {{ 'auth.noAccount' | t }}
+                <a routerLink="/register">{{ 'auth.createAccount' | t }}</a>
+              </p>
             } @else {
-              <p><a href="/portal/forgot-password">{{ 'auth.forgot' | t }}</a></p>
+              <p>
+                <a href="/portal/forgot-password">{{ 'auth.forgot' | t }}</a>
+              </p>
             }
           }
           @case ('mfa') {
@@ -99,7 +137,15 @@ export function safeReturnUrl(url: string | undefined): string {
                 } @else {
                   <p class="muted">{{ 'auth.mfaHelp' | t }}</p>
                   <label for="code">{{ 'auth.code' | t }}</label>
-                  <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required [(ngModel)]="code" />
+                  <input
+                    id="code"
+                    name="code"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    maxlength="8"
+                    required
+                    [(ngModel)]="code"
+                  />
                 }
               </div>
               @if (error()) {
@@ -108,7 +154,11 @@ export function safeReturnUrl(url: string | undefined): string {
               <button class="btn" type="submit" [disabled]="busy()">{{ 'auth.verify' | t }}</button>
             </form>
             <p>
-              <button class="link-button" type="button" (click)="useRecovery.set(!useRecovery()); code = ''">
+              <button
+                class="link-button"
+                type="button"
+                (click)="useRecovery.set(!useRecovery()); code = ''"
+              >
                 {{ (useRecovery() ? 'auth.useAuthenticator' : 'auth.useRecovery') | t }}
               </button>
             </p>
@@ -147,8 +197,13 @@ export class SignInPage extends AuthForm {
 
   protected verify(): Promise<void> {
     return this.run(async () => {
-      if (this.useRecovery()) await this.api.post('/api/v1/auth/login/recovery-code', { code: this.code.trim() });
-      else await this.api.post('/api/v1/auth/login/mfa', { code: this.code.replace(/\s/g, ''), rememberMe: this.remember });
+      if (this.useRecovery())
+        await this.api.post('/api/v1/auth/login/recovery-code', { code: this.code.trim() });
+      else
+        await this.api.post('/api/v1/auth/login/mfa', {
+          code: this.code.replace(/\s/g, ''),
+          rememberMe: this.remember,
+        });
       await this.finish();
     });
   }
@@ -162,8 +217,10 @@ export class SignInPage extends AuthForm {
   }
 
   protected override onError(error: unknown): void {
-    if (error instanceof ApiError && error.code === 'EMAIL_NOT_CONFIRMED') this.unconfirmed.set(true);
-    if (error instanceof ApiError && error.code === 'MFA_SESSION_EXPIRED') this.step.set('password');
+    if (error instanceof ApiError && error.code === 'EMAIL_NOT_CONFIRMED')
+      this.unconfirmed.set(true);
+    if (error instanceof ApiError && error.code === 'MFA_SESSION_EXPIRED')
+      this.step.set('password');
   }
 
   private async finish(): Promise<void> {

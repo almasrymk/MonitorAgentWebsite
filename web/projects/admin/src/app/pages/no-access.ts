@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { Session, TranslatePipe } from 'shared';
 
@@ -6,6 +6,7 @@ import { Session, TranslatePipe } from 'shared';
 @Component({
   selector: 'admin-no-access',
   imports: [TranslatePipe],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <main class="auth-page" id="main">
       <div class="card auth-card">
@@ -13,7 +14,9 @@ import { Session, TranslatePipe } from 'shared';
         <p>{{ 'noAccess.body' | t }}</p>
         <p class="row">
           <a class="btn" href="/portal/">{{ 'noAccess.portal' | t }}</a>
-          <button class="btn secondary" type="button" (click)="signOut()">{{ 'nav.signOut' | t }}</button>
+          <button class="btn secondary" type="button" (click)="signOut()">
+            {{ 'nav.signOut' | t }}
+          </button>
         </p>
       </div>
     </main>

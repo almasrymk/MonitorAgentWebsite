@@ -1,20 +1,56 @@
-import { Component, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  Component,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { Api, errorText, I18n, Loader, LoadError, MoneyPipe, Order, OrderStatus, Paged, Skeleton, StatusBadge, TranslatePipe, WhenPipe } from 'shared';
+import {
+  Api,
+  errorText,
+  I18n,
+  Loader,
+  LoadError,
+  MoneyPipe,
+  Order,
+  OrderStatus,
+  Paged,
+  Skeleton,
+  StatusBadge,
+  TranslatePipe,
+  WhenPipe,
+} from 'shared';
 
 const statuses: OrderStatus[] = ['PendingPayment', 'Paid', 'Fulfilled', 'Cancelled'];
 const pageSize = 25;
 
 @Component({
   selector: 'admin-orders',
-  imports: [FormsModule, RouterLink, TranslatePipe, WhenPipe, MoneyPipe, LoadError, Skeleton, StatusBadge],
+  imports: [
+    FormsModule,
+    RouterLink,
+    TranslatePipe,
+    WhenPipe,
+    MoneyPipe,
+    LoadError,
+    Skeleton,
+    StatusBadge,
+  ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page-head">
       <h1>{{ 'orders.title' | t }}</h1>
       <div>
         <label for="status-filter">{{ 'orders.filter' | t }}</label>
-        <select id="status-filter" [value]="status() ?? ''" (change)="filter($any($event.target).value)">
+        <select
+          id="status-filter"
+          [value]="status() ?? ''"
+          (change)="filter($any($event.target).value)"
+        >
           <option value="" [selected]="!status()">{{ 'orders.all' | t }}</option>
           @for (s of statuses; track s) {
             <option [value]="s" [selected]="s === status()">{{ 'order.status.' + s | t }}</option>
@@ -23,7 +59,9 @@ const pageSize = 25;
       </div>
     </div>
     @if (message()) {
-      <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">{{ message() }}</p>
+      <p class="alert" [class.ok]="!failed()" [attr.role]="failed() ? 'alert' : 'status'">
+        {{ message() }}
+      </p>
     }
     @if (orders.loading()) {
       <ma-skeleton />
@@ -44,7 +82,9 @@ const pageSize = 25;
                 <th scope="col">{{ 'orders.status' | t }}</th>
                 <th scope="col">{{ 'orders.placed' | t }}</th>
                 <th scope="col">{{ 'orders.license' | t }}</th>
-                <th scope="col"><span class="visually-hidden">{{ 'orders.actions' | t }}</span></th>
+                <th scope="col">
+                  <span class="visually-hidden">{{ 'orders.actions' | t }}</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -53,7 +93,9 @@ const pageSize = 25;
                   <td class="mono">{{ order.number }}</td>
                   <td>
                     @if (order.companyId) {
-                      <a [routerLink]="['/customers', order.companyId]">{{ order.companyName ?? '—' }}</a>
+                      <a [routerLink]="['/customers', order.companyId]">{{
+                        order.companyName ?? '—'
+                      }}</a>
                     } @else {
                       —
                     }
@@ -67,13 +109,28 @@ const pageSize = 25;
                     @if (order.status === 'PendingPayment') {
                       @if (recording() === order.id) {
                         <form class="row" (ngSubmit)="record(order)">
-                          <label class="visually-hidden" [for]="'ref-' + order.id">{{ 'orders.reference' | t }}</label>
-                          <input [id]="'ref-' + order.id" name="reference" required maxlength="100" [placeholder]="'orders.reference' | t" [(ngModel)]="reference" />
-                          <button class="btn" type="submit" [disabled]="busy()">{{ 'orders.confirmPayment' | t }}</button>
-                          <button class="btn secondary" type="button" (click)="recording.set(null)">{{ 'common.cancel' | t }}</button>
+                          <label class="visually-hidden" [for]="'ref-' + order.id">{{
+                            'orders.reference' | t
+                          }}</label>
+                          <input
+                            [id]="'ref-' + order.id"
+                            name="reference"
+                            required
+                            maxlength="100"
+                            [placeholder]="'orders.reference' | t"
+                            [(ngModel)]="reference"
+                          />
+                          <button class="btn" type="submit" [disabled]="busy()">
+                            {{ 'orders.confirmPayment' | t }}
+                          </button>
+                          <button class="btn secondary" type="button" (click)="recording.set(null)">
+                            {{ 'common.cancel' | t }}
+                          </button>
                         </form>
                       } @else {
-                        <button class="btn secondary" type="button" (click)="startRecording(order)">{{ 'orders.recordPayment' | t }}</button>
+                        <button class="btn secondary" type="button" (click)="startRecording(order)">
+                          {{ 'orders.recordPayment' | t }}
+                        </button>
                       }
                     }
                   </td>
@@ -83,9 +140,23 @@ const pageSize = 25;
           </table>
         </div>
         <nav class="row" style="margin-top: 1rem" [attr.aria-label]="'common.pages' | t">
-          <button class="btn secondary" type="button" [disabled]="page() <= 1" (click)="go(page() - 1)">{{ 'common.previous' | t }}</button>
+          <button
+            class="btn secondary"
+            type="button"
+            [disabled]="page() <= 1"
+            (click)="go(page() - 1)"
+          >
+            {{ 'common.previous' | t }}
+          </button>
           <span>{{ 'common.pageOf' | t: { page: page(), pages: pages(value) } }}</span>
-          <button class="btn secondary" type="button" [disabled]="page() >= pages(value)" (click)="go(page() + 1)">{{ 'common.next' | t }}</button>
+          <button
+            class="btn secondary"
+            type="button"
+            [disabled]="page() >= pages(value)"
+            (click)="go(page() + 1)"
+          >
+            {{ 'common.next' | t }}
+          </button>
         </nav>
       }
     }
@@ -145,7 +216,9 @@ export class OrdersPage {
     this.busy.set(true);
     this.failed.set(false);
     try {
-      await this.api.post<Order>(`/api/v1/admin/orders/${order.id}/manual-payment`, { reference: this.reference.trim() });
+      await this.api.post<Order>(`/api/v1/admin/orders/${order.id}/manual-payment`, {
+        reference: this.reference.trim(),
+      });
       this.recording.set(null);
       this.message.set(this.i18n.t('orders.recorded', { number: order.number }));
       await this.orders.load(true);
