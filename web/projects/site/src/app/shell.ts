@@ -22,7 +22,7 @@ import { Icon } from './icon';
     <header class="site-header">
       <div class="container bar">
         <a class="logo" [routerLink]="['/', lang()]">
-          <span class="logo-mark"><site-icon name="pulse" /></span>
+          <img class="logo-mark" src="/brand/mark-64.png" srcset="/brand/mark-128.png 2x" width="32" height="32" alt="" />
           {{ 'brand' | t }}
         </a>
         <nav [attr.aria-label]="'nav.menu' | t">
@@ -72,7 +72,7 @@ import { Icon } from './icon';
     <footer class="site-footer">
       <div class="container bar">
         <div class="logo">
-          <span class="logo-mark"><site-icon name="pulse" /></span>
+          <img class="logo-mark" src="/brand/mark-64.png" srcset="/brand/mark-128.png 2x" width="32" height="32" alt="" />
           <div>
             <strong>{{ 'brand' | t }}</strong>
             <p class="muted">{{ 'footer.tagline' | t }}</p>

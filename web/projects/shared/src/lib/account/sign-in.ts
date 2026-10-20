@@ -21,7 +21,7 @@ export const SIGN_IN_OPTIONS = new InjectionToken<SignInOptions>('SIGN_IN_OPTION
   factory: () => ({ selfService: true }),
 });
 
-export const logo = `<div class="logo"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24"><path d="M2 12h4l3-7 4 14 3-7h6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Monitor Agent</div>`;
+export const logo = `<div class="logo"><img class="logo-mark" src="brand/mark-64.png" srcset="brand/mark-128.png 2x" width="28" height="28" alt="" />Monitor Agent</div>`;
 export const languageSwitch = `<button class="link-button" type="button" (click)="switchLanguage()"><span class="visually-hidden">{{ 'lang.switchLabel' | t }}: </span><span [attr.lang]="i18n.other()">{{ 'lang.switch' | t }}</span></button>`;
 
 /** What the sign-in pages share: busy state, the error line and the language switch. */
