@@ -1,15 +1,8 @@
 @use '../../shared/styles/base';
 // IBM Plex, served from this site: the content security policy only allows fonts from our own origin.
 @use '@fontsource/ibm-plex-sans-arabic/arabic-400';
-@use '@fontsource/ibm-plex-sans-arabic/arabic-500';
-@use '@fontsource/ibm-plex-sans-arabic/arabic-600';
 @use '@fontsource/ibm-plex-sans-arabic/arabic-700';
-@use '@fontsource/ibm-plex-sans-arabic/latin-400';
-@use '@fontsource/ibm-plex-sans-arabic/latin-500';
-@use '@fontsource/ibm-plex-sans-arabic/latin-600';
-@use '@fontsource/ibm-plex-sans-arabic/latin-700';
 @use '@fontsource/ibm-plex-mono/latin-400' as mono-400;
-@use '@fontsource/ibm-plex-mono/latin-500' as mono-500;
 
 // Public site layout. Component styles stay empty so pages share one stylesheet.
 
@@ -230,6 +223,12 @@ main:focus {
 
 .section {
   padding-block: clamp(3rem, 7vw, 6rem);
+}
+
+// The home page is long: its sections skip layout and paint until they near the viewport.
+site-home .section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 720px;
 }
 
 .section.alt {
