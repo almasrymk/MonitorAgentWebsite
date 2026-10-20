@@ -1,8 +1,4 @@
 @use '../../shared/styles/base';
-// IBM Plex, served from this site: the content security policy only allows fonts from our own origin.
-@use '@fontsource/ibm-plex-sans-arabic/arabic-400';
-@use '@fontsource/ibm-plex-sans-arabic/arabic-700';
-@use '@fontsource/ibm-plex-mono/latin-400' as mono-400;
 
 // Public site layout. Component styles stay empty so pages share one stylesheet.
 

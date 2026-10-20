@@ -9,6 +9,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Api, ApiError } from '../api';
+import { BRAND_MARK } from '../brand';
 import { I18n, TranslatePipe } from '../i18n';
 import { errorText, saveLanguage, Session } from '../session';
 
@@ -21,7 +22,7 @@ export const SIGN_IN_OPTIONS = new InjectionToken<SignInOptions>('SIGN_IN_OPTION
   factory: () => ({ selfService: true }),
 });
 
-export const logo = `<div class="logo"><img class="logo-mark" src="brand/mark-64.png" srcset="brand/mark-128.png 2x" width="28" height="28" alt="" />Monitor Agent</div>`;
+export const logo = `<div class="logo"><img class="logo-mark" [src]="mark" width="28" height="28" alt="" />Monitor Agent</div>`;
 export const languageSwitch = `<button class="link-button" type="button" (click)="switchLanguage()"><span class="visually-hidden">{{ 'lang.switchLabel' | t }}: </span><span [attr.lang]="i18n.other()">{{ 'lang.switch' | t }}</span></button>`;
 
 /** What the sign-in pages share: busy state, the error line and the language switch. */
@@ -30,6 +31,7 @@ export abstract class AuthForm {
   protected readonly i18n = inject(I18n);
   protected readonly session = inject(Session);
   protected readonly router = inject(Router);
+  protected readonly mark = BRAND_MARK;
   protected readonly busy = signal(false);
   protected readonly error = signal('');
   protected readonly done = signal('');

@@ -9,7 +9,7 @@ import {
   RouterOutlet,
 } from '@angular/router';
 import { filter, map } from 'rxjs';
-import { I18n, isLang, TranslatePipe } from 'shared';
+import { BRAND_MARK, I18n, isLang, TranslatePipe } from 'shared';
 import { Icon } from './icon';
 
 /** Header, footer and the language of everything under /ar or /en. */
@@ -22,7 +22,7 @@ import { Icon } from './icon';
     <header class="site-header">
       <div class="container bar">
         <a class="logo" [routerLink]="['/', lang()]">
-          <img class="logo-mark" src="/brand/mark-64.png" srcset="/brand/mark-128.png 2x" width="32" height="32" alt="" />
+          <img class="logo-mark" [src]="mark" width="32" height="32" alt="" />
           {{ 'brand' | t }}
         </a>
         <nav [attr.aria-label]="'nav.menu' | t">
@@ -72,7 +72,7 @@ import { Icon } from './icon';
     <footer class="site-footer">
       <div class="container bar">
         <div class="logo">
-          <img class="logo-mark" src="/brand/mark-64.png" srcset="/brand/mark-128.png 2x" width="32" height="32" alt="" />
+          <img class="logo-mark" [src]="mark" width="32" height="32" alt="" />
           <div>
             <strong>{{ 'brand' | t }}</strong>
             <p class="muted">{{ 'footer.tagline' | t }}</p>
@@ -89,6 +89,7 @@ import { Icon } from './icon';
   `,
 })
 export class Shell {
+  protected readonly mark = BRAND_MARK;
   protected readonly i18n = inject(I18n);
   private readonly router = inject(Router);
   protected readonly year = new Date().getFullYear();
