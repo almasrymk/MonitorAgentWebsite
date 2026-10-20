@@ -10,27 +10,19 @@ import {
 } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { I18n, isLang, TranslatePipe } from 'shared';
+import { Icon } from './icon';
 
 /** Header, footer and the language of everything under /ar or /en. */
 @Component({
   selector: 'site-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, Icon],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <a class="skip-link" href="#main">{{ 'skip' | t }}</a>
     <header class="site-header">
       <div class="container bar">
         <a class="logo" [routerLink]="['/', lang()]">
-          <svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24">
-            <path
-              d="M2 12h4l3-7 4 14 3-7h6"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.4"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <span class="logo-mark"><site-icon name="pulse" /></span>
           {{ 'brand' | t }}
         </a>
         <nav [attr.aria-label]="'nav.menu' | t">
@@ -41,6 +33,7 @@ import { I18n, isLang, TranslatePipe } from 'shared';
             ariaCurrentWhenActive="page"
             >{{ 'nav.home' | t }}</a
           >
+          <a [routerLink]="['/', lang()]" fragment="features">{{ 'nav.features' | t }}</a>
           <a
             [routerLink]="['/', lang(), 'pricing']"
             routerLinkActive="active"
@@ -59,14 +52,17 @@ import { I18n, isLang, TranslatePipe } from 'shared';
             ariaCurrentWhenActive="page"
             >{{ 'nav.demo' | t }}</a
           >
+          <a href="/portal/support">{{ 'nav.support' | t }}</a>
         </nav>
         <div class="actions">
           <a class="lang" [routerLink]="otherLangPath()"
-            ><span class="visually-hidden">{{ 'lang.switchLabel' | t }}: </span
+            ><site-icon name="globe" /><span class="visually-hidden">{{ 'lang.switchLabel' | t }}: </span
             ><span [attr.lang]="i18n.other()">{{ 'lang.switch' | t }}</span></a
           >
           <a class="btn secondary" href="/portal/sign-in">{{ 'nav.signIn' | t }}</a>
-          <a class="btn" [routerLink]="['/', lang(), 'pricing']">{{ 'nav.getStarted' | t }}</a>
+          <a class="btn" [routerLink]="['/', lang(), 'pricing']"
+            >{{ 'nav.getStarted' | t }}<site-icon name="arrow"
+          /></a>
         </div>
       </div>
     </header>
@@ -75,9 +71,12 @@ import { I18n, isLang, TranslatePipe } from 'shared';
     </main>
     <footer class="site-footer">
       <div class="container bar">
-        <div>
-          <strong>{{ 'brand' | t }}</strong>
-          <p class="muted">{{ 'footer.tagline' | t }}</p>
+        <div class="logo">
+          <span class="logo-mark"><site-icon name="pulse" /></span>
+          <div>
+            <strong>{{ 'brand' | t }}</strong>
+            <p class="muted">{{ 'footer.tagline' | t }}</p>
+          </div>
         </div>
         <nav aria-label="Legal">
           <a [routerLink]="['/', lang(), 'terms']">{{ 'footer.terms' | t }}</a>
