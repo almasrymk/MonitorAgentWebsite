@@ -1,5 +1,6 @@
 import { Component, inject, input, ChangeDetectionStrategy } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { BRAND_MARK } from './brand';
 import { I18n, TranslatePipe } from './i18n';
 import { saveLanguage, Session } from './session';
 
@@ -17,16 +18,7 @@ export interface NavItem {
     <div class="app">
       <aside class="sidebar">
         <a class="logo" routerLink="/">
-          <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24">
-            <path
-              d="M2 12h4l3-7 4 14 3-7h6"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.4"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <img class="logo-mark" [src]="mark" width="28" height="28" alt="" />
           {{ 'brand' | t }}
         </a>
         <nav [attr.aria-label]="'nav.label' | t">
@@ -67,6 +59,7 @@ export interface NavItem {
 })
 /** The signed-in frame of the portal and admin app. The menu comes from the route's data (`nav`). */
 export class AppShell {
+  protected readonly mark = BRAND_MARK;
   readonly nav = input<NavItem[]>([]);
   protected readonly i18n = inject(I18n);
   protected readonly session = inject(Session);
