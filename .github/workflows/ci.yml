@@ -153,6 +153,7 @@ jobs:
             echo "Email__Smtp__Host=smtp.invalid"
             echo "Email__Smtp__From=no-reply@example.test"
             echo "Licenses__Platform__BaseUrl=http://licensing-platform.invalid"
+            echo "Licenses__Monitor__BaseUrl=http://monitor-cloud.invalid"
             echo "Identity__KeyProtection__CertificatePassword=$keypass"
           } > .env
           docker compose --profile db up -d --build
