@@ -29,7 +29,10 @@
                 "input": "projects/site/public"
               }
             ],
-            "styles": ["projects/site/src/styles.scss"],
+            "styles": [
+              "projects/site/src/styles.scss",
+              { "input": "projects/site/src/fonts.scss", "bundleName": "fonts", "inject": false }
+            ],
             "server": "projects/site/src/main.server.ts",
             "outputMode": "server",
             "security": {

@@ -392,6 +392,48 @@
         ],
         "type": "object"
       },
+      "CompanySubscriptionDto": {
+        "properties": {
+          "endDate": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "planCode": {
+            "type": "string"
+          },
+          "planId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "planName": {
+            "type": "string"
+          },
+          "startDate": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "planId",
+          "planCode",
+          "planName",
+          "status",
+          "startDate",
+          "endDate"
+        ],
+        "type": "object"
+      },
       "ConfirmEmailRequest": {
         "properties": {
           "token": {
@@ -828,6 +870,26 @@
           "amount",
           "currency",
           "issuedAt"
+        ],
+        "type": "object"
+      },
+      "IssuedDeviceLicenseDto": {
+        "properties": {
+          "licenseId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "licenseNumber": {
+            "type": "string"
+          },
+          "productKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "licenseId",
+          "licenseNumber",
+          "productKey"
         ],
         "type": "object"
       },
@@ -1807,6 +1869,18 @@
         "type": "object"
       },
       "PlaceOrderRequest": {
+        "properties": {
+          "planId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "planId"
+        ],
+        "type": "object"
+      },
+      "PlanChange": {
         "properties": {
           "planId": {
             "format": "uuid",
@@ -5042,6 +5116,196 @@
         ]
       }
     },
+    "/api/v1/licenses/subscription": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompanySubscriptionDto"
+                  },
+                  "type": "array"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompanySubscriptionDto"
+                  },
+                  "type": "array"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompanySubscriptionDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "MyLicenses"
+        ]
+      }
+    },
+    "/api/v1/licenses/subscription/{subscriptionId}/cancel": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "subscriptionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "MyLicenses"
+        ]
+      }
+    },
+    "/api/v1/licenses/subscription/{subscriptionId}/change-plan": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "subscriptionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanChange"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanChange"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "MyLicenses"
+        ]
+      }
+    },
+    "/api/v1/licenses/subscription/{subscriptionId}/licenses": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "subscriptionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedDeviceLicenseDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedDeviceLicenseDto"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuedDeviceLicenseDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "MyLicenses"
+        ]
+      }
+    },
+    "/api/v1/licenses/subscription/{subscriptionId}/resume": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "subscriptionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "MyLicenses"
+        ]
+      }
+    },
+    "/api/v1/licenses/subscription/{subscriptionId}/suspend": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "subscriptionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "MyLicenses"
+        ]
+      }
+    },
     "/api/v1/licenses/{licenseId}": {
       "get": {
         "parameters": [
@@ -5147,6 +5411,115 @@
               }
             },
             "description": "OK"
+          }
+        },
+        "tags": [
+          "MyLicenses"
+        ]
+      }
+    },
+    "/api/v1/licenses/{licenseId}/regenerate-key": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "licenseId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductKeyDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductKeyDto"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductKeyDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "MyLicenses"
+        ]
+      }
+    },
+    "/api/v1/licenses/{licenseId}/resume": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "licenseId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "MyLicenses"
+        ]
+      }
+    },
+    "/api/v1/licenses/{licenseId}/revoke": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "licenseId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "MyLicenses"
+        ]
+      }
+    },
+    "/api/v1/licenses/{licenseId}/suspend": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "licenseId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
           }
         },
         "tags": [
