@@ -20,6 +20,52 @@ public sealed record RecordManualPaymentCommand(Guid OrderId, string Reference) 
     public string? AuditDetail => Reference;
 }
 
+/// <summary>
+/// INT-019: staff record a refund paid outside the website. Recording the same reference again for the same order and
+/// amount returns the order unchanged, so a double click or a retry never refunds twice.
+/// </summary>
+public sealed record RecordRefundCommand(Guid OrderId, string Reference, decimal Amount, string? Reason) : ICommand<Result<OrderDto>>, IAuditedCommand
+{
+    public string AuditAction => "order.refund";
+    public string AuditTarget => $"order:{OrderId}";
+    public string? AuditDetail => $"{Amount} ref {Reference}{(Reason is null ? "" : " - " + Reason)}";
+}
+
+internal sealed class RecordRefundValidator : AbstractValidator<RecordRefundCommand>
+{
+    public RecordRefundValidator()
+    {
+        RuleFor(x => x.Reference).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Amount).GreaterThan(0);
+        RuleFor(x => x.Reason).MaximumLength(200);
+    }
+}
+
+internal sealed class RecordRefundHandler(ICommerceStore store, TimeProvider clock) : ICommandHandler<RecordRefundCommand, Result<OrderDto>>
+{
+    public async Task<Result<OrderDto>> HandleAsync(RecordRefundCommand command, CancellationToken ct)
+    {
+        var reference = command.Reference.Trim();
+        if (await store.OrderAsync(command.OrderId, ct) is not { } order) return CommerceErrors.OrderNotFound;
+        if (await store.RefundAsync("manual", reference, ct) is { } existing)
+            return existing.OrderId == order.Id && existing.Amount == decimal.Round(command.Amount, 2) ? order.ToDto() : CommerceErrors.RefundReferenceUsed;
+
+        var refunded = order.Refund(command.Amount);
+        if (refunded.IsFailure) return refunded.Error!;
+        store.Add(new LedgerEntry(order.Id, LedgerEntryKind.Refund, decimal.Round(command.Amount, 2), order.Currency, "manual", reference, clock.GetUtcNow()));
+        try
+        {
+            await store.SaveAsync(ct);
+        }
+        catch (SaveConflictException)
+        {
+            // Another refund of this order (its row version) or with this reference (unique) saved first: look again.
+            return CommerceErrors.RefundReferenceUsed;
+        }
+        return order.ToDto();
+    }
+}
+
 /// <summary>Issues licenses for paid orders whose fulfilment didn't finish (LicensingPlatform was down). Run on a timer.</summary>
 public sealed record FulfillPaidOrdersCommand : ICommand<Result<int>>;
 

@@ -25,7 +25,7 @@ import {
   WhenPipe,
 } from 'shared';
 
-const statuses: OrderStatus[] = ['PendingPayment', 'Paid', 'Fulfilled', 'Cancelled'];
+const statuses: OrderStatus[] = ['PendingPayment', 'Paid', 'Fulfilled', 'Cancelled', 'Refunded'];
 const pageSize = 25;
 
 @Component({

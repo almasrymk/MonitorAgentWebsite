@@ -44,6 +44,8 @@ public sealed class CommerceDb(DbContextOptions<CommerceDb> options) : DbContext
             o.Property(x => x.ProductName).HasMaxLength(150);
             o.Property(x => x.PlanName).HasMaxLength(150);
             o.Property(x => x.Total).HasPrecision(18, 2);
+            // A concurrency token: two partial refunds saved at once cannot add up to more than the total.
+            o.Property(x => x.RefundedAmount).HasPrecision(18, 2).IsConcurrencyToken();
             o.Property(x => x.Currency).HasMaxLength(3);
             o.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
             o.Property(x => x.PaidVia).HasMaxLength(30);
@@ -119,6 +121,8 @@ public sealed class CommerceDb(DbContextOptions<CommerceDb> options) : DbContext
             l.Property(x => x.At).HasConversion(Utc);
             l.HasIndex(x => x.OrderId);
             l.HasIndex(x => x.At);
+            // INT-019: one refund per provider reference, so two staff recording the same refund cannot both save it.
+            l.HasIndex(x => new { x.Provider, x.Reference }).IsUnique().HasFilter("[Kind] = 'Refund'");
         });
     }
 }
@@ -154,6 +158,9 @@ internal sealed class CommerceStore(CommerceDb db) : ICommerceStore
     public void Add(Order order) => db.Orders.Add(order);
     public void Add(ProcessedNotification notification) => db.Notifications.Add(notification);
     public void Add(LedgerEntry entry) => db.Ledger.Add(entry);
+
+    public Task<LedgerEntry?> RefundAsync(string provider, string reference, CancellationToken ct) =>
+        db.Ledger.SingleOrDefaultAsync(l => l.Kind == LedgerEntryKind.Refund && l.Provider == provider && l.Reference == reference, ct);
 
     public async Task<IReadOnlyList<LedgerLine>> LedgerAsync(DateTimeOffset from, DateTimeOffset until, int max, CancellationToken ct) =>
         await db.Ledger.AsNoTracking().Where(l => l.At >= from && l.At < until).OrderBy(l => l.At).Take(max)

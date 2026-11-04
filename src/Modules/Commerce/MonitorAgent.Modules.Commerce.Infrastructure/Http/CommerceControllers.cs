@@ -12,6 +12,7 @@ namespace MonitorAgent.Modules.Commerce.Infrastructure.Http;
 
 public sealed record PlaceOrderRequest(Guid PlanId);
 public sealed record PlaceRenewalRequest(Guid LicenseId);
+public sealed record RefundRequest(string Reference, decimal Amount, string? Reason);
 public sealed record PayRequest(string Provider);
 public sealed record ManualPaymentRequest(string Reference);
 
@@ -109,6 +110,12 @@ public sealed class AdminOrdersController(IDispatcher dispatcher) : ControllerBa
     [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> ManualPayment(Guid orderId, ManualPaymentRequest request, CancellationToken ct) =>
         (await dispatcher.SendAsync(new RecordManualPaymentCommand(orderId, request.Reference), ct)).ToActionResult();
+
+    /// <summary>INT-019: records money given back outside the website. The license is not suspended automatically.</summary>
+    [HttpPost("{orderId:guid}/refund")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Refund(Guid orderId, RefundRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new RecordRefundCommand(orderId, request.Reference, request.Amount, request.Reason), ct)).ToActionResult();
 }
 
 /// <summary>Finance and admins: money received and refunded, from the ledger.</summary>

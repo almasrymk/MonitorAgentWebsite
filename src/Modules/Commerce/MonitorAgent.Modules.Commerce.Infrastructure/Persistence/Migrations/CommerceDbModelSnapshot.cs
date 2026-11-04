@@ -115,6 +115,10 @@ namespace MonitorAgent.Modules.Commerce.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OrderId");
 
+                    b.HasIndex("Provider", "Reference")
+                        .IsUnique()
+                        .HasFilter("[Kind] = 'Refund'");
+
                     b.ToTable("Ledger", "commerce");
                 });
 
@@ -172,6 +176,11 @@ namespace MonitorAgent.Modules.Commerce.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
+
+                    b.Property<decimal>("RefundedAmount")
+                        .IsConcurrencyToken()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid?>("RenewsGrantId")
                         .HasColumnType("uniqueidentifier");

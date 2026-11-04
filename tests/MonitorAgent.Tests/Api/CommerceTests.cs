@@ -401,6 +401,98 @@ public class CommerceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal(JsonValueKind.Null, (await SubscriptionAsync(buyer)).GetProperty("scheduledPlanId").ValueKind);
     }
 
+    private async Task<HttpResponseMessage> RefundAsync(Guid orderId, string reference, decimal amount) =>
+        await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{orderId}/refund", new { reference, amount, reason = "customer asked" });
+
+    private async Task<int> RefundLinesAsync(Guid orderId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<CommerceDb>().Ledger.CountAsync(l => l.OrderId == orderId && l.Kind == MonitorAgent.Modules.Commerce.Domain.LedgerEntryKind.Refund);
+    }
+
+    [Fact]
+    public async Task A_full_refund_is_recorded_once_and_marks_the_order_refunded()
+    {
+        // INT-019: refunds used to have a ledger kind but no way to record one.
+        var buyer = await BuyerAsync();
+        var orderId = await PlaceAsync(buyer);
+        await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+        var reference = $"REFUND-{Guid.NewGuid():N}";
+
+        var refunded = await JsonAsync(await RefundAsync(orderId, reference, 1200m));
+        var again = await JsonAsync(await RefundAsync(orderId, reference, 1200m));
+
+        Assert.Equal("Refunded", refunded.GetProperty("status").GetString());
+        Assert.Equal(1200m, again.GetProperty("refundedAmount").GetDecimal());
+        Assert.Equal(1, await RefundLinesAsync(orderId));
+        // The license is left alone: staff suspend it in LicensingPlatform if they decide to.
+        Assert.Equal(1, await LicensesOfAsync(buyer));
+        Assert.Equal("ORDER_NOT_REFUNDABLE", await TestClient.ErrorCodeAsync(await RefundAsync(orderId, $"REFUND-{Guid.NewGuid():N}", 1m)));
+    }
+
+    [Fact]
+    public async Task Partial_refunds_never_add_up_to_more_than_was_paid()
+    {
+        var buyer = await BuyerAsync();
+        var orderId = await PlaceAsync(buyer);
+        Assert.Equal("ORDER_NOT_REFUNDABLE", await TestClient.ErrorCodeAsync(await RefundAsync(orderId, $"REFUND-{Guid.NewGuid():N}", 100m)));
+        await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+
+        var part = await JsonAsync(await RefundAsync(orderId, $"REFUND-{Guid.NewGuid():N}", 200m));
+        Assert.Equal("Fulfilled", part.GetProperty("status").GetString());
+        Assert.Equal(200m, part.GetProperty("refundedAmount").GetDecimal());
+
+        var tooMuch = await RefundAsync(orderId, $"REFUND-{Guid.NewGuid():N}", 1000.01m);
+        Assert.Equal(HttpStatusCode.BadRequest, tooMuch.StatusCode);
+        Assert.Equal("REFUND_TOO_LARGE", await TestClient.ErrorCodeAsync(tooMuch));
+        Assert.Equal("Refunded", (await JsonAsync(await RefundAsync(orderId, $"REFUND-{Guid.NewGuid():N}", 1000m))).GetProperty("status").GetString());
+        Assert.Equal(2, await RefundLinesAsync(orderId));
+    }
+
+    [Fact]
+    public async Task A_refund_reference_cannot_be_reused_for_another_order()
+    {
+        var buyer = await BuyerAsync();
+        var first = await PlaceAsync(buyer);
+        var second = await PlaceAsync(buyer);
+        foreach (var id in new[] { first, second })
+            await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{id}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+        var reference = $"REFUND-{Guid.NewGuid():N}";
+        await JsonAsync(await RefundAsync(first, reference, 100m));
+
+        Assert.Equal("REFUND_REFERENCE_USED", await TestClient.ErrorCodeAsync(await RefundAsync(second, reference, 100m)));
+        Assert.Equal("REFUND_REFERENCE_USED", await TestClient.ErrorCodeAsync(await RefundAsync(first, reference, 50m)));
+        Assert.Equal(0, await RefundLinesAsync(second));
+    }
+
+    [Fact]
+    public async Task A_paid_order_refunded_before_its_license_was_issued_is_never_issued()
+    {
+        var buyer = await BuyerAsync();
+        var orderId = await PlaceAsync(buyer);
+        factory.Platform.FailNext = nameof(FakeLicensingPlatform.CreateCustomerAsync);
+        Assert.Equal("Paid", (await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment",
+            new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }))).GetProperty("status").GetString());
+
+        await JsonAsync(await RefundAsync(orderId, $"REFUND-{Guid.NewGuid():N}", 1200m));
+        await using (var scope = factory.Services.CreateAsyncScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<IDispatcher>().SendAsync(new FulfillPaidOrdersCommand())).IsSuccess);
+
+        Assert.Equal("Refunded", (await OrderAsync(buyer, orderId)).GetProperty("status").GetString());
+        Assert.Equal(0, await LicensesOfAsync(buyer));
+    }
+
+    [Fact]
+    public async Task A_buyer_cannot_record_a_refund()
+    {
+        var buyer = await BuyerAsync();
+        var orderId = await PlaceAsync(buyer);
+
+        var response = await buyer.Client.PostAsync($"/api/v1/admin/orders/{orderId}/refund", new { reference = "REFUND-SELF", amount = 1200m });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
     [Fact]
     public async Task One_bank_reference_cannot_pay_two_orders()
     {

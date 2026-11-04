@@ -45,6 +45,8 @@ internal interface ICommerceStore
     void Add(Order order);
     void Add(ProcessedNotification notification);
     void Add(LedgerEntry entry);
+    /// <summary>INT-019: the refund recorded with this provider reference, if any.</summary>
+    Task<LedgerEntry?> RefundAsync(string provider, string reference, CancellationToken ct);
     Task<Invoice?> InvoiceForOrderAsync(Guid orderId, CancellationToken ct);
     Task<IReadOnlyList<Invoice>> InvoicesOfAsync(Guid companyId, CancellationToken ct);
     /// <summary>Takes the next invoice number for the year. Part of the same save as the invoice itself.</summary>

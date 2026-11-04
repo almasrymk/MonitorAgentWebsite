@@ -2,7 +2,8 @@ using MonitorAgent.SharedKernel;
 
 namespace MonitorAgent.Modules.Commerce.Domain;
 
-public enum OrderStatus { PendingPayment, Paid, Fulfilled, Cancelled }
+/// <summary>Refunded (INT-019): the whole amount went back to the buyer. A partial refund leaves the status as it was.</summary>
+public enum OrderStatus { PendingPayment, Paid, Fulfilled, Cancelled, Refunded }
 /// <summary>Purchase starts a new subscription and license; Renewal (INT-018) extends the subscription of an issued license.</summary>
 public enum OrderKind { Purchase, Renewal }
 public enum PaymentStatus { Pending, Succeeded, Failed }
@@ -59,6 +60,8 @@ public sealed class Order : AggregateRoot
     public OrderKind Kind { get; private set; }
     /// <summary>For a renewal: the license grant (Licenses module) whose subscription the payment extends.</summary>
     public Guid? RenewsGrantId { get; private set; }
+    /// <summary>INT-019: money given back so far. Never more than <see cref="Total"/>.</summary>
+    public decimal RefundedAmount { get; private set; }
     public IReadOnlyList<Payment> Payments => _payments;
 
     public static Order Place(string number, Guid companyId, Guid placedBy, Guid planId, string productName, string planName,
@@ -148,6 +151,21 @@ public sealed class Order : AggregateRoot
         if (Status != OrderStatus.Paid) return;
         LicenseNumber = licenseNumber;
         Status = OrderStatus.Fulfilled;
+    }
+
+    /// <summary>
+    /// INT-019: staff record money given back outside the website (bank transfer, cash). The license is not touched:
+    /// staff decide separately whether to suspend it. A refund of the whole amount before fulfilment also stops the
+    /// license from being issued, because only Paid orders are fulfilled.
+    /// </summary>
+    public Result Refund(decimal amount)
+    {
+        if (Status is not (OrderStatus.Paid or OrderStatus.Fulfilled)) return CommerceErrors.NotRefundable;
+        amount = decimal.Round(amount, 2);
+        if (amount <= 0 || amount > Total - RefundedAmount) return CommerceErrors.RefundTooLarge;
+        RefundedAmount += amount;
+        if (RefundedAmount == Total) Status = OrderStatus.Refunded;
+        return Result.Success();
     }
 
     public Result Cancel()

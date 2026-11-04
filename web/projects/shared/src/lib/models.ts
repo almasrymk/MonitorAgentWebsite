@@ -97,7 +97,7 @@ export interface LicenseDetails {
   devices: Device[];
 }
 
-export type OrderStatus = 'PendingPayment' | 'Paid' | 'Fulfilled' | 'Cancelled';
+export type OrderStatus = 'PendingPayment' | 'Paid' | 'Fulfilled' | 'Cancelled' | 'Refunded';
 export type PaymentStatus = 'Pending' | 'Succeeded' | 'Failed';
 
 export interface Payment {
