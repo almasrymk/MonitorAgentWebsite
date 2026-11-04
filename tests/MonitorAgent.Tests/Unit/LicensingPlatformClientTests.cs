@@ -29,8 +29,9 @@ public class LicensingPlatformClientTests
                       {"id":"22222222-2222-2222-2222-222222222222","productCode":"UBG","productName":"UBG Monitor","code":"FREE","name":"Free","version":1,"status":"Published","price":0,"currency":"EGP","durationDays":null,"maxActivations":1,"features":[],"kind":"Free","isCurrent":true},
                       {"id":"33333333-3333-3333-3333-333333333333","productCode":"UBG","productName":"UBG Monitor","code":"STD","name":"Standard","version":1,"status":"Published","price":1000.0,"currency":"EGP","durationDays":365,"maxActivations":3,"features":[],"kind":"Paid","isCurrent":false},
                       {"id":"88888888-8888-8888-8888-888888888888","productCode":"UBG","productName":"UBG Monitor","code":"STD","name":"Standard","version":3,"status":"Draft","price":1500.0,"currency":"EGP","durationDays":365,"maxActivations":3,"features":[],"kind":"Paid","isCurrent":false},
-                      {"id":"99999999-9999-9999-9999-999999999999","productCode":"UBG","productName":"UBG Monitor","code":"PRO","name":"Pro","version":1,"status":"Published","price":2500.0,"currency":"EGP","durationDays":365,"maxActivations":10,"features":["alerts","reports"],"kind":"Paid","isCurrent":false}
-                    ],"total":5,"page":1,"pageSize":200}
+                      {"id":"99999999-9999-9999-9999-999999999999","productCode":"UBG","productName":"UBG Monitor","code":"PRO","name":"Pro","version":1,"status":"Published","price":2500.0,"currency":"EGP","durationDays":365,"maxActivations":10,"features":["alerts","reports"],"kind":"Paid","isCurrent":false},
+                      {"id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","productCode":"UBG","productName":"UBG Monitor","code":"TRIAL","name":"Trial","version":1,"status":"Published","price":0,"currency":"EGP","durationDays":14,"maxActivations":1,"features":["alerts"],"kind":"Trial","isCurrent":false}
+                    ],"total":6,"page":1,"pageSize":200}
                     """),
                 "/api/v1/licenses" when request.Method == HttpMethod.Post => Json($$"""{"license":{{License}},"productKey":"UBG-FULL-KEY" }""", HttpStatusCode.Created),
                 _ when path.StartsWith("/api/v1/licenses/", StringComparison.Ordinal) && path.EndsWith("/reset", StringComparison.Ordinal) => new HttpResponseMessage(HttpStatusCode.NoContent),
@@ -66,6 +67,8 @@ public class LicensingPlatformClientTests
     [Fact]
     public async Task Each_paid_plan_is_offered_at_its_newest_published_version()
     {
+        // INT-010: the list also holds a published Trial plan (LicensingPlatform PlanKind.Trial = 2). It is not sold, and it
+        // must not make the whole catalogue unreadable.
         var (client, platform) = Create();
         var plans = await client.PublishedPaidPlansAsync(default);
 

@@ -32,7 +32,7 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
 
     // Mirrors of LicensingPlatform's enums (Licensing.Domain), with its numeric values.
     private enum PlanStatus { Draft = 1, Published = 2, Archived = 3 }
-    private enum PlanKind { Paid = 1, Free = 3 }
+    private enum PlanKind { Paid = 1, Trial = 2, Free = 3 }
     private enum LicenseStatus { Active = 1, Suspended = 2, Revoked = 3, Expired = 4 }
     private enum ActivationStatus { Active = 1, Deactivated = 2 }
 
