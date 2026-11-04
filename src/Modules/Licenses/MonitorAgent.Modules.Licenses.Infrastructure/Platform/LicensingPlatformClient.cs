@@ -93,6 +93,40 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
         await EnsureAsync(response);
     }
 
+    public async Task<IReadOnlyList<PlatformSubscription>> SubscriptionsOfAsync(Guid customerId, CancellationToken ct)
+    {
+        var page = await GetAsync<Paged<SubscriptionBody>>($"api/v1/subscriptions?customerId={customerId}&page=1&pageSize=50", ct);
+        return (page?.Items ?? []).Select(s => new PlatformSubscription(
+            s.Id, s.CustomerId, s.PlanId, s.PlanName, s.PlanName, s.Status.ToString(), s.StartDate, s.EndDate, s.Version)).ToList();
+    }
+
+    public Task ChangePlanAsync(Guid subscriptionId, Guid planId, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/change-plan", new { planId }, ct);
+
+    public Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/suspend", new { reason }, ct);
+
+    public Task ResumeSubscriptionAsync(Guid subscriptionId, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/resume", new { }, ct);
+
+    public Task CancelSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/cancel", new { reason }, ct);
+
+    public async Task<PlatformIssuedLicense> RegenerateKeyAsync(Guid licenseId, CancellationToken ct)
+    {
+        var issued = await ReadManagementAsync<IssuedLicenseBody>($"api/v1/licenses/{licenseId}/regenerate-key", new { }, ct);
+        return new PlatformIssuedLicense(ToLicense(issued.License), issued.ProductKey);
+    }
+
+    public Task SuspendLicenseAsync(Guid licenseId, string? reason, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/licenses/{licenseId}/suspend", new { reason }, ct);
+
+    public Task ResumeLicenseAsync(Guid licenseId, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/licenses/{licenseId}/resume", new { }, ct);
+
+    public Task RevokeLicenseAsync(Guid licenseId, string? reason, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/licenses/{licenseId}/revoke", new { reason }, ct);
+
     private static PlatformLicense ToLicense(LicenseBody l) => new(l.Id, l.CustomerId, l.ProductCode, l.PlanCode, l.LicenseNumber,
         l.ProductKeyPrefix, l.Status.ToString(), l.IssuedAt, l.ExpiresAt, l.MaxActivations, l.ActiveActivations);
 
@@ -146,6 +180,40 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
     /// Any failure here is treated as "unavailable": a 4xx from LicensingPlatform means our request or its setup is wrong
     /// (for example the service account lost a permission), which the customer can't fix either.
     /// </summary>
+    private async Task SendManagementAsync(string path, object body, CancellationToken ct)
+    {
+        using var response = await SendRawAsync(HttpMethod.Post, path, body, ct);
+        await EnsureManagementAsync(response);
+    }
+
+    private async Task<T> ReadManagementAsync<T>(string path, object body, CancellationToken ct)
+    {
+        using var response = await SendRawAsync(HttpMethod.Post, path, body, ct);
+        await EnsureManagementAsync(response);
+        return (await ReadAsync<T>(response, ct))!;
+    }
+
+    /// <summary>A 4xx names a refusal the account owner can correct. A 5xx is an outage.</summary>
+    private static async Task EnsureManagementAsync(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode) return;
+        if ((int)response.StatusCode >= 500)
+        {
+            await EnsureAsync(response);
+            return;
+        }
+        string? code = null;
+        string? title = null;
+        try
+        {
+            using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            code = problem.RootElement.TryGetProperty("code", out var c) ? c.GetString() : null;
+            title = problem.RootElement.TryGetProperty("title", out var t) ? t.GetString() : null;
+        }
+        catch (JsonException) { }
+        throw new PlatformRejectedException((int)response.StatusCode, code ?? "LICENSING_REJECTED", title ?? "LicensingPlatform refused the request.");
+    }
+
     private static async Task EnsureAsync(HttpResponseMessage response)
     {
         if (response.IsSuccessStatusCode) return;
@@ -171,6 +239,8 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
         DateTimeOffset ActivatedAt, DateTimeOffset? LastHeartbeatAt, string? OperatingSystem, bool Online);
     private sealed record LicenseDetailsBody(LicenseBody License, IReadOnlyList<ActivationBody> Activations);
     private sealed record IssuedLicenseBody(LicenseBody License, string ProductKey);
+    private enum SubscriptionStatus { Trial = 1, Active = 2, Suspended = 3, Cancelled = 4, Expired = 5 }
+    private sealed record SubscriptionBody(Guid Id, Guid CustomerId, Guid PlanId, string PlanName, SubscriptionStatus Status, DateTimeOffset StartDate, DateTimeOffset? EndDate, int Version);
 }
 
 /// <summary>The service account's current token, shared by every request (handlers themselves are recycled).</summary>

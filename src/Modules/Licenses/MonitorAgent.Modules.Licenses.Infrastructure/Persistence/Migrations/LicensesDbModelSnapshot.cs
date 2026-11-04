@@ -89,6 +89,9 @@ namespace MonitorAgent.Modules.Licenses.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("LinkedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("MonitorTenantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("PlatformCustomerId")
                         .HasColumnType("uniqueidentifier");
 
