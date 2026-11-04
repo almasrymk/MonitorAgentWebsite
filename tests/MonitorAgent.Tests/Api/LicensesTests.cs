@@ -84,13 +84,54 @@ public class LicensesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     {
         var company = await CompanyAsync();
         var subscriptionsBefore = factory.Platform.Subscriptions.Count;
+        var tenantsBefore = factory.MonitorCloud.Tenants.Count;
 
         var first = await JsonAsync(await GrantAsync(company.Id, "order-retry"));
         var second = await JsonAsync(await GrantAsync(company.Id, "order-retry"));
 
         Assert.Equal(first.GetProperty("grantId").GetGuid(), second.GetProperty("grantId").GetGuid());
         Assert.Equal(subscriptionsBefore + 1, factory.Platform.Subscriptions.Count);
+        Assert.Equal(tenantsBefore + 1, factory.MonitorCloud.Tenants.Count);
         Assert.Single((await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses"))).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task A_granted_license_registers_one_monitor_tenant_for_the_company()
+    {
+        var company = await CompanyAsync();
+        var tenantsBefore = factory.MonitorCloud.Tenants.Keys.ToHashSet();
+        var customersBefore = factory.Platform.Customers.Keys.ToHashSet();
+        var namesBefore = factory.MonitorCloud.Names.Count;
+
+        await JsonAsync(await GrantAsync(company.Id, "order-monitor-1"));
+        await JsonAsync(await GrantAsync(company.Id, "order-monitor-2"));
+
+        var customerId = Assert.Single(factory.Platform.Customers.Keys, id => !customersBefore.Contains(id));
+        var tenantCustomerId = Assert.Single(factory.MonitorCloud.Tenants.Keys, id => !tenantsBefore.Contains(id));
+        Assert.Equal(customerId, tenantCustomerId);
+        Assert.Equal(namesBefore + 1, factory.MonitorCloud.Names.Count);
+        Assert.Equal("Acme", factory.MonitorCloud.Names[^1]);
+    }
+
+    [Fact]
+    public async Task A_grant_interrupted_after_the_license_registers_the_tenant_on_retry()
+    {
+        var company = await CompanyAsync();
+        var tenantsBefore = factory.MonitorCloud.Tenants.Count;
+        var licensesBefore = factory.Platform.Licenses.Count;
+        var subscriptionsBefore = factory.Platform.Subscriptions.Count;
+        factory.MonitorCloud.FailNext = nameof(FakeMonitorCloud.RegisterTenantAsync);
+
+        var failed = await GrantAsync(company.Id, "order-monitor-outage");
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, failed.StatusCode);
+        Assert.Equal("MONITOR_UNAVAILABLE", await TestClient.ErrorCodeAsync(failed));
+        Assert.Equal(tenantsBefore, factory.MonitorCloud.Tenants.Count);
+        Assert.Equal(licensesBefore + 1, factory.Platform.Licenses.Count);
+
+        await JsonAsync(await GrantAsync(company.Id, "order-monitor-outage"));
+        Assert.Equal(tenantsBefore + 1, factory.MonitorCloud.Tenants.Count);
+        Assert.Equal(licensesBefore + 1, factory.Platform.Licenses.Count);
+        Assert.Equal(subscriptionsBefore + 1, factory.Platform.Subscriptions.Count);
     }
 
     [Fact]

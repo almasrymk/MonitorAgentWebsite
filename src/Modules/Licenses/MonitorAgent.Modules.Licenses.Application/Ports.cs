@@ -19,6 +19,9 @@ public sealed record PlatformIssuedLicense(PlatformLicense License, string Produ
 /// <summary>Thrown by <see cref="ILicensingPlatform"/> when LicensingPlatform can't be reached or answers with a server error.</summary>
 public sealed class PlatformUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
 
+/// <summary>Thrown by <see cref="IMonitorCloud"/> when Monitor Cloud can't be reached or answers with a server error.</summary>
+public sealed class MonitorUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
+
 /// <summary>
 /// The anti-corruption layer over LicensingPlatform's HTTP API (ADR-004, ADR-007). Nothing outside this module
 /// sees LicensingPlatform's shapes. Lookups return null for "not found".
@@ -32,6 +35,14 @@ internal interface ILicensingPlatform
     Task<IReadOnlyList<PlatformLicense>> LicensesOfAsync(Guid customerId, CancellationToken ct);
     Task<(PlatformLicense License, IReadOnlyList<PlatformDevice> Devices)?> LicenseAsync(Guid licenseId, CancellationToken ct);
     Task ResetDeviceAsync(Guid licenseId, Guid deviceId, CancellationToken ct);
+}
+
+/// <summary>
+/// Registers a Licensing customer as a tenant in Monitor Cloud. The same customer always returns the same tenant.
+/// </summary>
+internal interface IMonitorCloud
+{
+    Task<Guid> RegisterTenantAsync(Guid licensingCustomerId, string name, CancellationToken ct);
 }
 
 internal interface ILicenseStore

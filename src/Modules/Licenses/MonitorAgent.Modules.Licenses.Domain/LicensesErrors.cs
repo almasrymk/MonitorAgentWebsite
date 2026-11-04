@@ -6,6 +6,7 @@ namespace MonitorAgent.Modules.Licenses.Domain;
 public static class LicensesErrors
 {
     public static readonly Error PlatformUnavailable = Error.Unavailable("LICENSING_UNAVAILABLE", "The licensing service can't be reached right now. Try again shortly.");
+    public static readonly Error MonitorUnavailable = Error.Unavailable("MONITOR_UNAVAILABLE", "The monitoring platform can't be reached right now. Try again shortly.");
     public static readonly Error LicenseNotFound = Error.NotFound("LICENSE_NOT_FOUND", "No such license in your company.");
     public static readonly Error DeviceNotFound = Error.NotFound("DEVICE_NOT_FOUND", "No such device on this license.");
     public static readonly Error PlanNotAvailable = Error.Validation("PLAN_NOT_AVAILABLE", "This plan isn't on sale.");

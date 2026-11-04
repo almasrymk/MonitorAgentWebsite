@@ -17,6 +17,10 @@ public sealed class PlatformCustomerLink
     public Guid CompanyId { get; private set; }
     public Guid PlatformCustomerId { get; private set; }
     public DateTimeOffset LinkedAt { get; private set; }
+    /// <summary>The Monitor Cloud tenant created for this company. Empty until registration finishes.</summary>
+    public Guid? MonitorTenantId { get; private set; }
+
+    public void MonitorRegistered(Guid tenantId) => MonitorTenantId ??= tenantId;
 }
 
 public enum GrantStatus { Pending, Issued }

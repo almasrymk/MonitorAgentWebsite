@@ -82,3 +82,25 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
         throw new PlatformUnavailableException("Simulated outage.");
     }
 }
+
+/// <summary>Records tenant registrations the website asks Monitor Cloud for. The same customer returns the same tenant.</summary>
+public sealed class FakeMonitorCloud : IMonitorCloud
+{
+    public ConcurrentDictionary<Guid, Guid> Tenants { get; } = new();
+    public List<string> Names { get; } = [];
+
+    /// <summary>Name of the next call that should fail as if Monitor Cloud were down.</summary>
+    public string? FailNext { get; set; }
+
+    public Task<Guid> RegisterTenantAsync(Guid licensingCustomerId, string name, CancellationToken ct)
+    {
+        if (FailNext == nameof(RegisterTenantAsync))
+        {
+            FailNext = null;
+            throw new MonitorUnavailableException("Simulated outage.");
+        }
+
+        Names.Add(name);
+        return Task.FromResult(Tenants.GetOrAdd(licensingCustomerId, _ => Guid.NewGuid()));
+    }
+}
