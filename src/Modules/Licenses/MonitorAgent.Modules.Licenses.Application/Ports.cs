@@ -16,6 +16,17 @@ public sealed record PlatformDevice(
 
 public sealed record PlatformIssuedLicense(PlatformLicense License, string ProductKey);
 
+public sealed record PlatformSubscription(
+    Guid Id, Guid CustomerId, Guid PlanId, string PlanCode, string PlanName, string Status,
+    DateTimeOffset StartDate, DateTimeOffset? EndDate, int Version);
+
+/// <summary>LicensingPlatform refused the call with a client error the caller can act on.</summary>
+public sealed class PlatformRejectedException(int status, string code, string message) : Exception(message)
+{
+    public int Status { get; } = status;
+    public string Code { get; } = code;
+}
+
 /// <summary>Thrown by <see cref="ILicensingPlatform"/> when LicensingPlatform can't be reached or answers with a server error.</summary>
 public sealed class PlatformUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
 
@@ -32,6 +43,15 @@ internal interface ILicensingPlatform
     Task<Guid> CreateCustomerAsync(string name, string email, CancellationToken ct);
     Task<Guid> StartSubscriptionAsync(Guid customerId, Guid planId, CancellationToken ct);
     Task<PlatformIssuedLicense> IssueLicenseAsync(Guid subscriptionId, CancellationToken ct);
+    Task<IReadOnlyList<PlatformSubscription>> SubscriptionsOfAsync(Guid customerId, CancellationToken ct);
+    Task ChangePlanAsync(Guid subscriptionId, Guid planId, CancellationToken ct);
+    Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct);
+    Task ResumeSubscriptionAsync(Guid subscriptionId, CancellationToken ct);
+    Task CancelSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct);
+    Task<PlatformIssuedLicense> RegenerateKeyAsync(Guid licenseId, CancellationToken ct);
+    Task SuspendLicenseAsync(Guid licenseId, string? reason, CancellationToken ct);
+    Task ResumeLicenseAsync(Guid licenseId, CancellationToken ct);
+    Task RevokeLicenseAsync(Guid licenseId, string? reason, CancellationToken ct);
     Task<IReadOnlyList<PlatformLicense>> LicensesOfAsync(Guid customerId, CancellationToken ct);
     Task<(PlatformLicense License, IReadOnlyList<PlatformDevice> Devices)?> LicenseAsync(Guid licenseId, CancellationToken ct);
     Task ResetDeviceAsync(Guid licenseId, Guid deviceId, CancellationToken ct);

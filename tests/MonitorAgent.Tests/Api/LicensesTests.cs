@@ -58,7 +58,7 @@ public class LicensesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     {
         var plans = await JsonAsync(await factory.CreateTestClient().GetAsync("/api/v1/catalog/plans"));
 
-        var plan = Assert.Single(plans.EnumerateArray());
+        var plan = Assert.Single(plans.EnumerateArray(), p => p.GetProperty("code").GetString() == "STD");
         Assert.Equal("Standard", plan.GetProperty("name").GetString());
         Assert.Equal(1200m, plan.GetProperty("price").GetDecimal());
         Assert.Equal(3, plan.GetProperty("maxDevices").GetInt32());
@@ -239,6 +239,35 @@ public class LicensesTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Empty((await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses"))).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task The_owner_changes_plan_issues_a_device_license_and_regenerates_its_key()
+    {
+        var company = await CompanyAsync();
+        await JsonAsync(await GrantAsync(company.Id, $"order-manage-{Guid.NewGuid():N}"));
+        var subscriptionId = (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("id").GetGuid();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await company.Owner.PostAsync(
+            $"/api/v1/licenses/subscription/{subscriptionId}/change-plan", new { planId = FakeLicensingPlatform.Plus.Id })).StatusCode);
+        Assert.Equal("PLUS", (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("planCode").GetString());
+        Assert.Equal("SUBSCRIPTION_SAME_PLAN", await TestClient.ErrorCodeAsync(await company.Owner.PostAsync(
+            $"/api/v1/licenses/subscription/{subscriptionId}/change-plan", new { planId = FakeLicensingPlatform.Plus.Id })));
+
+        var issued = await JsonAsync(await company.Owner.PostAsync($"/api/v1/licenses/subscription/{subscriptionId}/licenses"));
+        var licenseId = issued.GetProperty("licenseId").GetGuid();
+        Assert.Equal(factory.Platform.KeyOf(licenseId), issued.GetProperty("productKey").GetString());
+        Assert.Equal(2, (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses"))).GetArrayLength());
+
+        var regenerated = await JsonAsync(await company.Owner.PostAsync($"/api/v1/licenses/{licenseId}/regenerate-key"));
+        Assert.NotEqual(issued.GetProperty("productKey").GetString(), regenerated.GetProperty("productKey").GetString());
+        var revealed = (await JsonAsync(await company.Owner.PostAsync($"/api/v1/licenses/{licenseId}/product-key"))).GetProperty("productKey").GetString();
+        Assert.Equal(regenerated.GetProperty("productKey").GetString(), revealed);
+
+        var other = await CompanyAsync();
+        Assert.Equal("SUBSCRIPTION_NOT_FOUND", await TestClient.ErrorCodeAsync(await other.Owner.PostAsync($"/api/v1/licenses/subscription/{subscriptionId}/cancel")));
+        Assert.Equal(HttpStatusCode.NoContent, (await company.Owner.PostAsync($"/api/v1/licenses/subscription/{subscriptionId}/cancel")).StatusCode);
+        Assert.Equal("Cancelled", (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("status").GetString());
     }
 
     [Fact]

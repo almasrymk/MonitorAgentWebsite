@@ -5,6 +5,7 @@ public sealed record CompanyMembership(Guid CompanyId, string CompanyName, strin
 {
     public bool IsOwner => Role == "Owner";
     public bool CanManageDevices => Role is "Owner" or "Technical";
+    public bool CanManageBilling => Role is "Owner" or "Billing";
 }
 
 public sealed record CompanySummary(Guid Id, string Name, Guid OwnerUserId);

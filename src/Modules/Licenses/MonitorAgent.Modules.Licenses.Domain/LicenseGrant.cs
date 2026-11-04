@@ -79,6 +79,14 @@ public sealed class LicenseGrant : AggregateRoot
 
     public void SubscriptionStarted(Guid subscriptionId) => PlatformSubscriptionId ??= subscriptionId;
 
+    /// <summary>Stores the replacement key LicensingPlatform returned. The previous key no longer works.</summary>
+    public void ReplaceKey(string protectedProductKey)
+    {
+        if (Status != GrantStatus.Issued)
+            throw new InvalidOperationException("Only an issued license can get a new key.");
+        ProtectedProductKey = protectedProductKey;
+    }
+
     public void Issued(Guid licenseId, string licenseNumber, DateTimeOffset? expiresAt, string protectedProductKey, DateTimeOffset at)
     {
         if (Status == GrantStatus.Issued) return;
