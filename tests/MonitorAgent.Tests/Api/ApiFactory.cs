@@ -41,6 +41,7 @@ public class ApiFactory : WebApplicationFactory<Program>
     public static System.Security.Cryptography.ECDsa ReleaseKey { get; } = System.Security.Cryptography.ECDsa.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
 
     public FakeLicensingPlatform Platform { get; } = new();
+    public FakeMonitorCloud MonitorCloud { get; } = new();
 
     /// <summary>An admin session with two-step verification, kept by tests that need staff access.</summary>
     public TestClient? SharedAdmin { get; set; }
@@ -90,6 +91,8 @@ public class ApiFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<ILicensingPlatform>();
             services.AddSingleton<ILicensingPlatform>(Platform);
+            services.RemoveAll<IMonitorCloud>();
+            services.AddSingleton<IMonitorCloud>(MonitorCloud);
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Emails);
             if (SqlServer is not null) return;

@@ -24,14 +24,17 @@ USER node
 EXPOSE 4000
 CMD ["node", "server/server.mjs"]
 
-# Caddy rebuilt with a current Go toolchain and golang.org/x/net: the official binary lags behind on both, and Trivy
+# Caddy rebuilt with a current Go toolchain, golang.org/x/net and go-jose: the official binary lags behind on both, and Trivy
 # fails the build on their fixable CVEs. Bump the versions here when Caddy or Go ship fixes.
 FROM golang:1.27-alpine AS caddy
 RUN go install github.com/caddyserver/xcaddy/cmd/xcaddy@v0.4.5 \
- && xcaddy build v2.11.7 --output /usr/bin/caddy --replace golang.org/x/net=golang.org/x/net@v0.61.0
+ && xcaddy build v2.11.7 --output /usr/bin/caddy --replace golang.org/x/net=golang.org/x/net@v0.61.0 \
+      --replace github.com/go-jose/go-jose/v4=github.com/go-jose/go-jose/v4@v4.1.6
 
 # The front door: HTTPS, the portal and admin files, and routing to the API and the site.
 FROM caddy:2.11-alpine AS edge
+# Alpine ships fixes (brotli, curl) before the Caddy image is rebuilt.
+RUN apk upgrade --no-cache
 COPY --from=caddy /usr/bin/caddy /usr/bin/caddy
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /web/dist/portal/browser /srv/portal
