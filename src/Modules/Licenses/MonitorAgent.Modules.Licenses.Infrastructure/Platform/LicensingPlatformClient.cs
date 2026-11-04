@@ -109,11 +109,11 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
         return renewed.Subscription.EndDate;
     }
 
-    public Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) =>
-        SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/suspend", new { reason }, ct);
+    public Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, bool byCustomer, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/suspend", new { reason, byCustomer }, ct);
 
-    public Task ResumeSubscriptionAsync(Guid subscriptionId, CancellationToken ct) =>
-        SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/resume", new { }, ct);
+    public Task ResumeSubscriptionAsync(Guid subscriptionId, bool byCustomer, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/resume", new { byCustomer }, ct);
 
     public Task CancelSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) =>
         SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/cancel", new { reason }, ct);
@@ -124,11 +124,11 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
         return new PlatformIssuedLicense(ToLicense(issued.License), issued.ProductKey);
     }
 
-    public Task SuspendLicenseAsync(Guid licenseId, string? reason, CancellationToken ct) =>
-        SendManagementAsync($"api/v1/licenses/{licenseId}/suspend", new { reason }, ct);
+    public Task SuspendLicenseAsync(Guid licenseId, string? reason, bool byCustomer, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/licenses/{licenseId}/suspend", new { reason, byCustomer }, ct);
 
-    public Task ResumeLicenseAsync(Guid licenseId, CancellationToken ct) =>
-        SendManagementAsync($"api/v1/licenses/{licenseId}/resume", new { }, ct);
+    public Task ResumeLicenseAsync(Guid licenseId, bool byCustomer, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/licenses/{licenseId}/resume", new { byCustomer }, ct);
 
     public Task RevokeLicenseAsync(Guid licenseId, string? reason, CancellationToken ct) =>
         SendManagementAsync($"api/v1/licenses/{licenseId}/revoke", new { reason }, ct);

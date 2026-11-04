@@ -196,7 +196,7 @@ internal sealed class SuspendMySubscriptionHandler(CompanyScope scope, ILicensin
     public async Task<Result> HandleAsync(SuspendMySubscriptionCommand command, CancellationToken ct)
     {
         if (await BillingAsync(scope, platform, command.SubscriptionId, ct) is { } error) return error;
-        return await LicensingCall.Run(() => platform.SuspendSubscriptionAsync(command.SubscriptionId, null, ct));
+        return await LicensingCall.Run(() => platform.SuspendSubscriptionAsync(command.SubscriptionId, null, byCustomer: true, ct));
     }
 
     internal static async Task<Error?> BillingAsync(CompanyScope scope, ILicensingPlatform platform, Guid subscriptionId, CancellationToken ct)
@@ -219,7 +219,7 @@ internal sealed class ResumeMySubscriptionHandler(CompanyScope scope, ILicensing
     public async Task<Result> HandleAsync(ResumeMySubscriptionCommand command, CancellationToken ct)
     {
         if (await SuspendMySubscriptionHandler.BillingAsync(scope, platform, command.SubscriptionId, ct) is { } error) return error;
-        return await LicensingCall.Run(() => platform.ResumeSubscriptionAsync(command.SubscriptionId, ct));
+        return await LicensingCall.Run(() => platform.ResumeSubscriptionAsync(command.SubscriptionId, byCustomer: true, ct));
     }
 }
 
@@ -291,7 +291,7 @@ internal sealed class SuspendMyLicenseHandler(CompanyScope scope, ILicensingPlat
     public async Task<Result> HandleAsync(SuspendMyLicenseCommand command, CancellationToken ct)
     {
         if (await DevicesAsync(scope, platform, command.LicenseId, ct) is { } error) return error;
-        return await LicensingCall.Run(() => platform.SuspendLicenseAsync(command.LicenseId, null, ct));
+        return await LicensingCall.Run(() => platform.SuspendLicenseAsync(command.LicenseId, null, byCustomer: true, ct));
     }
 
     internal static async Task<Error?> DevicesAsync(CompanyScope scope, ILicensingPlatform platform, Guid licenseId, CancellationToken ct)
@@ -314,7 +314,7 @@ internal sealed class ResumeMyLicenseHandler(CompanyScope scope, ILicensingPlatf
     public async Task<Result> HandleAsync(ResumeMyLicenseCommand command, CancellationToken ct)
     {
         if (await SuspendMyLicenseHandler.DevicesAsync(scope, platform, command.LicenseId, ct) is { } error) return error;
-        return await LicensingCall.Run(() => platform.ResumeLicenseAsync(command.LicenseId, ct));
+        return await LicensingCall.Run(() => platform.ResumeLicenseAsync(command.LicenseId, byCustomer: true, ct));
     }
 }
 

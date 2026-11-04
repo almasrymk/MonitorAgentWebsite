@@ -144,8 +144,23 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
         return Answer(nameof(RenewSubscriptionAsync), end);
     }
 
-    public Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) => SetSubscriptionAsync(subscriptionId, "Suspended", "Active", "Trial");
-    public Task ResumeSubscriptionAsync(Guid subscriptionId, CancellationToken ct) => SetSubscriptionAsync(subscriptionId, "Active", "Suspended");
+    /// <summary>INT-013: what the company suspended itself (LicensingPlatform's SuspendedByCustomer).</summary>
+    public ConcurrentDictionary<Guid, bool> SuspendedByCustomer { get; } = new();
+
+    public Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, bool byCustomer, CancellationToken ct)
+    {
+        SetSubscriptionAsync(subscriptionId, "Suspended", "Active", "Trial");
+        SuspendedByCustomer[subscriptionId] = byCustomer;
+        return Task.CompletedTask;
+    }
+
+    public Task ResumeSubscriptionAsync(Guid subscriptionId, bool byCustomer, CancellationToken ct)
+    {
+        if (byCustomer && SubscriptionStatuses.GetValueOrDefault(subscriptionId) == "Suspended" && !SuspendedByCustomer.GetValueOrDefault(subscriptionId))
+            throw new PlatformRejectedException(409, "SUBSCRIPTION_SUSPENDED_BY_PROVIDER", "This subscription was suspended by your provider.");
+        SuspendedByCustomer.TryRemove(subscriptionId, out _);
+        return SetSubscriptionAsync(subscriptionId, "Active", "Suspended");
+    }
     public Task CancelSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) => SetSubscriptionAsync(subscriptionId, "Cancelled", "Active", "Trial", "Suspended");
 
     public Task<PlatformIssuedLicense> RegenerateKeyAsync(Guid licenseId, CancellationToken ct)
@@ -158,8 +173,32 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
         return Task.FromResult(new PlatformIssuedLicense(license, key));
     }
 
-    public Task SuspendLicenseAsync(Guid licenseId, string? reason, CancellationToken ct) => SetLicenseAsync(licenseId, "Suspended");
-    public Task ResumeLicenseAsync(Guid licenseId, CancellationToken ct) => SetLicenseAsync(licenseId, "Active");
+    public Task SuspendLicenseAsync(Guid licenseId, string? reason, bool byCustomer, CancellationToken ct)
+    {
+        SuspendedByCustomer[licenseId] = byCustomer;
+        return SetLicenseAsync(licenseId, "Suspended");
+    }
+
+    public Task ResumeLicenseAsync(Guid licenseId, bool byCustomer, CancellationToken ct)
+    {
+        if (byCustomer && Licenses[licenseId].License.Status == "Suspended" && !SuspendedByCustomer.GetValueOrDefault(licenseId))
+            throw new PlatformRejectedException(409, "LICENSE_SUSPENDED_BY_PROVIDER", "This license was suspended by your provider.");
+        SuspendedByCustomer.TryRemove(licenseId, out _);
+        return SetLicenseAsync(licenseId, "Active");
+    }
+
+    /// <summary>A suspension made by the provider's staff in LicensingPlatform, outside the website.</summary>
+    public void ProviderSuspendsSubscription(Guid subscriptionId)
+    {
+        SubscriptionStatuses[subscriptionId] = "Suspended";
+        SuspendedByCustomer[subscriptionId] = false;
+    }
+
+    public void ProviderSuspendsLicense(Guid licenseId)
+    {
+        SuspendedByCustomer[licenseId] = false;
+        SetLicenseAsync(licenseId, "Suspended");
+    }
     public Task RevokeLicenseAsync(Guid licenseId, string? reason, CancellationToken ct) => SetLicenseAsync(licenseId, "Revoked");
 
     private Task SetSubscriptionAsync(Guid subscriptionId, string status, params string[] from)

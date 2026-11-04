@@ -292,6 +292,41 @@ public class LicensesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task The_owner_cannot_resume_what_the_provider_suspended()
+    {
+        // INT-013: a staff suspension (for example for non-payment) used to be undone from the customer portal.
+        var company = await CompanyAsync();
+        await JsonAsync(await GrantAsync(company.Id, $"order-suspend-{Guid.NewGuid():N}"));
+        var subscriptionId = (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("id").GetGuid();
+        var licenseId = (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses")))[0].GetProperty("id").GetGuid();
+
+        factory.Platform.ProviderSuspendsSubscription(subscriptionId);
+        var refused = await company.Owner.PostAsync($"/api/v1/licenses/subscription/{subscriptionId}/resume");
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal("SUBSCRIPTION_SUSPENDED_BY_PROVIDER", await TestClient.ErrorCodeAsync(refused));
+        Assert.Equal("Suspended", factory.Platform.SubscriptionStatuses[subscriptionId]);
+
+        factory.Platform.ProviderSuspendsLicense(licenseId);
+        Assert.Equal("LICENSE_SUSPENDED_BY_PROVIDER", await TestClient.ErrorCodeAsync(await company.Owner.PostAsync($"/api/v1/licenses/{licenseId}/resume")));
+    }
+
+    [Fact]
+    public async Task The_owner_resumes_what_the_owner_suspended()
+    {
+        var company = await CompanyAsync();
+        await JsonAsync(await GrantAsync(company.Id, $"order-selfsuspend-{Guid.NewGuid():N}"));
+        var subscriptionId = (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("id").GetGuid();
+        var licenseId = (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses")))[0].GetProperty("id").GetGuid();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await company.Owner.PostAsync($"/api/v1/licenses/subscription/{subscriptionId}/suspend")).StatusCode);
+        Assert.True(factory.Platform.SuspendedByCustomer[subscriptionId]);
+        Assert.Equal(HttpStatusCode.NoContent, (await company.Owner.PostAsync($"/api/v1/licenses/subscription/{subscriptionId}/resume")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await company.Owner.PostAsync($"/api/v1/licenses/{licenseId}/suspend")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await company.Owner.PostAsync($"/api/v1/licenses/{licenseId}/resume")).StatusCode);
+        Assert.Equal("Active", factory.Platform.Licenses[licenseId].License.Status);
+    }
+
+    [Fact]
     public async Task The_owner_changes_plan_issues_a_device_license_and_regenerates_its_key()
     {
         var company = await CompanyAsync();

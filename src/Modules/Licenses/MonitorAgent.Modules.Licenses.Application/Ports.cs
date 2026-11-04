@@ -49,12 +49,14 @@ internal interface ILicensingPlatform
     Task ChangePlanAsync(Guid subscriptionId, Guid planId, CancellationToken ct);
     /// <summary>INT-018: extends the term once per <paramref name="externalReference"/>; returns the new end date.</summary>
     Task<DateTimeOffset?> RenewSubscriptionAsync(Guid subscriptionId, string externalReference, CancellationToken ct);
-    Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct);
-    Task ResumeSubscriptionAsync(Guid subscriptionId, CancellationToken ct);
+    /// <param name="byCustomer">INT-013: the company asked for it in self-service. LicensingPlatform then lets the company
+    /// resume it, and refuses a company resume of a suspension the provider made.</param>
+    Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, bool byCustomer, CancellationToken ct);
+    Task ResumeSubscriptionAsync(Guid subscriptionId, bool byCustomer, CancellationToken ct);
     Task CancelSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct);
     Task<PlatformIssuedLicense> RegenerateKeyAsync(Guid licenseId, CancellationToken ct);
-    Task SuspendLicenseAsync(Guid licenseId, string? reason, CancellationToken ct);
-    Task ResumeLicenseAsync(Guid licenseId, CancellationToken ct);
+    Task SuspendLicenseAsync(Guid licenseId, string? reason, bool byCustomer, CancellationToken ct);
+    Task ResumeLicenseAsync(Guid licenseId, bool byCustomer, CancellationToken ct);
     Task RevokeLicenseAsync(Guid licenseId, string? reason, CancellationToken ct);
     Task<IReadOnlyList<PlatformLicense>> LicensesOfAsync(Guid customerId, CancellationToken ct);
     Task<(PlatformLicense License, IReadOnlyList<PlatformDevice> Devices)?> LicenseAsync(Guid licenseId, CancellationToken ct);
