@@ -2,6 +2,8 @@ import { Component, inject, input, OnInit, signal, ChangeDetectionStrategy } fro
 import { RouterLink } from '@angular/router';
 import {
   Api,
+  CatalogPlan,
+  Company,
   Device,
   errorText,
   I18n,
@@ -15,6 +17,16 @@ import {
   WhenPipe,
 } from 'shared';
 
+interface CompanySubscription {
+  id: string;
+  planId: string;
+  planCode: string;
+  planName: string;
+  status: string;
+  startDate: string;
+  endDate: string | null;
+}
+
 @Component({
   selector: 'portal-licenses',
   imports: [RouterLink, TranslatePipe, WhenPipe, LoadError, Skeleton, StatusBadge],
@@ -24,6 +36,38 @@ import {
       <h1>{{ 'licenses.title' | t }}</h1>
       <a class="btn" routerLink="/checkout">{{ 'overview.buy' | t }}</a>
     </div>
+    <section class="card" aria-labelledby="subscription-title">
+      <h2 id="subscription-title">{{ 'licenses.subscription' | t }}</h2>
+      @if (note()) {
+        <p class="alert" [class.ok]="!failedNote()" [attr.role]="failedNote() ? 'alert' : 'status'">{{ note() }}</p>
+      }
+      @if (subscriptions().length === 0) {
+        <p class="muted">{{ 'licenses.noSubscription' | t }}</p>
+      }
+      @for (subscription of subscriptions(); track subscription.id) {
+        <p>
+          <strong>{{ subscription.planName }}</strong>
+          <ma-status [value]="subscription.status" />
+        </p>
+        @if (canBill()) {
+          <label>
+            {{ 'licenses.changePlan' | t }}
+            <select [value]="planId()" (change)="planId.set($any($event.target).value)">
+              @for (plan of plans(); track plan.id) {
+                <option [value]="plan.id">{{ plan.name }}</option>
+              }
+            </select>
+          </label>
+          <button class="btn" type="button" [disabled]="busy()" (click)="changePlan(subscription)">{{ 'licenses.changePlan' | t }}</button>
+          <button class="btn secondary" type="button" [disabled]="busy()" (click)="subscriptionAction(subscription, 'suspend')">{{ 'licenses.suspend' | t }}</button>
+          <button class="btn secondary" type="button" [disabled]="busy()" (click)="subscriptionAction(subscription, 'resume')">{{ 'licenses.resume' | t }}</button>
+          <button class="btn secondary" type="button" [disabled]="busy()" (click)="subscriptionAction(subscription, 'cancel')">{{ 'licenses.cancel' | t }}</button>
+        }
+        @if (canDevices()) {
+          <button class="btn secondary" type="button" [disabled]="busy()" (click)="issue(subscription)">{{ 'licenses.issue' | t }}</button>
+        }
+      }
+    </section>
     @if (licenses.loading()) {
       <ma-skeleton />
     } @else if (licenses.error()) {
@@ -67,12 +111,72 @@ import {
 })
 export class LicensesPage implements OnInit {
   private readonly api = inject(Api);
+  private readonly i18n = inject(I18n);
   protected readonly licenses = new Loader(() =>
     this.api.get<LicenseSummary[]>('/api/v1/licenses'),
   );
+  protected readonly subscriptions = signal<CompanySubscription[]>([]);
+  protected readonly plans = signal<CatalogPlan[]>([]);
+  protected readonly role = signal('');
+  protected readonly planId = signal('');
+  protected readonly note = signal('');
+  protected readonly failedNote = signal(false);
+  protected readonly busy = signal(false);
+  protected readonly canBill = () => this.role() === 'Owner' || this.role() === 'Billing';
+  protected readonly canDevices = () => this.role() === 'Owner' || this.role() === 'Technical';
 
   ngOnInit(): void {
     void this.licenses.load();
+    void this.loadSubscription();
+  }
+
+  private async loadSubscription(): Promise<void> {
+    const [subscriptions, company, plans] = await Promise.all([
+      this.api.get<CompanySubscription[]>('/api/v1/licenses/subscription'),
+      this.api.get<Company>('/api/v1/company').catch(() => null),
+      this.api.get<CatalogPlan[]>('/api/v1/catalog/plans'),
+    ]);
+    this.subscriptions.set(subscriptions);
+    this.role.set(company?.myRole ?? '');
+    this.plans.set(plans);
+    if (!this.planId()) this.planId.set(plans[0]?.id ?? '');
+  }
+
+  private async act(work: () => Promise<void>): Promise<void> {
+    this.busy.set(true);
+    this.failedNote.set(false);
+    try {
+      await work();
+      await this.loadSubscription();
+      void this.licenses.load();
+    } catch (error) {
+      this.failedNote.set(true);
+      this.note.set(errorText(this.i18n, error));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  protected changePlan(subscription: CompanySubscription): Promise<void> {
+    return this.act(async () => {
+      await this.api.post(`/api/v1/licenses/subscription/${subscription.id}/change-plan`, { planId: this.planId() });
+      this.note.set(this.i18n.t('licenses.updated'));
+    });
+  }
+
+  protected subscriptionAction(subscription: CompanySubscription, action: 'suspend' | 'resume' | 'cancel'): Promise<void> {
+    if (action === 'cancel' && !confirm(this.i18n.t('licenses.cancelConfirm'))) return Promise.resolve();
+    return this.act(async () => {
+      await this.api.post(`/api/v1/licenses/subscription/${subscription.id}/${action}`);
+      this.note.set(this.i18n.t('licenses.updated'));
+    });
+  }
+
+  protected issue(subscription: CompanySubscription): Promise<void> {
+    return this.act(async () => {
+      const issued = await this.api.post<{ productKey: string }>(`/api/v1/licenses/subscription/${subscription.id}/licenses`);
+      this.note.set(this.i18n.t('licenses.issued', { key: issued.productKey }));
+    });
   }
 }
 
@@ -127,6 +231,10 @@ export class LicensesPage implements OnInit {
                 </button>
                 <p id="reveal-help" class="muted">{{ 'license.revealHelp' | t }}</p>
               }
+              <button class="btn secondary" type="button" [disabled]="busy()" (click)="regenerate()">{{ 'license.regenerate' | t }}</button>
+              <button class="btn secondary" type="button" [disabled]="busy()" (click)="licenseAction('suspend')">{{ 'license.suspend' | t }}</button>
+              <button class="btn secondary" type="button" [disabled]="busy()" (click)="licenseAction('resume')">{{ 'license.resume' | t }}</button>
+              <button class="btn secondary" type="button" [disabled]="busy()" (click)="licenseAction('revoke')">{{ 'license.revoke' | t }}</button>
             </dd>
           </dl>
         </section>
@@ -205,6 +313,25 @@ export class LicensePage implements OnInit {
 
   ngOnInit(): void {
     void this.details.load();
+  }
+
+  protected regenerate(): Promise<void> {
+    if (!confirm(this.i18n.t('license.regenerateConfirm'))) return Promise.resolve();
+    return this.act(async () => {
+      const result = await this.api.post<{ productKey: string }>(`/api/v1/licenses/${this.id()}/regenerate-key`);
+      this.key.set(result.productKey);
+      this.message.set(this.i18n.t('license.updated'));
+      await this.details.load();
+    });
+  }
+
+  protected licenseAction(action: 'suspend' | 'resume' | 'revoke'): Promise<void> {
+    if (action === 'revoke' && !confirm(this.i18n.t('license.revokeConfirm'))) return Promise.resolve();
+    return this.act(async () => {
+      await this.api.post(`/api/v1/licenses/${this.id()}/${action}`);
+      this.message.set(this.i18n.t('license.updated'));
+      await this.details.load();
+    });
   }
 
   protected async reveal(): Promise<void> {
