@@ -9,8 +9,12 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
     public static readonly PlatformPlan Standard = new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "UBG", "UBG Monitor",
         "STD", "Standard", 1, 1200m, "EGP", 365, 3, ["alerts", "reports"]);
 
+    public static readonly PlatformPlan Plus = new(Guid.Parse("22222222-2222-2222-2222-222222222222"), "UBG", "UBG Monitor",
+        "PLUS", "Plus", 1, 2400m, "EGP", 365, 10, ["alerts", "reports", "archive"]);
+
     public ConcurrentDictionary<Guid, string> Customers { get; } = new();
     public ConcurrentDictionary<Guid, (Guid CustomerId, Guid PlanId)> Subscriptions { get; } = new();
+    public ConcurrentDictionary<Guid, string> SubscriptionStatuses { get; } = new();
     public ConcurrentDictionary<Guid, (PlatformLicense License, string Key, List<PlatformDevice> Devices)> Licenses { get; } = new();
 
     /// <summary>Name of the next call that should fail as if LicensingPlatform were down.</summary>
@@ -19,7 +23,7 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
     public Task<IReadOnlyList<PlatformPlan>> PublishedPaidPlansAsync(CancellationToken ct)
     {
         Trip(nameof(PublishedPaidPlansAsync));
-        return Task.FromResult<IReadOnlyList<PlatformPlan>>([Standard]);
+        return Task.FromResult<IReadOnlyList<PlatformPlan>>([Standard, Plus]);
     }
 
     public Task<Guid> CreateCustomerAsync(string name, string email, CancellationToken ct)
@@ -35,6 +39,7 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
         Trip(nameof(StartSubscriptionAsync));
         var id = Guid.NewGuid();
         Subscriptions[id] = (customerId, planId);
+        SubscriptionStatuses[id] = "Active";
         return Task.FromResult(id);
     }
 
@@ -42,10 +47,11 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
     {
         Trip(nameof(IssueLicenseAsync));
         var subscription = Subscriptions[subscriptionId];
+        var plan = Plan(subscription.PlanId);
         var key = $"UBG-{Guid.NewGuid():N}".ToUpperInvariant();
         var now = DateTimeOffset.UtcNow;
-        var license = new PlatformLicense(Guid.NewGuid(), subscription.CustomerId, "UBG", "STD", $"LIC-{Licenses.Count + 1:D5}", key[..8], "Active",
-            now, now.AddDays(365), 3, 1);
+        var license = new PlatformLicense(Guid.NewGuid(), subscription.CustomerId, plan.ProductCode, plan.Code, $"LIC-{Licenses.Count + 1:D5}", key[..8], "Active",
+            now, now.AddDays(plan.DurationDays ?? 365), plan.MaxActivations, 1);
         var device = new PlatformDevice(Guid.NewGuid(), "device-1", "Front desk PC", "Windows 11", "2.4.0", "Active", now, now, true);
         Licenses[license.Id] = (license, key, [device]);
         return Task.FromResult(new PlatformIssuedLicense(license, key));
@@ -75,10 +81,95 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
 
     public string KeyOf(Guid licenseId) => Licenses[licenseId].Key;
 
+    public Task<IReadOnlyList<PlatformSubscription>> SubscriptionsOfAsync(Guid customerId, CancellationToken ct)
+    {
+        Trip(nameof(SubscriptionsOfAsync));
+        IReadOnlyList<PlatformSubscription> list = Subscriptions.Where(s => s.Value.CustomerId == customerId).Select(s =>
+        {
+            var plan = Plan(s.Value.PlanId);
+            return new PlatformSubscription(s.Key, customerId, plan.Id, plan.Code, plan.Name, SubscriptionStatuses.GetValueOrDefault(s.Key, "Active"),
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(plan.DurationDays ?? 365), 1);
+        }).ToList();
+        return Task.FromResult(list);
+    }
+
+    public Task ChangePlanAsync(Guid subscriptionId, Guid planId, CancellationToken ct)
+    {
+        Trip(nameof(ChangePlanAsync));
+        if (!Subscriptions.TryGetValue(subscriptionId, out var subscription))
+            throw new PlatformRejectedException(404, "NOT_FOUND", "Subscription was not found.");
+        if (PlanOrNull(planId) is null)
+            throw new PlatformRejectedException(404, "NOT_FOUND", "Plan was not found.");
+        if (subscription.PlanId == planId)
+            throw new PlatformRejectedException(409, "SUBSCRIPTION_SAME_PLAN", "Subscription is already on this plan.");
+        if (SubscriptionStatuses.GetValueOrDefault(subscriptionId, "Active") is not ("Active" or "Trial"))
+            throw new PlatformRejectedException(409, "SUBSCRIPTION_INVALID_TRANSITION", "This action is not allowed.");
+        Subscriptions[subscriptionId] = (subscription.CustomerId, planId);
+        return Task.CompletedTask;
+    }
+
+    public Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) => SetSubscriptionAsync(subscriptionId, "Suspended", "Active", "Trial");
+    public Task ResumeSubscriptionAsync(Guid subscriptionId, CancellationToken ct) => SetSubscriptionAsync(subscriptionId, "Active", "Suspended");
+    public Task CancelSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) => SetSubscriptionAsync(subscriptionId, "Cancelled", "Active", "Trial", "Suspended");
+
+    public Task<PlatformIssuedLicense> RegenerateKeyAsync(Guid licenseId, CancellationToken ct)
+    {
+        Trip(nameof(RegenerateKeyAsync));
+        var current = Licenses[licenseId];
+        var key = $"UBG-{Guid.NewGuid():N}".ToUpperInvariant();
+        var license = current.License with { ProductKeyPrefix = key[..8], ActiveActivations = 0 };
+        Licenses[licenseId] = (license, key, []);
+        return Task.FromResult(new PlatformIssuedLicense(license, key));
+    }
+
+    public Task SuspendLicenseAsync(Guid licenseId, string? reason, CancellationToken ct) => SetLicenseAsync(licenseId, "Suspended");
+    public Task ResumeLicenseAsync(Guid licenseId, CancellationToken ct) => SetLicenseAsync(licenseId, "Active");
+    public Task RevokeLicenseAsync(Guid licenseId, string? reason, CancellationToken ct) => SetLicenseAsync(licenseId, "Revoked");
+
+    private Task SetSubscriptionAsync(Guid subscriptionId, string status, params string[] from)
+    {
+        if (!SubscriptionStatuses.TryGetValue(subscriptionId, out var current) || !from.Contains(current))
+            throw new PlatformRejectedException(409, "SUBSCRIPTION_INVALID_TRANSITION", "This action is not allowed.");
+        SubscriptionStatuses[subscriptionId] = status;
+        return Task.CompletedTask;
+    }
+
+    private Task SetLicenseAsync(Guid licenseId, string status)
+    {
+        var current = Licenses[licenseId];
+        Licenses[licenseId] = (current.License with { Status = status }, current.Key, current.Devices);
+        return Task.CompletedTask;
+    }
+
+    private static PlatformPlan Plan(Guid planId) => PlanOrNull(planId) ?? Standard;
+    private static PlatformPlan? PlanOrNull(Guid planId) => planId == Plus.Id ? Plus : planId == Standard.Id ? Standard : null;
+
     private void Trip(string call)
     {
         if (FailNext != call) return;
         FailNext = null;
         throw new PlatformUnavailableException("Simulated outage.");
+    }
+}
+
+/// <summary>Records tenant registrations the website asks Monitor Cloud for. The same customer returns the same tenant.</summary>
+public sealed class FakeMonitorCloud : IMonitorCloud
+{
+    public ConcurrentDictionary<Guid, Guid> Tenants { get; } = new();
+    public List<string> Names { get; } = [];
+
+    /// <summary>Name of the next call that should fail as if Monitor Cloud were down.</summary>
+    public string? FailNext { get; set; }
+
+    public Task<Guid> RegisterTenantAsync(Guid licensingCustomerId, string name, CancellationToken ct)
+    {
+        if (FailNext == nameof(RegisterTenantAsync))
+        {
+            FailNext = null;
+            throw new MonitorUnavailableException("Simulated outage.");
+        }
+
+        Names.Add(name);
+        return Task.FromResult(Tenants.GetOrAdd(licensingCustomerId, _ => Guid.NewGuid()));
     }
 }

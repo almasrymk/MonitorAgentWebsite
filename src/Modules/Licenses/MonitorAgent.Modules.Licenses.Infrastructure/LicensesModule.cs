@@ -15,6 +15,7 @@ public sealed class LicensesModuleOptions
     /// <summary>Migrate (production and development), EnsureCreated (tests) or None.</summary>
     public string DatabaseInitialization { get; set; } = "None";
     public LicensingPlatformOptions Platform { get; set; } = new();
+    public MonitorCloudOptions Monitor { get; set; } = new();
     /// <summary>How often to look for licenses that need an expiry reminder. 0 turns the reminders off (tests run them directly).</summary>
     public int ExpiryReminderMinutes { get; set; } = 360;
 }
@@ -26,8 +27,11 @@ public static class LicensesModule
         var options = configuration.GetSection("Licenses").Get<LicensesModuleOptions>() ?? new LicensesModuleOptions();
         if (!environment.IsDevelopment() && !Uri.TryCreate(options.Platform.BaseUrl, UriKind.Absolute, out _))
             throw new InvalidOperationException("Set Licenses:Platform:BaseUrl, ServiceEmail and ServicePassword.");
+        if (!environment.IsDevelopment() && !Uri.TryCreate(options.Monitor.BaseUrl, UriKind.Absolute, out _))
+            throw new InvalidOperationException("Set Licenses:Monitor:BaseUrl, ServiceEmail and ServicePassword.");
         services.AddSingleton(options);
         services.AddSingleton(options.Platform);
+        services.AddSingleton(options.Monitor);
 
         services.AddDbContext<LicensesDb>(db => db.UseSqlServer(configuration.GetConnectionString("Default"),
             sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", LicensesDb.Schema)));
@@ -45,6 +49,17 @@ public static class LicensesModule
             })
             .AddHttpMessageHandler<LicensingPlatformAuthHandler>();
         services.AddSingleton<ILicensingPlatform, LicensingPlatformClient>();
+
+        services.AddSingleton<MonitorTokens>();
+        services.AddTransient<MonitorCloudAuthHandler>();
+        services.AddHttpClient(MonitorCloudClient.HttpClientName, client =>
+            {
+                client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(options.Monitor.BaseUrl)
+                    ? "http://monitor-cloud.invalid/" : options.Monitor.BaseUrl.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(options.Monitor.TimeoutSeconds);
+            })
+            .AddHttpMessageHandler<MonitorCloudAuthHandler>();
+        services.AddSingleton<IMonitorCloud, MonitorCloudClient>();
         services.AddHostedService<LicensesDbInitializer>();
         services.AddHostedService<ExpiryReminderWorker>();
 
