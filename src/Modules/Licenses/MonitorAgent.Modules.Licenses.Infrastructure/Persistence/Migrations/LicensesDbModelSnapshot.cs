@@ -18,7 +18,7 @@ namespace MonitorAgent.Modules.Licenses.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("licenses")
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -39,6 +39,10 @@ namespace MonitorAgent.Modules.Licenses.Infrastructure.Persistence.Migrations
 
                     b.Property<int?>("ExpiryReminderDays")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("IssueClaimedUntil")
+                        .IsConcurrencyToken()
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("IssuedAt")
                         .HasColumnType("datetime2");

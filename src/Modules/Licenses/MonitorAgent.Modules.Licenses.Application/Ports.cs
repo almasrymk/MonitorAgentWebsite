@@ -8,7 +8,7 @@ public sealed record PlatformPlan(
 
 public sealed record PlatformLicense(
     Guid Id, Guid CustomerId, string ProductCode, string PlanCode, string LicenseNumber, string ProductKeyPrefix, string Status,
-    DateTimeOffset IssuedAt, DateTimeOffset? ExpiresAt, int? MaxActivations, int ActiveActivations);
+    DateTimeOffset IssuedAt, DateTimeOffset? ExpiresAt, int? MaxActivations, int ActiveActivations, Guid SubscriptionId = default);
 
 public sealed record PlatformDevice(
     Guid Id, string DeviceId, string? DeviceName, string? OperatingSystem, string? AppVersion, string Status,
@@ -40,8 +40,10 @@ public sealed class MonitorUnavailableException(string message, Exception? inner
 internal interface ILicensingPlatform
 {
     Task<IReadOnlyList<PlatformPlan>> PublishedPaidPlansAsync(CancellationToken ct);
-    Task<Guid> CreateCustomerAsync(string name, string email, CancellationToken ct);
-    Task<Guid> StartSubscriptionAsync(Guid customerId, Guid planId, CancellationToken ct);
+    /// <summary>A repeat with the same <paramref name="externalReference"/> returns the first customer (INT-016).</summary>
+    Task<Guid> CreateCustomerAsync(string name, string email, string externalReference, CancellationToken ct);
+    /// <summary>A repeat with the same <paramref name="externalReference"/> returns the first subscription (INT-016).</summary>
+    Task<Guid> StartSubscriptionAsync(Guid customerId, Guid planId, string externalReference, CancellationToken ct);
     Task<PlatformIssuedLicense> IssueLicenseAsync(Guid subscriptionId, CancellationToken ct);
     Task<IReadOnlyList<PlatformSubscription>> SubscriptionsOfAsync(Guid customerId, CancellationToken ct);
     Task ChangePlanAsync(Guid subscriptionId, Guid planId, CancellationToken ct);
@@ -76,8 +78,12 @@ internal interface ILicenseStore
     /// <summary>Whether the company holds another issued license on the same plan that lasts longer: then it already renewed.</summary>
     Task<bool> RenewedAsync(LicenseGrant grant, CancellationToken ct);
     void Add(LicenseGrant grant);
+    /// <exception cref="GrantConflictException">Another request saved the same grant (or claimed it) first.</exception>
     Task SaveAsync(CancellationToken ct);
 }
+
+/// <summary>Thrown by <see cref="ILicenseStore.SaveAsync"/> when a concurrent request won a unique key or a claim.</summary>
+public sealed class GrantConflictException(Exception inner) : Exception("A concurrent fulfilment won.", inner);
 
 /// <summary>Encrypts product keys at rest.</summary>
 internal interface IKeyProtector

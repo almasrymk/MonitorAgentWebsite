@@ -162,6 +162,56 @@ public class LicensesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task A_lost_issue_answer_gets_the_same_license_a_new_key_instead_of_a_second_license()
+    {
+        // INT-016: LicensingPlatform issued the license but the answer never arrived (a timeout after it committed).
+        var company = await CompanyAsync();
+        var licensesBefore = factory.Platform.Licenses.Count;
+        factory.Platform.LoseAnswerOf = nameof(FakeLicensingPlatform.IssueLicenseAsync);
+
+        Assert.Equal("LICENSING_UNAVAILABLE", await TestClient.ErrorCodeAsync(await GrantAsync(company.Id, "order-lost-issue")));
+        Assert.Equal(licensesBefore + 1, factory.Platform.Licenses.Count);
+
+        var granted = await JsonAsync(await GrantAsync(company.Id, "order-lost-issue"));
+        Assert.Equal(licensesBefore + 1, factory.Platform.Licenses.Count);
+        var license = Assert.Single((await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses"))).EnumerateArray());
+        Assert.Equal(granted.GetProperty("licenseNumber").GetString(), license.GetProperty("licenseNumber").GetString());
+    }
+
+    [Fact]
+    public async Task Lost_customer_and_subscription_answers_create_each_only_once()
+    {
+        var company = await CompanyAsync();
+        var customersBefore = factory.Platform.Customers.Count;
+        var subscriptionsBefore = factory.Platform.Subscriptions.Count;
+
+        factory.Platform.LoseAnswerOf = nameof(FakeLicensingPlatform.CreateCustomerAsync);
+        Assert.Equal("LICENSING_UNAVAILABLE", await TestClient.ErrorCodeAsync(await GrantAsync(company.Id, "order-lost-steps")));
+        factory.Platform.LoseAnswerOf = nameof(FakeLicensingPlatform.StartSubscriptionAsync);
+        Assert.Equal("LICENSING_UNAVAILABLE", await TestClient.ErrorCodeAsync(await GrantAsync(company.Id, "order-lost-steps")));
+        await JsonAsync(await GrantAsync(company.Id, "order-lost-steps"));
+
+        Assert.Equal(customersBefore + 1, factory.Platform.Customers.Count);
+        Assert.Equal(subscriptionsBefore + 1, factory.Platform.Subscriptions.Count);
+        Assert.Single((await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses"))).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Parallel_fulfilments_of_one_order_issue_one_license()
+    {
+        var company = await CompanyAsync();
+        var issuedBefore = factory.Platform.IssueCalls;
+
+        var answers = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => GrantAsync(company.Id, "order-parallel")));
+
+        Assert.Contains(answers, a => a.IsSuccessStatusCode);
+        Assert.All(answers.Where(a => !a.IsSuccessStatusCode), a => Assert.Equal(HttpStatusCode.ServiceUnavailable, a.StatusCode));
+        Assert.Equal(issuedBefore + 1, factory.Platform.IssueCalls);
+        await JsonAsync(await GrantAsync(company.Id, "order-parallel"));
+        Assert.Single((await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses"))).EnumerateArray());
+    }
+
+    [Fact]
     public async Task Only_plans_on_sale_can_be_granted()
     {
         var company = await CompanyAsync();

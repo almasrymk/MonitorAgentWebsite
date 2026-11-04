@@ -20,41 +20,60 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
     /// <summary>Name of the next call that should fail as if LicensingPlatform were down.</summary>
     public string? FailNext { get; set; }
 
+    /// <summary>Name of the next call whose work is done but whose answer is lost (a timeout after LicensingPlatform committed).</summary>
+    public string? LoseAnswerOf { get; set; }
+
+    /// <summary>The external references LicensingPlatform keeps unique (INT-016).</summary>
+    public ConcurrentDictionary<string, Guid> References { get; } = new();
+
+    private int _issueCalls;
+
+    public int IssueCalls => _issueCalls;
+
     public Task<IReadOnlyList<PlatformPlan>> PublishedPaidPlansAsync(CancellationToken ct)
     {
         Trip(nameof(PublishedPaidPlansAsync));
         return Task.FromResult<IReadOnlyList<PlatformPlan>>([Standard, Plus]);
     }
 
-    public Task<Guid> CreateCustomerAsync(string name, string email, CancellationToken ct)
+    public Task<Guid> CreateCustomerAsync(string name, string email, string externalReference, CancellationToken ct)
     {
         Trip(nameof(CreateCustomerAsync));
-        var id = Guid.NewGuid();
-        Customers[id] = name;
-        return Task.FromResult(id);
+        var id = References.GetOrAdd("customer:" + externalReference, _ =>
+        {
+            var created = Guid.NewGuid();
+            Customers[created] = name;
+            return created;
+        });
+        return Answer(nameof(CreateCustomerAsync), id);
     }
 
-    public Task<Guid> StartSubscriptionAsync(Guid customerId, Guid planId, CancellationToken ct)
+    public Task<Guid> StartSubscriptionAsync(Guid customerId, Guid planId, string externalReference, CancellationToken ct)
     {
         Trip(nameof(StartSubscriptionAsync));
-        var id = Guid.NewGuid();
-        Subscriptions[id] = (customerId, planId);
-        SubscriptionStatuses[id] = "Active";
-        return Task.FromResult(id);
+        var id = References.GetOrAdd("subscription:" + externalReference, _ =>
+        {
+            var created = Guid.NewGuid();
+            Subscriptions[created] = (customerId, planId);
+            SubscriptionStatuses[created] = "Active";
+            return created;
+        });
+        return Answer(nameof(StartSubscriptionAsync), id);
     }
 
     public Task<PlatformIssuedLicense> IssueLicenseAsync(Guid subscriptionId, CancellationToken ct)
     {
         Trip(nameof(IssueLicenseAsync));
+        Interlocked.Increment(ref _issueCalls);
         var subscription = Subscriptions[subscriptionId];
         var plan = Plan(subscription.PlanId);
         var key = $"UBG-{Guid.NewGuid():N}".ToUpperInvariant();
         var now = DateTimeOffset.UtcNow;
         var license = new PlatformLicense(Guid.NewGuid(), subscription.CustomerId, plan.ProductCode, plan.Code, $"LIC-{Licenses.Count + 1:D5}", key[..8], "Active",
-            now, now.AddDays(plan.DurationDays ?? 365), plan.MaxActivations, 1);
+            now, now.AddDays(plan.DurationDays ?? 365), plan.MaxActivations, 1, subscriptionId);
         var device = new PlatformDevice(Guid.NewGuid(), "device-1", "Front desk PC", "Windows 11", "2.4.0", "Active", now, now, true);
         Licenses[license.Id] = (license, key, [device]);
-        return Task.FromResult(new PlatformIssuedLicense(license, key));
+        return Answer(nameof(IssueLicenseAsync), new PlatformIssuedLicense(license, key));
     }
 
     public Task<IReadOnlyList<PlatformLicense>> LicensesOfAsync(Guid customerId, CancellationToken ct)
@@ -143,6 +162,13 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
 
     private static PlatformPlan Plan(Guid planId) => PlanOrNull(planId) ?? Standard;
     private static PlatformPlan? PlanOrNull(Guid planId) => planId == Plus.Id ? Plus : planId == Standard.Id ? Standard : null;
+
+    private Task<T> Answer<T>(string call, T value)
+    {
+        if (LoseAnswerOf != call) return Task.FromResult(value);
+        LoseAnswerOf = null;
+        throw new PlatformUnavailableException("Simulated timeout after the work was done.");
+    }
 
     private void Trip(string call)
     {

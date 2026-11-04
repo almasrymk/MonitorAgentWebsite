@@ -53,17 +53,17 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
             .ToList();
     }
 
-    public async Task<Guid> CreateCustomerAsync(string name, string email, CancellationToken ct)
+    public async Task<Guid> CreateCustomerAsync(string name, string email, string externalReference, CancellationToken ct)
     {
         var created = await SendAsync<CustomerDetailsBody>(HttpMethod.Post, "api/v1/customers",
-            new { name, email = string.IsNullOrEmpty(email) ? null : email }, ct);
+            new { name, email = string.IsNullOrEmpty(email) ? null : email, externalReference }, ct);
         return created.Customer.Id;
     }
 
-    public async Task<Guid> StartSubscriptionAsync(Guid customerId, Guid planId, CancellationToken ct)
+    public async Task<Guid> StartSubscriptionAsync(Guid customerId, Guid planId, string externalReference, CancellationToken ct)
     {
         var started = await SendAsync<SubscriptionDetailsBody>(HttpMethod.Post, "api/v1/subscriptions",
-            new { customerId, planId, notes = "Website order" }, ct);
+            new { customerId, planId, notes = "Website order", externalReference }, ct);
         return started.Subscription.Id;
     }
 
@@ -128,7 +128,7 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
         SendManagementAsync($"api/v1/licenses/{licenseId}/revoke", new { reason }, ct);
 
     private static PlatformLicense ToLicense(LicenseBody l) => new(l.Id, l.CustomerId, l.ProductCode, l.PlanCode, l.LicenseNumber,
-        l.ProductKeyPrefix, l.Status.ToString(), l.IssuedAt, l.ExpiresAt, l.MaxActivations, l.ActiveActivations);
+        l.ProductKeyPrefix, l.Status.ToString(), l.IssuedAt, l.ExpiresAt, l.MaxActivations, l.ActiveActivations, l.SubscriptionId);
 
     private async Task<T?> GetAsync<T>(string path, CancellationToken ct) where T : class
     {
@@ -234,7 +234,8 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
     private sealed record CustomerDetailsBody(IdBody Customer);
     private sealed record SubscriptionDetailsBody(IdBody Subscription);
     private sealed record LicenseBody(Guid Id, Guid CustomerId, string ProductCode, string PlanCode, string LicenseNumber,
-        string ProductKeyPrefix, LicenseStatus Status, DateTimeOffset IssuedAt, DateTimeOffset? ExpiresAt, int? MaxActivations, int ActiveActivations);
+        string ProductKeyPrefix, LicenseStatus Status, DateTimeOffset IssuedAt, DateTimeOffset? ExpiresAt, int? MaxActivations, int ActiveActivations,
+        Guid SubscriptionId = default);
     private sealed record ActivationBody(Guid Id, string DeviceId, string? DeviceName, string? AppVersion, ActivationStatus Status,
         DateTimeOffset ActivatedAt, DateTimeOffset? LastHeartbeatAt, string? OperatingSystem, bool Online);
     private sealed record LicenseDetailsBody(LicenseBody License, IReadOnlyList<ActivationBody> Activations);

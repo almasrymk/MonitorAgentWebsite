@@ -15,5 +15,7 @@ public static class LicensesErrors
     public static readonly Error NoCompany = Error.NotFound("NO_COMPANY", "You are not part of a company account yet.");
     public static readonly Error NotAllowed = Error.Forbidden("NOT_ALLOWED_FOR_ROLE", "Only company owners and technical members can do this.");
     public static readonly Error KeyNotAvailable = Error.NotFound("PRODUCT_KEY_NOT_AVAILABLE", "This license's key wasn't issued through the website.");
+    /// <summary>INT-016: another request is issuing this order's license right now. Retry shortly.</summary>
+    public static readonly Error IssueInProgress = Error.Unavailable("LICENSE_ISSUE_IN_PROGRESS", "This license is being issued right now. Try again shortly.");
     public static readonly Error OrderMismatch = Error.Conflict("ORDER_REFERENCE_REUSED", "This order reference was already used for a different company or plan.");
 }

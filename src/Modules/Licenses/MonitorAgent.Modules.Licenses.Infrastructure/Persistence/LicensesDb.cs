@@ -46,6 +46,7 @@ public sealed class LicensesDb(DbContextOptions<LicensesDb> options) : DbContext
             g.Property(x => x.CreatedAt).HasConversion(UtcConverter);
             g.Property(x => x.IssuedAt).HasConversion(NullableUtcConverter);
             g.Property(x => x.ExpiresAt).HasConversion(NullableUtcConverter);
+            g.Property(x => x.IssueClaimedUntil).HasConversion(NullableUtcConverter).IsConcurrencyToken();
             g.HasIndex(x => new { x.CompanyId, x.PlatformLicenseId });
         });
     }
@@ -74,7 +75,19 @@ internal sealed class LicenseStore(LicensesDb db) : ILicenseStore
 
     public void Add(LicenseGrant grant) => db.Grants.Add(grant);
 
-    public Task SaveAsync(CancellationToken ct) => db.SaveChangesAsync(ct);
+    public async Task SaveAsync(CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            // A unique order reference or a claim (IssueClaimedUntil is a concurrency token) was taken by another request.
+            db.ChangeTracker.Clear();
+            throw new GrantConflictException(ex);
+        }
+    }
 }
 
 internal sealed class DataProtectionKeyProtector(IDataProtectionProvider provider) : IKeyProtector

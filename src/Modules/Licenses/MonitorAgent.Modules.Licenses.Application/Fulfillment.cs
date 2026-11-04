@@ -56,15 +56,37 @@ internal sealed class FulfillLicenseHandler(
             var customerId = await PlatformCustomerAsync(command.CompanyId, ct);
             if (grant.PlatformSubscriptionId is null)
             {
-                grant.SubscriptionStarted(await platform.StartSubscriptionAsync(customerId, command.PlanId, ct));
+                // INT-016: the reference makes a retry after a lost answer return the same subscription.
+                grant.SubscriptionStarted(await platform.StartSubscriptionAsync(customerId, command.PlanId, SubscriptionReference(command.OrderReference), ct));
                 await store.SaveAsync(ct);
             }
 
-            var issued = await platform.IssueLicenseAsync(grant.PlatformSubscriptionId!.Value, ct);
+            // One worker at a time issues the license; another one retries later and then finds it issued.
+            if (!grant.TryClaimIssue(clock.GetUtcNow())) return LicensesErrors.IssueInProgress;
+            await store.SaveAsync(ct);
+
+            PlatformIssuedLicense issued;
+            try
+            {
+                issued = await IssueOnceAsync(customerId, grant.PlatformSubscriptionId!.Value, ct);
+            }
+            catch (PlatformUnavailableException)
+            {
+                // Even if LicensingPlatform did issue it, the next try finds the license on the subscription.
+                grant.ReleaseIssueClaim();
+                await store.SaveAsync(ct);
+                throw;
+            }
+
             grant.Issued(issued.License.Id, issued.License.LicenseNumber, issued.License.ExpiresAt, keys.Protect(issued.ProductKey), clock.GetUtcNow());
             await store.SaveAsync(ct);
             await EnsureMonitorTenantAsync(command.CompanyId, ct);
             return Fulfilled(grant);
+        }
+        catch (GrantConflictException)
+        {
+            // Another request created or claimed this order's grant first. It finishes the order; a retry reports it.
+            return LicensesErrors.IssueInProgress;
         }
         catch (MonitorUnavailableException)
         {
@@ -77,6 +99,22 @@ internal sealed class FulfillLicenseHandler(
             return LicensesErrors.PlatformUnavailable;
         }
     }
+
+    /// <summary>
+    /// Each order starts its own subscription, so a license already on it was issued by an earlier try whose answer was
+    /// lost. LicensingPlatform shows a product key only once, so that license gets a new key instead of a second license.
+    /// </summary>
+    private async Task<PlatformIssuedLicense> IssueOnceAsync(Guid customerId, Guid subscriptionId, CancellationToken ct)
+    {
+        var earlier = (await platform.LicensesOfAsync(customerId, ct)).FirstOrDefault(l => l.SubscriptionId == subscriptionId);
+        return earlier is null
+            ? await platform.IssueLicenseAsync(subscriptionId, ct)
+            : await platform.RegenerateKeyAsync(earlier.Id, ct);
+    }
+
+    internal static string SubscriptionReference(string orderReference) => $"website-order:{orderReference}";
+
+    internal static string CustomerReference(Guid companyId) => $"website-company:{companyId:N}";
 
     /// <summary>One Monitor Cloud tenant per company, linked to the Licensing customer this order already created.</summary>
     private async Task EnsureMonitorTenantAsync(Guid companyId, CancellationToken ct)
@@ -94,7 +132,7 @@ internal sealed class FulfillLicenseHandler(
         if (await store.LinkForAsync(companyId, ct) is { } link) return link.PlatformCustomerId;
         var company = await companies.FindAsync(companyId, ct) ?? throw new InvalidOperationException("Company disappeared.");
         var owner = await users.FindAsync(company.OwnerUserId, ct);
-        var customerId = await platform.CreateCustomerAsync(company.Name, owner?.Email ?? "", ct);
+        var customerId = await platform.CreateCustomerAsync(company.Name, owner?.Email ?? "", CustomerReference(companyId), ct);
         store.Add(new PlatformCustomerLink(companyId, customerId, clock.GetUtcNow()));
         await store.SaveAsync(ct);
         return customerId;
