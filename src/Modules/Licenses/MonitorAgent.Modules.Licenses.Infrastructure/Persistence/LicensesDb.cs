@@ -62,6 +62,9 @@ internal sealed class LicenseStore(LicensesDb db) : ILicenseStore
     public Task<LicenseGrant?> GrantForOrderAsync(string orderReference, CancellationToken ct) =>
         db.Grants.SingleOrDefaultAsync(g => g.OrderReference == orderReference, ct);
 
+    public Task<LicenseGrant?> GrantAsync(Guid grantId, CancellationToken ct) =>
+        db.Grants.SingleOrDefaultAsync(g => g.Id == grantId, ct);
+
     public Task<LicenseGrant?> GrantForLicenseAsync(Guid companyId, Guid platformLicenseId, CancellationToken ct) =>
         db.Grants.SingleOrDefaultAsync(g => g.CompanyId == companyId && g.PlatformLicenseId == platformLicenseId, ct);
 

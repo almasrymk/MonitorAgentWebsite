@@ -21,3 +21,19 @@ public interface ILicenseFulfillment
 {
     Task<Result<FulfilledLicense>> FulfillAsync(Guid companyId, Guid planId, string orderReference, CancellationToken ct);
 }
+
+/// <summary>INT-018: what renewing one of the company's licenses costs now (the current price of its plan).</summary>
+public sealed record RenewalOffer(Guid GrantId, string ProductName, string PlanName, decimal Price, string Currency);
+
+/// <summary>
+/// INT-018: paid renewal of the subscription behind a license the website issued. The product key and the activated
+/// devices stay the same. <see cref="RenewAsync"/> is safe to call again with the same order reference: the term is
+/// extended once.
+/// </summary>
+public interface ILicenseRenewals
+{
+    /// <param name="licenseId">The license id the portal shows (LicensingPlatform's).</param>
+    Task<Result<RenewalOffer>> OfferAsync(Guid companyId, Guid licenseId, CancellationToken ct);
+
+    Task<Result<FulfilledLicense>> RenewAsync(Guid companyId, Guid grantId, string orderReference, CancellationToken ct);
+}

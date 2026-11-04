@@ -44,7 +44,7 @@ internal sealed class ListOrdersValidator : AbstractValidator<ListOrdersQuery>
 /// What happens once an order is paid: ledger line, invoice, then the license. The buyer gets a receipt email once the
 /// payment is saved and another once the license is issued. Emails are best effort: the portal shows the same thing.
 /// </summary>
-internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirectory companies, ILicenseFulfillment licenses, IUserDirectory users,
+internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirectory companies, ILicenseFulfillment licenses, ILicenseRenewals renewals, IUserDirectory users,
     IEmailSender email, PortalLinks links, TimeProvider clock, ILogger<AfterPayment> logger)
 {
     private Invoice? _invoice;
@@ -71,7 +71,9 @@ internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirecto
     /// <summary>Best effort: a failure leaves the order Paid, and <see cref="FulfillPaidOrdersCommand"/> retries it.</summary>
     public async Task FulfilAsync(Order order, CancellationToken ct)
     {
-        var fulfilled = await licenses.FulfillAsync(order.CompanyId, order.PlanId, order.Number, ct);
+        var fulfilled = order.Kind == OrderKind.Renewal
+            ? await renewals.RenewAsync(order.CompanyId, order.RenewsGrantId!.Value, order.Number, ct)
+            : await licenses.FulfillAsync(order.CompanyId, order.PlanId, order.Number, ct);
         if (fulfilled.IsFailure) return;
         order.Fulfilled(fulfilled.Value.LicenseNumber);
         try
@@ -205,6 +207,8 @@ internal sealed class RecordManualPaymentHandler(ICommerceStore store, AfterPaym
         for (var attempt = 1; ; attempt++)
         {
             if (await store.OrderAsync(command.OrderId, ct) is not { } order) return CommerceErrors.OrderNotFound;
+            if (order.Status == OrderStatus.PendingPayment && await store.OrderForPaymentAsync("manual", command.Reference.Trim(), ct) is { } other && other.Id != order.Id)
+                return CommerceErrors.PaymentReferenceUsed;
             var recorded = order.RecordManualPayment(command.Reference, clock.GetUtcNow());
             if (recorded.IsFailure) return recorded.Error!;
             await after.RecordAsync(order, order.Payments[^1]);

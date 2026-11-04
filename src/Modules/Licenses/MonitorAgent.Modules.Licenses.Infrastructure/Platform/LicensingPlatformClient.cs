@@ -103,6 +103,12 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
     public Task ChangePlanAsync(Guid subscriptionId, Guid planId, CancellationToken ct) =>
         SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/change-plan", new { planId }, ct);
 
+    public async Task<DateTimeOffset?> RenewSubscriptionAsync(Guid subscriptionId, string externalReference, CancellationToken ct)
+    {
+        var renewed = await ReadManagementAsync<RenewedBody>($"api/v1/subscriptions/{subscriptionId}/renew", new { externalReference }, ct);
+        return renewed.Subscription.EndDate;
+    }
+
     public Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) =>
         SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/suspend", new { reason }, ct);
 
@@ -233,6 +239,8 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
     private sealed record IdBody(Guid Id);
     private sealed record CustomerDetailsBody(IdBody Customer);
     private sealed record SubscriptionDetailsBody(IdBody Subscription);
+    private sealed record EndDateBody(Guid Id, DateTimeOffset? EndDate);
+    private sealed record RenewedBody(EndDateBody Subscription);
     private sealed record LicenseBody(Guid Id, Guid CustomerId, string ProductCode, string PlanCode, string LicenseNumber,
         string ProductKeyPrefix, LicenseStatus Status, DateTimeOffset IssuedAt, DateTimeOffset? ExpiresAt, int? MaxActivations, int ActiveActivations,
         Guid SubscriptionId = default);

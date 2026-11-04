@@ -86,6 +86,14 @@ public sealed class LicenseGrant : AggregateRoot
 
     public void ReminderSent(int days) => ExpiryReminderDays = days;
 
+    /// <summary>INT-018: the subscription was renewed; the license now lasts until <paramref name="expiresAt"/>.</summary>
+    public void Renewed(DateTimeOffset? expiresAt)
+    {
+        if (Status != GrantStatus.Issued) throw new InvalidOperationException("Only an issued license can be renewed.");
+        ExpiresAt = expiresAt;
+        ExpiryReminderDays = null;
+    }
+
     public static LicenseGrant Start(Guid companyId, Guid planId, string orderReference, DateTimeOffset at) => new()
     {
         CompanyId = companyId,

@@ -3,6 +3,8 @@ using MonitorAgent.SharedKernel;
 namespace MonitorAgent.Modules.Commerce.Domain;
 
 public enum OrderStatus { PendingPayment, Paid, Fulfilled, Cancelled }
+/// <summary>Purchase starts a new subscription and license; Renewal (INT-018) extends the subscription of an issued license.</summary>
+public enum OrderKind { Purchase, Renewal }
 public enum PaymentStatus { Pending, Succeeded, Failed }
 
 /// <summary>One try at paying an order through a provider's hosted checkout.</summary>
@@ -54,6 +56,9 @@ public sealed class Order : AggregateRoot
     public DateTimeOffset? PaidAt { get; private set; }
     public string? PaidVia { get; private set; }
     public string? LicenseNumber { get; private set; }
+    public OrderKind Kind { get; private set; }
+    /// <summary>For a renewal: the license grant (Licenses module) whose subscription the payment extends.</summary>
+    public Guid? RenewsGrantId { get; private set; }
     public IReadOnlyList<Payment> Payments => _payments;
 
     public static Order Place(string number, Guid companyId, Guid placedBy, Guid planId, string productName, string planName,
@@ -66,6 +71,16 @@ public sealed class Order : AggregateRoot
             ProductName = productName, PlanName = planName, Total = decimal.Round(total, 2),
             Currency = Guard.NotEmpty(currency, "Currency", 3).ToUpperInvariant(), PlacedAt = at,
         };
+    }
+
+    /// <summary>INT-018: an order that renews an issued license at the plan's current price.</summary>
+    public static Order PlaceRenewal(string number, Guid companyId, Guid placedBy, Guid grantId, string productName, string planName,
+        decimal total, string currency, DateTimeOffset at)
+    {
+        var order = Place(number, companyId, placedBy, Guid.Empty, productName, planName, total, currency, at);
+        order.Kind = OrderKind.Renewal;
+        order.RenewsGrantId = grantId;
+        return order;
     }
 
     public Result<Payment> StartPayment(string provider, DateTimeOffset at)

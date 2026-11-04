@@ -47,6 +47,8 @@ internal interface ILicensingPlatform
     Task<PlatformIssuedLicense> IssueLicenseAsync(Guid subscriptionId, CancellationToken ct);
     Task<IReadOnlyList<PlatformSubscription>> SubscriptionsOfAsync(Guid customerId, CancellationToken ct);
     Task ChangePlanAsync(Guid subscriptionId, Guid planId, CancellationToken ct);
+    /// <summary>INT-018: extends the term once per <paramref name="externalReference"/>; returns the new end date.</summary>
+    Task<DateTimeOffset?> RenewSubscriptionAsync(Guid subscriptionId, string externalReference, CancellationToken ct);
     Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct);
     Task ResumeSubscriptionAsync(Guid subscriptionId, CancellationToken ct);
     Task CancelSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct);
@@ -72,6 +74,7 @@ internal interface ILicenseStore
     Task<PlatformCustomerLink?> LinkForAsync(Guid companyId, CancellationToken ct);
     void Add(PlatformCustomerLink link);
     Task<LicenseGrant?> GrantForOrderAsync(string orderReference, CancellationToken ct);
+    Task<LicenseGrant?> GrantAsync(Guid grantId, CancellationToken ct);
     Task<LicenseGrant?> GrantForLicenseAsync(Guid companyId, Guid platformLicenseId, CancellationToken ct);
     /// <summary>Issued grants expiring between now and <paramref name="until"/>.</summary>
     Task<IReadOnlyList<LicenseGrant>> ExpiringAsync(DateTimeOffset now, DateTimeOffset until, int take, CancellationToken ct);

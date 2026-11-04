@@ -127,6 +127,23 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
         return Task.CompletedTask;
     }
 
+    /// <summary>Renewals applied, by reference: LicensingPlatform extends a term once per reference.</summary>
+    public ConcurrentDictionary<string, Guid> Renewals { get; } = new();
+
+    public Task<DateTimeOffset?> RenewSubscriptionAsync(Guid subscriptionId, string externalReference, CancellationToken ct)
+    {
+        Trip(nameof(RenewSubscriptionAsync));
+        var plan = Plan(Subscriptions[subscriptionId].PlanId);
+        if (Renewals.TryAdd(externalReference, subscriptionId))
+        {
+            foreach (var (id, entry) in Licenses.Where(l => l.Value.License.SubscriptionId == subscriptionId).ToList())
+                Licenses[id] = (entry.License with { ExpiresAt = (entry.License.ExpiresAt ?? DateTimeOffset.UtcNow).AddDays(plan.DurationDays ?? 365) }, entry.Key, entry.Devices);
+        }
+
+        var end = Licenses.Values.Where(l => l.License.SubscriptionId == subscriptionId).Select(l => l.License.ExpiresAt).Max();
+        return Answer(nameof(RenewSubscriptionAsync), end);
+    }
+
     public Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) => SetSubscriptionAsync(subscriptionId, "Suspended", "Active", "Trial");
     public Task ResumeSubscriptionAsync(Guid subscriptionId, CancellationToken ct) => SetSubscriptionAsync(subscriptionId, "Active", "Suspended");
     public Task CancelSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) => SetSubscriptionAsync(subscriptionId, "Cancelled", "Active", "Trial", "Suspended");

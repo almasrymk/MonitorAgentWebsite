@@ -294,6 +294,90 @@ public class CommerceTests(ApiFactory factory) : IClassFixture<ApiFactory>
             await admin.PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment", new { reference = "BANK-TRANSFER-999" })));
     }
 
+    private async Task<(Guid LicenseId, DateTimeOffset ExpiresAt)> LicensedAsync(Buyer buyer)
+    {
+        var orderId = await PlaceAsync(buyer);
+        await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+        var license = Assert.Single((await JsonAsync(await buyer.Client.GetAsync("/api/v1/licenses"))).EnumerateArray());
+        return (license.GetProperty("id").GetGuid(), license.GetProperty("expiresAt").GetDateTimeOffset());
+    }
+
+    [Fact]
+    public async Task One_bank_reference_cannot_pay_two_orders()
+    {
+        var buyer = await BuyerAsync();
+        var first = await PlaceAsync(buyer);
+        var second = await PlaceAsync(buyer);
+        var admin = await AdminAsync();
+        var reference = $"BANK-TRANSFER-{Guid.NewGuid():N}";
+        await JsonAsync(await admin.PostAsync($"/api/v1/admin/orders/{first}/manual-payment", new { reference }));
+
+        var reused = await admin.PostAsync($"/api/v1/admin/orders/{second}/manual-payment", new { reference });
+
+        Assert.Equal(HttpStatusCode.Conflict, reused.StatusCode);
+        Assert.Equal("PAYMENT_REFERENCE_USED", await TestClient.ErrorCodeAsync(reused));
+        Assert.Equal("PendingPayment", (await OrderAsync(buyer, second)).GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task A_paid_renewal_extends_the_same_license_and_keeps_its_key()
+    {
+        // INT-018: renewing must not sell a second license (a new key would force every device to activate again).
+        var buyer = await BuyerAsync();
+        var (licenseId, expiresAt) = await LicensedAsync(buyer);
+        var key = factory.Platform.KeyOf(licenseId);
+
+        var renewal = await JsonAsync(await buyer.Client.PostAsync("/api/v1/orders/renewals", new { licenseId }));
+        Assert.Equal("Renewal", renewal.GetProperty("kind").GetString());
+        Assert.Equal(1200m, renewal.GetProperty("total").GetDecimal());
+        var paid = await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{renewal.GetProperty("id").GetGuid()}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+
+        Assert.Equal("Fulfilled", paid.GetProperty("status").GetString());
+        var license = Assert.Single((await JsonAsync(await buyer.Client.GetAsync("/api/v1/licenses"))).EnumerateArray());
+        Assert.Equal(licenseId, license.GetProperty("id").GetGuid());
+        Assert.Equal(expiresAt.AddDays(365), license.GetProperty("expiresAt").GetDateTimeOffset(), TimeSpan.FromSeconds(1));
+        Assert.Equal(key, factory.Platform.KeyOf(licenseId));
+    }
+
+    [Fact]
+    public async Task A_renewal_whose_answer_was_lost_is_applied_once_by_the_retry()
+    {
+        var buyer = await BuyerAsync();
+        var (licenseId, expiresAt) = await LicensedAsync(buyer);
+        var renewal = await JsonAsync(await buyer.Client.PostAsync("/api/v1/orders/renewals", new { licenseId }));
+        factory.Platform.LoseAnswerOf = nameof(FakeLicensingPlatform.RenewSubscriptionAsync);
+
+        var paid = await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{renewal.GetProperty("id").GetGuid()}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+        Assert.Equal("Paid", paid.GetProperty("status").GetString());
+        await using (var scope = factory.Services.CreateAsyncScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<IDispatcher>().SendAsync(new FulfillPaidOrdersCommand())).IsSuccess);
+
+        Assert.Equal("Fulfilled", (await OrderAsync(buyer, renewal.GetProperty("id").GetGuid())).GetProperty("status").GetString());
+        var license = Assert.Single((await JsonAsync(await buyer.Client.GetAsync("/api/v1/licenses"))).EnumerateArray());
+        Assert.Equal(expiresAt.AddDays(365), license.GetProperty("expiresAt").GetDateTimeOffset(), TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task Only_the_company_holding_a_license_can_order_its_renewal()
+    {
+        var owner = await BuyerAsync();
+        var (licenseId, _) = await LicensedAsync(owner);
+        var stranger = await BuyerAsync();
+
+        Assert.Equal("LICENSE_NOT_FOUND", await TestClient.ErrorCodeAsync(await stranger.Client.PostAsync("/api/v1/orders/renewals", new { licenseId })));
+        Assert.Equal("LICENSE_NOT_FOUND", await TestClient.ErrorCodeAsync(await owner.Client.PostAsync("/api/v1/orders/renewals", new { licenseId = Guid.NewGuid() })));
+    }
+
+    [Fact]
+    public async Task A_revoked_license_cannot_be_renewed()
+    {
+        var buyer = await BuyerAsync();
+        var (licenseId, _) = await LicensedAsync(buyer);
+        await factory.Platform.RevokeLicenseAsync(licenseId, "test", default);
+
+        Assert.Equal("LICENSE_NOT_RENEWABLE", await TestClient.ErrorCodeAsync(await buyer.Client.PostAsync("/api/v1/orders/renewals", new { licenseId })));
+    }
+
     [Fact]
     public async Task Invoice_numbers_run_in_sequence()
     {

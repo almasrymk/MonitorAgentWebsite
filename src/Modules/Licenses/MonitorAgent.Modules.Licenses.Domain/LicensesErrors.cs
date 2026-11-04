@@ -17,5 +17,6 @@ public static class LicensesErrors
     public static readonly Error KeyNotAvailable = Error.NotFound("PRODUCT_KEY_NOT_AVAILABLE", "This license's key wasn't issued through the website.");
     /// <summary>INT-016: another request is issuing this order's license right now. Retry shortly.</summary>
     public static readonly Error IssueInProgress = Error.Unavailable("LICENSE_ISSUE_IN_PROGRESS", "This license is being issued right now. Try again shortly.");
+    public static readonly Error NotRenewable = Error.Conflict("LICENSE_NOT_RENEWABLE", "This license can't be renewed. A revoked license needs a new order.");
     public static readonly Error OrderMismatch = Error.Conflict("ORDER_REFERENCE_REUSED", "This order reference was already used for a different company or plan.");
 }

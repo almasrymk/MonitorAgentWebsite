@@ -12,11 +12,13 @@ namespace MonitorAgent.Modules.Commerce.Application;
 public sealed record PaymentDto(Guid Id, string Provider, decimal Amount, string Currency, PaymentStatus Status, DateTimeOffset CreatedAt, string? FailureReason);
 public sealed record OrderDto(Guid Id, string Number, string ProductName, string PlanName, decimal Total, string Currency, OrderStatus Status,
     DateTimeOffset PlacedAt, DateTimeOffset? PaidAt, string? LicenseNumber, IReadOnlyList<PaymentDto> Payments, Guid? CompanyId = null,
-    string? CompanyName = null);
+    string? CompanyName = null, OrderKind Kind = OrderKind.Purchase, Guid? RenewsGrantId = null);
 public sealed record CheckoutDto(string RedirectUrl);
 public sealed record InvoiceDto(Guid Id, string Number, Guid OrderId, string CompanyName, string Description, decimal Amount, string Currency, DateTimeOffset IssuedAt);
 
 public sealed record PlaceOrderCommand(Guid PlanId) : ICommand<Result<OrderDto>>;
+/// <summary>INT-018: an order to renew one of the company's licenses. Paid like any order; the term is extended on payment.</summary>
+public sealed record PlaceRenewalOrderCommand(Guid LicenseId) : ICommand<Result<OrderDto>>;
 public sealed record PayOrderCommand(Guid OrderId, string Provider) : ICommand<Result<CheckoutDto>>;
 public sealed record CancelOrderCommand(Guid OrderId) : ICommand<Result>, IAuditedCommand
 {
@@ -40,7 +42,8 @@ internal sealed class PayOrderValidator : AbstractValidator<PayOrderCommand>
 internal static class OrderMapping
 {
     public static OrderDto ToDto(this Order o) => new(o.Id, o.Number, o.ProductName, o.PlanName, o.Total, o.Currency, o.Status, o.PlacedAt, o.PaidAt,
-        o.LicenseNumber, o.Payments.OrderBy(p => p.CreatedAt).Select(p => new PaymentDto(p.Id, p.Provider, p.Amount, p.Currency, p.Status, p.CreatedAt, p.FailureReason)).ToList());
+        o.LicenseNumber, o.Payments.OrderBy(p => p.CreatedAt).Select(p => new PaymentDto(p.Id, p.Provider, p.Amount, p.Currency, p.Status, p.CreatedAt, p.FailureReason)).ToList(),
+        Kind: o.Kind, RenewsGrantId: o.RenewsGrantId);
 
     public static InvoiceDto ToDto(this Invoice i) => new(i.Id, i.Number, i.OrderId, i.CompanyName, i.Description, i.Amount, i.Currency, i.IssuedAt);
 
@@ -84,6 +87,30 @@ internal sealed class PlaceOrderHandler(BuyerScope scope, IPlanCatalog catalog, 
 
         var now = clock.GetUtcNow();
         var order = Order.Place(OrderMapping.NewOrderNumber(now), buyer.Value.CompanyId, me.UserId!.Value, offer.Value.PlanId,
+            offer.Value.ProductName, offer.Value.PlanName, offer.Value.Price, offer.Value.Currency, now);
+        store.Add(order);
+        await store.SaveAsync(ct);
+        return order.ToDto();
+    }
+}
+
+internal sealed class PlaceRenewalOrderValidator : AbstractValidator<PlaceRenewalOrderCommand>
+{
+    public PlaceRenewalOrderValidator() => RuleFor(x => x.LicenseId).NotEmpty();
+}
+
+internal sealed class PlaceRenewalOrderHandler(BuyerScope scope, ILicenseRenewals renewals, ICommerceStore store, ICurrentUser me, TimeProvider clock)
+    : ICommandHandler<PlaceRenewalOrderCommand, Result<OrderDto>>
+{
+    public async Task<Result<OrderDto>> HandleAsync(PlaceRenewalOrderCommand command, CancellationToken ct)
+    {
+        var buyer = await scope.ResolveAsync(ct);
+        if (buyer.IsFailure) return buyer.Error!;
+        var offer = await renewals.OfferAsync(buyer.Value.CompanyId, command.LicenseId, ct);
+        if (offer.IsFailure) return offer.Error!;
+
+        var now = clock.GetUtcNow();
+        var order = Order.PlaceRenewal(OrderMapping.NewOrderNumber(now), buyer.Value.CompanyId, me.UserId!.Value, offer.Value.GrantId,
             offer.Value.ProductName, offer.Value.PlanName, offer.Value.Price, offer.Value.Currency, now);
         store.Add(order);
         await store.SaveAsync(ct);

@@ -11,6 +11,7 @@ using MonitorAgent.Modules.Identity.Contracts;
 namespace MonitorAgent.Modules.Commerce.Infrastructure.Http;
 
 public sealed record PlaceOrderRequest(Guid PlanId);
+public sealed record PlaceRenewalRequest(Guid LicenseId);
 public sealed record PayRequest(string Provider);
 public sealed record ManualPaymentRequest(string Reference);
 
@@ -24,6 +25,12 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Place(PlaceOrderRequest request, CancellationToken ct) =>
         (await dispatcher.SendAsync(new PlaceOrderCommand(request.PlanId), ct)).ToActionResult();
+
+    /// <summary>INT-018: renews a license the company holds (keeps its key and devices) once the order is paid.</summary>
+    [HttpPost("orders/renewals")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> PlaceRenewal(PlaceRenewalRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new PlaceRenewalOrderCommand(request.LicenseId), ct)).ToActionResult();
 
     [HttpGet("orders")]
     [ProducesResponseType<IReadOnlyList<OrderDto>>(StatusCodes.Status200OK)]

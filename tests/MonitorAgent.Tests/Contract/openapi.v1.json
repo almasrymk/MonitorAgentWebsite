@@ -1164,6 +1164,9 @@
             "format": "uuid",
             "type": "string"
           },
+          "kind": {
+            "$ref": "#/components/schemas/OrderKind"
+          },
           "licenseNumber": {
             "type": [
               "null",
@@ -1196,6 +1199,13 @@
           "productName": {
             "type": "string"
           },
+          "renewsGrantId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "status": {
             "$ref": "#/components/schemas/OrderStatus"
           },
@@ -1222,6 +1232,10 @@
           "payments"
         ],
         "type": "object"
+      },
+      "OrderKind": {
+        "default": 0,
+        "type": "integer"
       },
       "OrderStatus": {
         "type": "integer"
@@ -1877,6 +1891,18 @@
         },
         "required": [
           "planId"
+        ],
+        "type": "object"
+      },
+      "PlaceRenewalRequest": {
+        "properties": {
+          "licenseId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "licenseId"
         ],
         "type": "object"
       },
@@ -5580,6 +5606,55 @@
             "text/json": {
               "schema": {
                 "$ref": "#/components/schemas/PlaceOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Orders"
+        ]
+      }
+    },
+    "/api/v1/orders/renewals": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceRenewalRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceRenewalRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceRenewalRequest"
               }
             }
           },
