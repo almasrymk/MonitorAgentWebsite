@@ -17,6 +17,10 @@ public sealed class PlatformCustomerLink
     public Guid CompanyId { get; private set; }
     public Guid PlatformCustomerId { get; private set; }
     public DateTimeOffset LinkedAt { get; private set; }
+    /// <summary>The Monitor Cloud tenant created for this company. Empty until registration finishes.</summary>
+    public Guid? MonitorTenantId { get; private set; }
+
+    public void MonitorRegistered(Guid tenantId) => MonitorTenantId ??= tenantId;
 }
 
 public enum GrantStatus { Pending, Issued }
@@ -74,6 +78,14 @@ public sealed class LicenseGrant : AggregateRoot
     public bool IsFor(Guid companyId, Guid planId) => CompanyId == companyId && PlanId == planId;
 
     public void SubscriptionStarted(Guid subscriptionId) => PlatformSubscriptionId ??= subscriptionId;
+
+    /// <summary>Stores the replacement key LicensingPlatform returned. The previous key no longer works.</summary>
+    public void ReplaceKey(string protectedProductKey)
+    {
+        if (Status != GrantStatus.Issued)
+            throw new InvalidOperationException("Only an issued license can get a new key.");
+        ProtectedProductKey = protectedProductKey;
+    }
 
     public void Issued(Guid licenseId, string licenseNumber, DateTimeOffset? expiresAt, string protectedProductKey, DateTimeOffset at)
     {
