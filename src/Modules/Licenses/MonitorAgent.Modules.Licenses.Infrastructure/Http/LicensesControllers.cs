@@ -26,6 +26,41 @@ public sealed class CatalogController(IDispatcher dispatcher) : ControllerBase
 [Authorize(Policy = AuthPolicies.Customer)]
 public sealed class MyLicensesController(IDispatcher dispatcher) : ControllerBase
 {
+    [HttpGet("subscription")]
+    [ProducesResponseType<IReadOnlyList<CompanySubscriptionDto>>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Subscription(CancellationToken ct) =>
+        (await dispatcher.QueryAsync(new ListMySubscriptionsQuery(), ct)).ToActionResult();
+
+    public sealed record PlanChange(Guid PlanId);
+
+    [HttpPost("subscription/{subscriptionId:guid}/change-plan")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> ChangePlan(Guid subscriptionId, PlanChange request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new ChangeMyPlanCommand(subscriptionId, request.PlanId), ct)).ToActionResult();
+
+    [HttpPost("subscription/{subscriptionId:guid}/suspend")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> SuspendSubscription(Guid subscriptionId, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new SuspendMySubscriptionCommand(subscriptionId), ct)).ToActionResult();
+
+    [HttpPost("subscription/{subscriptionId:guid}/resume")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> ResumeSubscription(Guid subscriptionId, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new ResumeMySubscriptionCommand(subscriptionId), ct)).ToActionResult();
+
+    [HttpPost("subscription/{subscriptionId:guid}/cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> CancelSubscription(Guid subscriptionId, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new CancelMySubscriptionCommand(subscriptionId), ct)).ToActionResult();
+
+    [HttpPost("subscription/{subscriptionId:guid}/licenses")]
+    [ProducesResponseType<IssuedDeviceLicenseDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Issue(Guid subscriptionId, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        return (await dispatcher.SendAsync(new IssueMyLicenseCommand(subscriptionId), ct)).ToActionResult();
+    }
+
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<LicenseSummaryDto>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> List(CancellationToken ct) => (await dispatcher.QueryAsync(new ListMyLicensesQuery(), ct)).ToActionResult();
@@ -36,6 +71,29 @@ public sealed class MyLicensesController(IDispatcher dispatcher) : ControllerBas
         (await dispatcher.QueryAsync(new GetMyLicenseQuery(licenseId), ct)).ToActionResult();
 
     /// <summary>A POST so the key never sits in a cached GET response or a browser history entry.</summary>
+    [HttpPost("{licenseId:guid}/regenerate-key")]
+    [ProducesResponseType<ProductKeyDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> RegenerateKey(Guid licenseId, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        return (await dispatcher.SendAsync(new RegenerateMyKeyCommand(licenseId), ct)).ToActionResult();
+    }
+
+    [HttpPost("{licenseId:guid}/suspend")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Suspend(Guid licenseId, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new SuspendMyLicenseCommand(licenseId), ct)).ToActionResult();
+
+    [HttpPost("{licenseId:guid}/resume")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Resume(Guid licenseId, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new ResumeMyLicenseCommand(licenseId), ct)).ToActionResult();
+
+    [HttpPost("{licenseId:guid}/revoke")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Revoke(Guid licenseId, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new RevokeMyLicenseCommand(licenseId), ct)).ToActionResult();
+
     [HttpPost("{licenseId:guid}/product-key")]
     [ProducesResponseType<ProductKeyDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> RevealKey(Guid licenseId, CancellationToken ct)
