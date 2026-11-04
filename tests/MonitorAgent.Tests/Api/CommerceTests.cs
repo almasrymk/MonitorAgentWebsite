@@ -271,6 +271,30 @@ public class CommerceTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Two_staff_approving_the_same_manual_payment_record_it_once()
+    {
+        // INT-012 (ADR-003): payments are staff-verified at launch. A double click or two finance staff at once must never
+        // create a second ledger line, invoice or license, and the loser gets a clear 409, not a server error.
+        var buyer = await BuyerAsync();
+        var orderId = await PlaceAsync(buyer);
+        var admin = await AdminAsync();
+
+        var answers = await Task.WhenAll(Enumerable.Range(0, 3).Select(i =>
+            admin.PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment", new { reference = $"BANK-TRANSFER-90{i}" })));
+
+        Assert.Single(answers, a => a.StatusCode == HttpStatusCode.OK);
+        foreach (var refused in answers.Where(a => a.StatusCode != HttpStatusCode.OK))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+            Assert.Equal("ORDER_NOT_PAYABLE", await TestClient.ErrorCodeAsync(refused));
+        }
+        Assert.Equal(1, await LicensesOfAsync(buyer));
+        Assert.Single((await JsonAsync(await buyer.Client.GetAsync("/api/v1/invoices"))).EnumerateArray(), i => i.GetProperty("orderId").GetGuid() == orderId);
+        Assert.Equal("ORDER_NOT_PAYABLE", await TestClient.ErrorCodeAsync(
+            await admin.PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment", new { reference = "BANK-TRANSFER-999" })));
+    }
+
+    [Fact]
     public async Task Invoice_numbers_run_in_sequence()
     {
         var buyer = await BuyerAsync();

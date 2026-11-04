@@ -197,16 +197,32 @@ internal sealed partial class HandlePaymentNotificationHandler(
 internal sealed class RecordManualPaymentHandler(ICommerceStore store, AfterPayment after, TimeProvider clock)
     : ICommandHandler<RecordManualPaymentCommand, Result<OrderDto>>
 {
+    // An invoice-number race with another order's payment is retried; a race on the same order is a clear 409.
+    private const int Attempts = 3;
+
     public async Task<Result<OrderDto>> HandleAsync(RecordManualPaymentCommand command, CancellationToken ct)
     {
-        if (await store.OrderAsync(command.OrderId, ct) is not { } order) return CommerceErrors.OrderNotFound;
-        var recorded = order.RecordManualPayment(command.Reference, clock.GetUtcNow());
-        if (recorded.IsFailure) return recorded.Error!;
-        await after.RecordAsync(order, order.Payments[^1]);
-        await store.SaveAsync(ct);
-        await after.SendReceiptAsync(order, ct);
-        await after.FulfilAsync(order, ct);
-        return order.ToDto();
+        for (var attempt = 1; ; attempt++)
+        {
+            if (await store.OrderAsync(command.OrderId, ct) is not { } order) return CommerceErrors.OrderNotFound;
+            var recorded = order.RecordManualPayment(command.Reference, clock.GetUtcNow());
+            if (recorded.IsFailure) return recorded.Error!;
+            await after.RecordAsync(order, order.Payments[^1]);
+            try
+            {
+                await store.SaveAsync(ct);
+            }
+            catch (SaveConflictException) when (attempt < Attempts)
+            {
+                // INT-012: another approval of this order (its invoice is unique per order) or of another order (the
+                // invoice counter) saved first. The next pass reloads the order and answers ORDER_NOT_PAYABLE if it is paid.
+                continue;
+            }
+
+            await after.SendReceiptAsync(order, ct);
+            await after.FulfilAsync(order, ct);
+            return order.ToDto();
+        }
     }
 }
 
