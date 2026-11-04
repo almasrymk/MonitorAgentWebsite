@@ -106,6 +106,30 @@ namespace MonitorAgent.Modules.Licenses.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CustomerLinks", "licenses");
                 });
+
+            modelBuilder.Entity("MonitorAgent.Modules.Licenses.Domain.ScheduledPlanChange", b =>
+                {
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("RequestedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("SubscriptionId");
+
+                    b.HasIndex("CompanyId");
+
+                    b.ToTable("ScheduledPlanChanges", "licenses");
+                });
 #pragma warning restore 612, 618
         }
     }

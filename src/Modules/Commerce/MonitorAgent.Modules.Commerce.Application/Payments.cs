@@ -72,7 +72,7 @@ internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirecto
     public async Task FulfilAsync(Order order, CancellationToken ct)
     {
         var fulfilled = order.Kind == OrderKind.Renewal
-            ? await renewals.RenewAsync(order.CompanyId, order.RenewsGrantId!.Value, order.Number, ct)
+            ? await renewals.RenewAsync(order.CompanyId, order.RenewsGrantId!.Value, order.PlanId, order.Number, ct)
             : await licenses.FulfillAsync(order.CompanyId, order.PlanId, order.Number, ct);
         if (fulfilled.IsFailure) return;
         order.Fulfilled(fulfilled.Value.LicenseNumber);

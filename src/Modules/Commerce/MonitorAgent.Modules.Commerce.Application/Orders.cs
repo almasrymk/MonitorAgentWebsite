@@ -110,7 +110,7 @@ internal sealed class PlaceRenewalOrderHandler(BuyerScope scope, ILicenseRenewal
         if (offer.IsFailure) return offer.Error!;
 
         var now = clock.GetUtcNow();
-        var order = Order.PlaceRenewal(OrderMapping.NewOrderNumber(now), buyer.Value.CompanyId, me.UserId!.Value, offer.Value.GrantId,
+        var order = Order.PlaceRenewal(OrderMapping.NewOrderNumber(now), buyer.Value.CompanyId, me.UserId!.Value, offer.Value.GrantId, offer.Value.PlanId,
             offer.Value.ProductName, offer.Value.PlanName, offer.Value.Price, offer.Value.Currency, now);
         store.Add(order);
         await store.SaveAsync(ct);

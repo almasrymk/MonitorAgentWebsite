@@ -298,11 +298,12 @@ public class LicensesTests(ApiFactory factory) : IClassFixture<ApiFactory>
         await JsonAsync(await GrantAsync(company.Id, $"order-manage-{Guid.NewGuid():N}"));
         var subscriptionId = (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("id").GetGuid();
 
-        Assert.Equal(HttpStatusCode.NoContent, (await company.Owner.PostAsync(
-            $"/api/v1/licenses/subscription/{subscriptionId}/change-plan", new { planId = FakeLicensingPlatform.Plus.Id })).StatusCode);
-        Assert.Equal("PLUS", (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("planCode").GetString());
-        Assert.Equal("SUBSCRIPTION_SAME_PLAN", await TestClient.ErrorCodeAsync(await company.Owner.PostAsync(
+        // INT-014: a dearer plan needs payment; the current plan is not a change.
+        Assert.Equal("PLAN_UPGRADE_REQUIRES_PAYMENT", await TestClient.ErrorCodeAsync(await company.Owner.PostAsync(
             $"/api/v1/licenses/subscription/{subscriptionId}/change-plan", new { planId = FakeLicensingPlatform.Plus.Id })));
+        Assert.Equal("STD", (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("planCode").GetString());
+        Assert.Equal("SUBSCRIPTION_SAME_PLAN", await TestClient.ErrorCodeAsync(await company.Owner.PostAsync(
+            $"/api/v1/licenses/subscription/{subscriptionId}/change-plan", new { planId = FakeLicensingPlatform.Standard.Id })));
 
         var issued = await JsonAsync(await company.Owner.PostAsync($"/api/v1/licenses/subscription/{subscriptionId}/licenses"));
         var licenseId = issued.GetProperty("licenseId").GetGuid();

@@ -4,7 +4,9 @@ using MonitorAgent.SharedKernel;
 
 namespace MonitorAgent.Modules.Licenses.Application;
 
-public sealed record CompanySubscriptionDto(Guid Id, Guid PlanId, string PlanCode, string PlanName, string Status, DateTimeOffset StartDate, DateTimeOffset? EndDate);
+/// <param name="ScheduledPlanId">INT-017: the plan the next paid renewal moves to, if a change is scheduled.</param>
+public sealed record CompanySubscriptionDto(Guid Id, Guid PlanId, string PlanCode, string PlanName, string Status, DateTimeOffset StartDate, DateTimeOffset? EndDate,
+    Guid? ScheduledPlanId = null);
 public sealed record IssuedDeviceLicenseDto(Guid LicenseId, string LicenseNumber, string ProductKey);
 public sealed record ChangePlanRequest(Guid PlanId);
 
@@ -106,37 +108,73 @@ internal static class LicensingCall
     };
 }
 
-internal sealed class ListMySubscriptionsHandler(CompanyScope scope, ILicensingPlatform platform)
+internal sealed class ListMySubscriptionsHandler(CompanyScope scope, ILicensingPlatform platform, ILicenseStore store)
     : IQueryHandler<ListMySubscriptionsQuery, Result<IReadOnlyList<CompanySubscriptionDto>>>
 {
     public async Task<Result<IReadOnlyList<CompanySubscriptionDto>>> HandleAsync(ListMySubscriptionsQuery query, CancellationToken ct)
     {
         if (await scope.ResolveAsync(ct) is not { } tenant) return LicensesErrors.NoCompany;
         if (tenant.PlatformCustomerId is not { } customerId) return Array.Empty<CompanySubscriptionDto>();
+        var scheduled = (await store.ScheduledChangesOfAsync(tenant.Membership.CompanyId, ct)).ToDictionary(s => s.SubscriptionId, s => s.PlanId);
         return await LicensingCall.Run<IReadOnlyList<CompanySubscriptionDto>>(async () =>
             (await platform.SubscriptionsOfAsync(customerId, ct)).Where(s => s.CustomerId == customerId)
-                .Select(s => new CompanySubscriptionDto(s.Id, s.PlanId, s.PlanCode, s.PlanName, s.Status, s.StartDate, s.EndDate)).ToList());
+                .Select(s => new CompanySubscriptionDto(s.Id, s.PlanId, s.PlanCode, s.PlanName, s.Status, s.StartDate, s.EndDate,
+                    scheduled.TryGetValue(s.Id, out var planId) ? planId : null)).ToList());
     }
 }
 
-internal sealed class ChangeMyPlanHandler(CompanyScope scope, ILicensingPlatform platform) : ICommandHandler<ChangeMyPlanCommand, Result>
+/// <summary>
+/// INT-014/017: a self-service plan change never takes effect for free in the middle of a paid term. A dearer plan
+/// answers <c>PLAN_UPGRADE_REQUIRES_PAYMENT</c>; a cheaper or equal plan is scheduled and applied by the next paid
+/// renewal, which is priced at that plan. Choosing the current plan again cancels a scheduled change.
+/// </summary>
+internal sealed class ChangeMyPlanHandler(CompanyScope scope, ILicensingPlatform platform, ILicenseStore store, ICurrentUser me, TimeProvider clock)
+    : ICommandHandler<ChangeMyPlanCommand, Result>
 {
     public async Task<Result> HandleAsync(ChangeMyPlanCommand command, CancellationToken ct)
     {
         if (await scope.ResolveAsync(ct) is not { } tenant) return LicensesErrors.NoCompany;
         if (!tenant.Membership.CanManageBilling) return LicensesErrors.NotAllowed;
+        PlatformSubscription? subscription;
         try
         {
-            if (await OwnAsync(platform, tenant.PlatformCustomerId, command.SubscriptionId, ct) is null) return LicensesErrors.SubscriptionNotFound;
+            subscription = await OwnAsync(platform, tenant.PlatformCustomerId, command.SubscriptionId, ct);
         }
         catch (PlatformUnavailableException)
         {
             return LicensesErrors.PlatformUnavailable;
         }
+        if (subscription is null) return LicensesErrors.SubscriptionNotFound;
         var plans = await LicensingCall.Run(() => platform.PublishedPaidPlansAsync(ct));
         if (plans.IsFailure) return plans.Error!;
-        if (plans.Value.All(p => p.Id != command.PlanId)) return LicensesErrors.PlanNotAvailable;
-        return await LicensingCall.Run(() => platform.ChangePlanAsync(command.SubscriptionId, command.PlanId, ct));
+        if (plans.Value.FirstOrDefault(p => p.Id == command.PlanId) is not { } target) return LicensesErrors.PlanNotAvailable;
+
+        var scheduled = await store.ScheduledChangeAsync(subscription.Id, ct);
+        if (target.Id == subscription.PlanId)
+        {
+            if (scheduled is null) return LicensesErrors.SamePlan;
+            store.Remove(scheduled);
+            await store.SaveAsync(ct);
+            return Result.Success();
+        }
+
+        var current = plans.Value.FirstOrDefault(p => p.Id == subscription.PlanId);
+        if (current is not null && target.ProductCode != current.ProductCode) return LicensesErrors.PlanNotAvailable;
+        // A plan that is no longer on sale can't be priced against; scheduling is still safe because the renewal is paid.
+        if (current is not null && (target.Currency != current.Currency || target.Price > current.Price)) return LicensesErrors.UpgradeRequiresPayment;
+
+        if (scheduled is null) store.Add(new ScheduledPlanChange(subscription.Id, tenant.Membership.CompanyId, target.Id, me.UserId!.Value, clock.GetUtcNow()));
+        else scheduled.Replace(target.Id, me.UserId!.Value, clock.GetUtcNow());
+        try
+        {
+            await store.SaveAsync(ct);
+        }
+        catch (GrantConflictException)
+        {
+            // Two requests scheduled the first change at once; one won. The owner can look and choose again.
+            return LicensesErrors.IssueInProgress;
+        }
+        return Result.Success();
     }
 
     internal static async Task<PlatformSubscription?> OwnAsync(ILicensingPlatform platform, Guid? customerId, Guid subscriptionId, CancellationToken ct)

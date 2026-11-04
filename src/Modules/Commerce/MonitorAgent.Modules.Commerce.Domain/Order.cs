@@ -73,11 +73,11 @@ public sealed class Order : AggregateRoot
         };
     }
 
-    /// <summary>INT-018: an order that renews an issued license at the plan's current price.</summary>
-    public static Order PlaceRenewal(string number, Guid companyId, Guid placedBy, Guid grantId, string productName, string planName,
+    /// <summary>INT-018: an order that renews an issued license at the current price of <paramref name="planId"/>.</summary>
+    public static Order PlaceRenewal(string number, Guid companyId, Guid placedBy, Guid grantId, Guid planId, string productName, string planName,
         decimal total, string currency, DateTimeOffset at)
     {
-        var order = Place(number, companyId, placedBy, Guid.Empty, productName, planName, total, currency, at);
+        var order = Place(number, companyId, placedBy, planId, productName, planName, total, currency, at);
         order.Kind = OrderKind.Renewal;
         order.RenewsGrantId = grantId;
         return order;

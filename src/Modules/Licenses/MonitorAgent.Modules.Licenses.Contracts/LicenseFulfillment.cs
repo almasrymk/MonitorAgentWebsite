@@ -22,8 +22,11 @@ public interface ILicenseFulfillment
     Task<Result<FulfilledLicense>> FulfillAsync(Guid companyId, Guid planId, string orderReference, CancellationToken ct);
 }
 
-/// <summary>INT-018: what renewing one of the company's licenses costs now (the current price of its plan).</summary>
-public sealed record RenewalOffer(Guid GrantId, string ProductName, string PlanName, decimal Price, string Currency);
+/// <summary>
+/// INT-018: what renewing one of the company's licenses costs now: the current price of its plan, or of the plan a
+/// scheduled change moves it to (INT-017). <see cref="PlanId"/> is the plan the renewal is for.
+/// </summary>
+public sealed record RenewalOffer(Guid GrantId, Guid PlanId, string ProductName, string PlanName, decimal Price, string Currency);
 
 /// <summary>
 /// INT-018: paid renewal of the subscription behind a license the website issued. The product key and the activated
@@ -35,5 +38,7 @@ public interface ILicenseRenewals
     /// <param name="licenseId">The license id the portal shows (LicensingPlatform's).</param>
     Task<Result<RenewalOffer>> OfferAsync(Guid companyId, Guid licenseId, CancellationToken ct);
 
-    Task<Result<FulfilledLicense>> RenewAsync(Guid companyId, Guid grantId, string orderReference, CancellationToken ct);
+    /// <param name="planId">The plan the renewal was priced at. When it differs from the subscription's plan, the
+    /// subscription moves to it after the term is extended.</param>
+    Task<Result<FulfilledLicense>> RenewAsync(Guid companyId, Guid grantId, Guid planId, string orderReference, CancellationToken ct);
 }

@@ -18,5 +18,8 @@ public static class LicensesErrors
     /// <summary>INT-016: another request is issuing this order's license right now. Retry shortly.</summary>
     public static readonly Error IssueInProgress = Error.Unavailable("LICENSE_ISSUE_IN_PROGRESS", "This license is being issued right now. Try again shortly.");
     public static readonly Error NotRenewable = Error.Conflict("LICENSE_NOT_RENEWABLE", "This license can't be renewed. A revoked license needs a new order.");
+    /// <summary>INT-014: moving to a dearer plan in the middle of a term needs a paid upgrade order.</summary>
+    public static readonly Error UpgradeRequiresPayment = Error.Conflict("PLAN_UPGRADE_REQUIRES_PAYMENT", "Moving to a higher plan needs a paid upgrade. A cheaper plan can be scheduled for your next renewal.");
+    public static readonly Error SamePlan = Error.Conflict("SUBSCRIPTION_SAME_PLAN", "Subscription is already on this plan.");
     public static readonly Error OrderMismatch = Error.Conflict("ORDER_REFERENCE_REUSED", "This order reference was already used for a different company or plan.");
 }

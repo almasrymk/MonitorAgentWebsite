@@ -81,6 +81,10 @@ internal interface ILicenseStore
     /// <summary>Whether the company holds another issued license on the same plan that lasts longer: then it already renewed.</summary>
     Task<bool> RenewedAsync(LicenseGrant grant, CancellationToken ct);
     void Add(LicenseGrant grant);
+    Task<ScheduledPlanChange?> ScheduledChangeAsync(Guid subscriptionId, CancellationToken ct);
+    Task<IReadOnlyList<ScheduledPlanChange>> ScheduledChangesOfAsync(Guid companyId, CancellationToken ct);
+    void Add(ScheduledPlanChange change);
+    void Remove(ScheduledPlanChange change);
     /// <exception cref="GrantConflictException">Another request saved the same grant (or claimed it) first.</exception>
     Task SaveAsync(CancellationToken ct);
 }

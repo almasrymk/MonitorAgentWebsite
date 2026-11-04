@@ -87,6 +87,9 @@ public sealed class LicenseGrant : AggregateRoot
     public void ReminderSent(int days) => ExpiryReminderDays = days;
 
     /// <summary>INT-018: the subscription was renewed; the license now lasts until <paramref name="expiresAt"/>.</summary>
+    /// <summary>INT-017: a scheduled plan change was applied when this license's subscription was renewed.</summary>
+    public void MovedToPlan(Guid planId) => PlanId = planId;
+
     public void Renewed(DateTimeOffset? expiresAt)
     {
         if (Status != GrantStatus.Issued) throw new InvalidOperationException("Only an issued license can be renewed.");

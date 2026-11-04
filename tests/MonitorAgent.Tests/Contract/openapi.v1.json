@@ -415,6 +415,13 @@
           "planName": {
             "type": "string"
           },
+          "scheduledPlanId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "startDate": {
             "format": "date-time",
             "type": "string"
