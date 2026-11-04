@@ -27,7 +27,7 @@ internal sealed class FulfillLicenseValidator : AbstractValidator<FulfillLicense
 }
 
 internal sealed class FulfillLicenseHandler(
-    ILicensingPlatform platform, ILicenseStore store, IKeyProtector keys, CatalogCache catalog,
+    ILicensingPlatform platform, IMonitorCloud monitor, ILicenseStore store, IKeyProtector keys, CatalogCache catalog,
     ICompanyDirectory companies, IUserDirectory users, TimeProvider clock)
     : ICommandHandler<FulfillLicenseCommand, Result<FulfilledLicense>>
 {
@@ -35,10 +35,15 @@ internal sealed class FulfillLicenseHandler(
     {
         var grant = await store.GrantForOrderAsync(command.OrderReference, ct);
         if (grant is not null && !grant.IsFor(command.CompanyId, command.PlanId)) return LicensesErrors.OrderMismatch;
-        if (grant is { Status: GrantStatus.Issued }) return Fulfilled(grant);
 
         try
         {
+            if (grant is { Status: GrantStatus.Issued })
+            {
+                await EnsureMonitorTenantAsync(command.CompanyId, ct);
+                return Fulfilled(grant);
+            }
+
             if (grant is null)
             {
                 if (await companies.FindAsync(command.CompanyId, ct) is null) return LicensesErrors.CompanyNotFound;
@@ -58,13 +63,30 @@ internal sealed class FulfillLicenseHandler(
             var issued = await platform.IssueLicenseAsync(grant.PlatformSubscriptionId!.Value, ct);
             grant.Issued(issued.License.Id, issued.License.LicenseNumber, issued.License.ExpiresAt, keys.Protect(issued.ProductKey), clock.GetUtcNow());
             await store.SaveAsync(ct);
+            await EnsureMonitorTenantAsync(command.CompanyId, ct);
             return Fulfilled(grant);
+        }
+        catch (MonitorUnavailableException)
+        {
+            // The license steps that finished stay saved. The same order reference registers the tenant on the next try.
+            return LicensesErrors.MonitorUnavailable;
         }
         catch (PlatformUnavailableException)
         {
             // Whatever finished is saved on the grant; calling again with the same order reference continues from there.
             return LicensesErrors.PlatformUnavailable;
         }
+    }
+
+    /// <summary>One Monitor Cloud tenant per company, linked to the Licensing customer this order already created.</summary>
+    private async Task EnsureMonitorTenantAsync(Guid companyId, CancellationToken ct)
+    {
+        var customerId = await PlatformCustomerAsync(companyId, ct);
+        var link = await store.LinkForAsync(companyId, ct) ?? throw new InvalidOperationException("Customer link disappeared.");
+        if (link.MonitorTenantId is not null) return;
+        var company = await companies.FindAsync(companyId, ct) ?? throw new InvalidOperationException("Company disappeared.");
+        link.MonitorRegistered(await monitor.RegisterTenantAsync(customerId, company.Name, ct));
+        await store.SaveAsync(ct);
     }
 
     private async Task<Guid> PlatformCustomerAsync(Guid companyId, CancellationToken ct)
