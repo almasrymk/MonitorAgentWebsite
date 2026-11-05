@@ -11,11 +11,13 @@ import {
   LicenseSummary,
   Loader,
   LoadError,
+  Order,
   Skeleton,
   StatusBadge,
   TranslatePipe,
   WhenPipe,
 } from 'shared';
+import { pay } from './orders';
 
 interface CompanySubscription {
   id: string;
@@ -25,6 +27,8 @@ interface CompanySubscription {
   status: string;
   startDate: string;
   endDate: string | null;
+  /** A cheaper plan that takes effect at the next renewal (INT-018). */
+  scheduledPlanId?: string | null;
 }
 
 @Component({
@@ -49,6 +53,16 @@ interface CompanySubscription {
           <strong>{{ subscription.planName }}</strong>
           <ma-status [value]="subscription.status" />
         </p>
+        @if (subscription.scheduledPlanId) {
+          <p class="muted" data-testid="scheduled-change">
+            {{ 'licenses.scheduled' | t: { plan: planName(subscription.scheduledPlanId), date: (subscription.endDate | when) } }}
+          </p>
+          @if (canBill()) {
+            <button class="btn secondary" type="button" [disabled]="busy()" (click)="keepPlan(subscription)">
+              {{ 'licenses.keepPlan' | t: { plan: subscription.planName } }}
+            </button>
+          }
+        }
         @if (canBill()) {
           <label>
             {{ 'licenses.changePlan' | t }}
@@ -164,6 +178,18 @@ export class LicensesPage implements OnInit {
     });
   }
 
+  protected planName(planId: string): string {
+    return this.plans().find((plan) => plan.id === planId)?.name ?? planId;
+  }
+
+  /** Sending the current plan cancels a scheduled change. */
+  protected keepPlan(subscription: CompanySubscription): Promise<void> {
+    return this.act(async () => {
+      await this.api.post(`/api/v1/licenses/subscription/${subscription.id}/change-plan`, { planId: subscription.planId });
+      this.note.set(this.i18n.t('licenses.scheduleCancelled'));
+    });
+  }
+
   protected subscriptionAction(subscription: CompanySubscription, action: 'suspend' | 'resume' | 'cancel'): Promise<void> {
     if (action === 'cancel' && !confirm(this.i18n.t('licenses.cancelConfirm'))) return Promise.resolve();
     return this.act(async () => {
@@ -196,6 +222,9 @@ export class LicensesPage implements OnInit {
       <div class="page-head">
         <h1>{{ 'license.title' | t: { number: value.license.licenseNumber } }}</h1>
         <ma-status [value]="value.license.status" />
+        @if (canBill()) {
+          <button class="btn" type="button" [disabled]="busy()" (click)="renew()">{{ 'license.renew' | t }}</button>
+        }
       </div>
       <div class="stack">
         <section class="card">
@@ -310,9 +339,23 @@ export class LicensePage implements OnInit {
   protected readonly busy = signal(false);
   protected readonly message = signal('');
   protected readonly failed = signal(false);
+  protected readonly role = signal('');
+  protected readonly canBill = () => this.role() === 'Owner' || this.role() === 'Billing';
 
   ngOnInit(): void {
     void this.details.load();
+    void this.api
+      .get<Company>('/api/v1/company')
+      .then((company) => this.role.set(company.myRole ?? ''))
+      .catch(() => this.role.set(''));
+  }
+
+  /** INT-018: places a renewal order for this license (same key and devices) and goes to payment. */
+  protected renew(): Promise<void> {
+    return this.act(async () => {
+      const order = await this.api.post<Order>('/api/v1/orders/renewals', { licenseId: this.id() });
+      await pay(this.api, order.id);
+    });
   }
 
   protected regenerate(): Promise<void> {

@@ -101,7 +101,14 @@ const pageSize = 25;
                     }
                   </td>
                   <td>{{ order.productName }} · {{ order.planName }}</td>
-                  <td>{{ order.total | money: order.currency }}</td>
+                  <td>
+                    {{ order.total | money: order.currency }}
+                    @if (order.refundedAmount) {
+                      <span class="muted" data-testid="refunded">{{
+                        'orders.refundedAmount' | t: { amount: (order.refundedAmount | money: order.currency) }
+                      }}</span>
+                    }
+                  </td>
                   <td><ma-status [value]="order.status" prefix="order.status." /></td>
                   <td>{{ order.placedAt | when: true }}</td>
                   <td class="mono">{{ order.licenseNumber ?? '—' }}</td>
@@ -131,6 +138,34 @@ const pageSize = 25;
                         <button class="btn secondary" type="button" (click)="startRecording(order)">
                           {{ 'orders.recordPayment' | t }}
                         </button>
+                      }
+                    }
+                    @if (refundable(order)) {
+                      @if (refunding() === order.id) {
+                        <form class="stack" (ngSubmit)="refund(order)" [attr.aria-label]="'orders.refundTitle' | t: { number: order.number }">
+                          <p class="muted">{{ 'orders.refundHelp' | t }}</p>
+                          <label [for]="'refund-ref-' + order.id">{{ 'orders.reference' | t }}</label>
+                          <input [id]="'refund-ref-' + order.id" name="refundReference" required maxlength="100" [(ngModel)]="refundReference" />
+                          <label [for]="'refund-amount-' + order.id">{{ 'orders.refundAmount' | t }}</label>
+                          <input
+                            [id]="'refund-amount-' + order.id"
+                            name="refundAmount"
+                            type="number"
+                            required
+                            min="0.01"
+                            step="0.01"
+                            [max]="remaining(order)"
+                            [(ngModel)]="refundAmount"
+                          />
+                          <label [for]="'refund-reason-' + order.id">{{ 'orders.refundReason' | t }}</label>
+                          <input [id]="'refund-reason-' + order.id" name="refundReason" maxlength="200" [(ngModel)]="refundReason" />
+                          <div class="row">
+                            <button class="btn" type="submit" [disabled]="busy()">{{ 'orders.confirmRefund' | t }}</button>
+                            <button class="btn secondary" type="button" (click)="refunding.set(null)">{{ 'common.cancel' | t }}</button>
+                          </div>
+                        </form>
+                      } @else {
+                        <button class="btn secondary" type="button" (click)="startRefund(order)">{{ 'orders.recordRefund' | t }}</button>
                       }
                     }
                   </td>
@@ -175,6 +210,10 @@ export class OrdersPage {
   protected readonly message = signal('');
   protected readonly failed = signal(false);
   protected reference = '';
+  protected readonly refunding = signal<string | null>(null);
+  protected refundReference = '';
+  protected refundAmount: number | null = null;
+  protected refundReason = '';
 
   protected readonly page = () => Math.max(1, Number(this.pageParam() ?? 1) || 1);
 
@@ -208,7 +247,47 @@ export class OrdersPage {
   protected startRecording(order: Order): void {
     this.reference = '';
     this.message.set('');
+    this.refunding.set(null);
     this.recording.set(order.id);
+  }
+
+  protected refundable(order: Order): boolean {
+    return (order.status === 'Paid' || order.status === 'Fulfilled') && this.remaining(order) > 0;
+  }
+
+  protected remaining(order: Order): number {
+    return Math.round((order.total - (order.refundedAmount ?? 0)) * 100) / 100;
+  }
+
+  protected startRefund(order: Order): void {
+    this.refundReference = '';
+    this.refundAmount = this.remaining(order);
+    this.refundReason = '';
+    this.message.set('');
+    this.recording.set(null);
+    this.refunding.set(order.id);
+  }
+
+  /** INT-019: records money returned outside the website. The license is not changed. */
+  protected async refund(order: Order): Promise<void> {
+    if (!confirm(this.i18n.t('orders.refundConfirm', { number: order.number }))) return;
+    this.busy.set(true);
+    this.failed.set(false);
+    try {
+      await this.api.post<Order>(`/api/v1/admin/orders/${order.id}/refund`, {
+        reference: this.refundReference.trim(),
+        amount: Number(this.refundAmount),
+        reason: this.refundReason.trim() || null,
+      });
+      this.refunding.set(null);
+      this.message.set(this.i18n.t('orders.refunded', { number: order.number }));
+      await this.orders.load(true);
+    } catch (error) {
+      this.failed.set(true);
+      this.message.set(errorText(this.i18n, error));
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   /** For bank transfers and other payments received outside the website. Issues the invoice and license like a card payment. */

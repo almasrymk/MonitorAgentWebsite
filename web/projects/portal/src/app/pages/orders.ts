@@ -25,7 +25,8 @@ import {
 } from 'shared';
 
 /** Sends the browser to the provider's hosted payment page for this order. */
-async function pay(api: Api, orderId: string): Promise<void> {
+/** Sends the customer to the payment provider for an order that is waiting for payment. */
+export async function pay(api: Api, orderId: string): Promise<void> {
   const providers = await api.get<string[]>('/api/v1/payments/providers');
   const checkout = await api.post<{ redirectUrl: string }>(`/api/v1/orders/${orderId}/pay`, {
     provider: providers[0],

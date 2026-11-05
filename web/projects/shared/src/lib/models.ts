@@ -125,6 +125,8 @@ export interface Order {
   /** Filled in staff lists only. */
   companyId?: string | null;
   companyName?: string | null;
+  /** Money already returned to the customer (INT-019). */
+  refundedAmount?: number;
 }
 
 export interface Invoice {
