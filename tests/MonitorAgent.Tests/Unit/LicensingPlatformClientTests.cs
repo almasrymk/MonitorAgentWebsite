@@ -13,16 +13,21 @@ public class LicensingPlatformClientTests
     {
         public List<(string Method, string Path, string? Bearer)> Calls { get; } = [];
         public int Logins { get; private set; }
+        public int ClientLogins { get; private set; }
+        public string? LastLoginBody { get; private set; }
         public Func<HttpRequestMessage, HttpResponseMessage?>? Override { get; set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             Calls.Add((request.Method.Method, request.RequestUri!.PathAndQuery, request.Headers.Authorization?.Parameter));
+            if (request.RequestUri.AbsolutePath.StartsWith("/api/v1/auth/", StringComparison.Ordinal))
+                LastLoginBody = request.Content!.ReadAsStringAsync(ct).GetAwaiter().GetResult();
             if (Override?.Invoke(request) is { } custom) return Task.FromResult(custom);
             var path = request.RequestUri!.AbsolutePath;
             return Task.FromResult(path switch
             {
                 "/api/v1/auth/login" => Json($$"""{"accessToken":"token-{{++Logins}}","expiresAt":"2999-01-01T00:00:00Z","refreshToken":"r","user":null}"""),
+                "/api/v1/auth/client-token" => Json($$"""{"accessToken":"client-token-{{++ClientLogins}}","tokenType":"Bearer","expiresIn":3600,"scope":"catalog.read"}"""),
                 "/api/v1/plans" => Json("""
                     {"items":[
                       {"id":"11111111-1111-1111-1111-111111111111","productCode":"UBG","productName":"UBG Monitor","code":"STD","name":"Standard","version":2,"status":"Published","price":1200.0,"currency":"EGP","durationDays":365,"maxActivations":3,"features":["alerts"],"kind":"Paid","isCurrent":false},
@@ -48,10 +53,12 @@ public class LicensingPlatformClientTests
             new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
     }
 
-    private static (ILicensingPlatform Client, ScriptedPlatform Platform) Create()
+    private static (ILicensingPlatform Client, ScriptedPlatform Platform) Create(bool apiClient = false)
     {
         var platform = new ScriptedPlatform();
-        var options = new LicensingPlatformOptions { BaseUrl = "https://licensing.test", ServiceEmail = "site@example.test", ServicePassword = "secret" };
+        var options = apiClient
+            ? new LicensingPlatformOptions { BaseUrl = "https://licensing.test", ClientId = "lc_test_website", ClientSecret = "TEST-ONLY-client-secret" }
+            : new LicensingPlatformOptions { BaseUrl = "https://licensing.test", ServiceEmail = "site@example.test", ServicePassword = "secret" };
         var services = new ServiceCollection();
         services.AddSingleton(options);
         services.AddSingleton(TimeProvider.System);
@@ -97,6 +104,20 @@ public class LicensingPlatformClientTests
 
         Assert.Equal(1, platform.Logins);
         Assert.All(platform.Calls.Where(c => !c.Path.EndsWith("/login", StringComparison.Ordinal)), c => Assert.Equal("token-1", c.Bearer));
+    }
+
+    [Fact]
+    public async Task With_an_API_client_it_never_signs_in_as_a_user()
+    {
+        // E7: the scoped API client replaces the service user's password.
+        var (client, platform) = Create(apiClient: true);
+        await client.PublishedPaidPlansAsync(default);
+        await client.LicenseAsync(Guid.Parse("44444444-4444-4444-4444-444444444444"), default);
+
+        Assert.Equal(1, platform.ClientLogins);
+        Assert.Equal(0, platform.Logins);
+        Assert.Contains("\"clientId\":\"lc_test_website\"", platform.LastLoginBody, StringComparison.Ordinal);
+        Assert.All(platform.Calls.Where(c => !c.Path.StartsWith("/api/v1/auth/", StringComparison.Ordinal)), c => Assert.Equal("client-token-1", c.Bearer));
     }
 
     [Fact]

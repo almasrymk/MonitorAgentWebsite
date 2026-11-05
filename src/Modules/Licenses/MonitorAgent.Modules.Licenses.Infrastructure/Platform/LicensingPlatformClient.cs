@@ -13,11 +13,22 @@ public sealed class LicensingPlatformOptions
     public string BaseUrl { get; set; } = "";
 
     /// <summary>
-    /// A dedicated LicensingPlatform user for the website (ADR-007). Its role needs catalog.read, customers.manage,
-    /// subscriptions.manage and licenses.read/manage. The password comes from a secret store, never the repo.
+    /// E7: the website's LicensingPlatform API client (preferred). Scopes: catalog.read, customers.manage,
+    /// subscriptions.read, subscriptions.manage, licenses.read, licenses.manage. It cannot sign in to the portal or
+    /// administer users, clients or keys; its secret can be rotated or the client disabled without touching a person.
+    /// From a secret store, never the repo.
+    /// </summary>
+    public string ClientId { get; set; } = "";
+    public string ClientSecret { get; set; } = "";
+
+    /// <summary>
+    /// Deprecated (ADR-007): a LicensingPlatform portal user and password. Used only while <see cref="ClientId"/> is
+    /// empty; remove both after switching, then disable that user in LicensingPlatform.
     /// </summary>
     public string ServiceEmail { get; set; } = "";
     public string ServicePassword { get; set; } = "";
+
+    public bool UsesClient => !string.IsNullOrWhiteSpace(ClientId);
 
     public int TimeoutSeconds { get; set; } = 15;
 }
@@ -290,16 +301,23 @@ internal sealed class LicensingPlatformAuthHandler(LicensingPlatformOptions opti
             // Handlers see absolute URIs only; the login call resolves against the same base as the API calls.
             var baseUri = new Uri(string.IsNullOrWhiteSpace(options.BaseUrl)
                 ? requestUri.GetLeftPart(UriPartial.Authority) + "/" : options.BaseUrl.TrimEnd('/') + "/");
-            using var login = new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "api/v1/auth/login"))
-            {
-                Content = JsonContent.Create(new { email = options.ServiceEmail, password = options.ServicePassword }),
-            };
+            // E7: the scoped API client when configured; the deprecated portal user otherwise.
+            using var login = options.UsesClient
+                ? new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "api/v1/auth/client-token"))
+                {
+                    Content = JsonContent.Create(new { clientId = options.ClientId, clientSecret = options.ClientSecret }),
+                }
+                : new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "api/v1/auth/login"))
+                {
+                    Content = JsonContent.Create(new { email = options.ServiceEmail, password = options.ServicePassword }),
+                };
             using var response = await base.SendAsync(login, ct);
             if (!response.IsSuccessStatusCode)
-                throw new PlatformUnavailableException($"LicensingPlatform rejected the website's service account ({(int)response.StatusCode}).");
+                throw new PlatformUnavailableException($"LicensingPlatform rejected the website's {(options.UsesClient ? "API client" : "service account")} ({(int)response.StatusCode}).");
             var auth = await response.Content.ReadFromJsonAsync<AuthBody>(JsonSerializerOptions.Web, ct)
                 ?? throw new PlatformUnavailableException("LicensingPlatform sent an empty sign-in response.");
-            (tokens.Token, tokens.ExpiresAt) = (auth.AccessToken, auth.ExpiresAt);
+            var expiresAt = auth.ExpiresAt ?? clock.GetUtcNow().AddSeconds(auth.ExpiresIn is > 0 ? auth.ExpiresIn.Value : 600);
+            (tokens.Token, tokens.ExpiresAt) = (auth.AccessToken, expiresAt);
             return auth.AccessToken;
         }
         finally
@@ -308,5 +326,6 @@ internal sealed class LicensingPlatformAuthHandler(LicensingPlatformOptions opti
         }
     }
 
-    private sealed record AuthBody(string AccessToken, DateTimeOffset ExpiresAt);
+    /// <summary>A user sign-in answers expiresAt; a client token answers expiresIn (seconds).</summary>
+    private sealed record AuthBody(string AccessToken, DateTimeOffset? ExpiresAt, int? ExpiresIn);
 }

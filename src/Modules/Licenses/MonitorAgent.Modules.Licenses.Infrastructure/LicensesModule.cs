@@ -26,7 +26,7 @@ public static class LicensesModule
     {
         var options = configuration.GetSection("Licenses").Get<LicensesModuleOptions>() ?? new LicensesModuleOptions();
         if (!environment.IsDevelopment() && !Uri.TryCreate(options.Platform.BaseUrl, UriKind.Absolute, out _))
-            throw new InvalidOperationException("Set Licenses:Platform:BaseUrl, ServiceEmail and ServicePassword.");
+            throw new InvalidOperationException("Set Licenses:Platform:BaseUrl, ClientId and ClientSecret.");
         if (!environment.IsDevelopment() && !Uri.TryCreate(options.Monitor.BaseUrl, UriKind.Absolute, out _))
             throw new InvalidOperationException("Set Licenses:Monitor:BaseUrl, ServiceEmail and ServicePassword.");
         services.AddSingleton(options);
