@@ -25,7 +25,14 @@ import {
   WhenPipe,
 } from 'shared';
 
-const statuses: OrderStatus[] = ['PendingPayment', 'Paid', 'Fulfilled', 'Cancelled', 'Refunded'];
+const statuses: OrderStatus[] = [
+  'PendingVerification',
+  'PendingPayment',
+  'Paid',
+  'Fulfilled',
+  'Cancelled',
+  'Refunded',
+];
 const pageSize = 25;
 
 @Component({
@@ -113,6 +120,29 @@ const pageSize = 25;
                   <td>{{ order.placedAt | when: true }}</td>
                   <td class="mono">{{ order.licenseNumber ?? '—' }}</td>
                   <td>
+                    @if (order.status === 'PendingVerification' && submitted(order); as transfer) {
+                      <div class="stack" data-testid="transfer">
+                        <span class="mono">{{ 'orders.transfer' | t: { reference: transfer.reference ?? '' } }}</span>
+                        @if (transfer.note) {
+                          <span class="muted">{{ transfer.note }}</span>
+                        }
+                        @if (rejecting() === order.id) {
+                          <form class="stack" (ngSubmit)="reject(order)">
+                            <label [for]="'reject-' + order.id">{{ 'orders.rejectReason' | t }}</label>
+                            <input [id]="'reject-' + order.id" name="rejectReason" required maxlength="200" [(ngModel)]="rejectReason" />
+                            <div class="row">
+                              <button class="btn" type="submit" [disabled]="busy() || !rejectReason.trim()">{{ 'orders.confirmReject' | t }}</button>
+                              <button class="btn secondary" type="button" (click)="rejecting.set(null)">{{ 'common.cancel' | t }}</button>
+                            </div>
+                          </form>
+                        } @else {
+                          <div class="row">
+                            <button class="btn" type="button" (click)="approve(order)" [disabled]="busy()">{{ 'orders.approveTransfer' | t }}</button>
+                            <button class="btn secondary" type="button" (click)="startReject(order)" [disabled]="busy()">{{ 'orders.rejectTransfer' | t }}</button>
+                          </div>
+                        }
+                      </div>
+                    }
                     @if (order.status === 'PendingPayment') {
                       @if (recording() === order.id) {
                         <form class="row" (ngSubmit)="record(order)">
@@ -214,6 +244,8 @@ export class OrdersPage {
   protected refundReference = '';
   protected refundAmount: number | null = null;
   protected refundReason = '';
+  protected readonly rejecting = signal<string | null>(null);
+  protected rejectReason = '';
 
   protected readonly page = () => Math.max(1, Number(this.pageParam() ?? 1) || 1);
 
@@ -249,6 +281,50 @@ export class OrdersPage {
     this.message.set('');
     this.refunding.set(null);
     this.recording.set(order.id);
+  }
+
+  /** E5: the bank transfer the customer reported and staff have not checked yet. */
+  protected submitted(order: Order) {
+    return order.payments.find((p) => p.provider === 'bank-transfer' && p.status === 'Pending') ?? null;
+  }
+
+  protected startReject(order: Order): void {
+    this.rejectReason = '';
+    this.message.set('');
+    this.rejecting.set(order.id);
+  }
+
+  /** E5: only once the money is on the statement. Pays the order and issues (or renews) the license. */
+  protected async approve(order: Order): Promise<void> {
+    if (!confirm(this.i18n.t('orders.approveConfirm', { number: order.number }))) return;
+    await this.run(async () => {
+      await this.api.post<Order>(`/api/v1/admin/orders/${order.id}/bank-transfer/approve`, {});
+      this.message.set(this.i18n.t('orders.approved', { number: order.number }));
+    });
+  }
+
+  protected async reject(order: Order): Promise<void> {
+    await this.run(async () => {
+      await this.api.post<Order>(`/api/v1/admin/orders/${order.id}/bank-transfer/reject`, {
+        reason: this.rejectReason.trim(),
+      });
+      this.rejecting.set(null);
+      this.message.set(this.i18n.t('orders.rejected', { number: order.number }));
+    });
+  }
+
+  private async run(action: () => Promise<void>): Promise<void> {
+    this.busy.set(true);
+    this.failed.set(false);
+    try {
+      await action();
+      await this.orders.load(true);
+    } catch (error) {
+      this.failed.set(true);
+      this.message.set(errorText(this.i18n, error));
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   protected refundable(order: Order): boolean {

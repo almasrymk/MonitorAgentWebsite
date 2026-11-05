@@ -36,6 +36,7 @@ public class ApiFactory : WebApplicationFactory<Program>
     private readonly string _dbFolder = Directory.CreateTempSubdirectory("monitoragent-tests-").FullName;
 
     public const string SandboxSecret = "sandbox-secret-for-tests";
+    public const string BankAccountHolder = "Example Trading (test)";
 
     /// <summary>Stands in for the publisher's offline signing key (UBGMonitor tools/UpdateSigner).</summary>
     public static System.Security.Cryptography.ECDsa ReleaseKey { get; } = System.Security.Cryptography.ECDsa.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
@@ -68,6 +69,10 @@ public class ApiFactory : WebApplicationFactory<Program>
         ["Commerce:DatabaseInitialization"] = Initialization,
         ["Commerce:FulfillmentRetrySeconds"] = "0",
         ["Commerce:Sandbox:WebhookSecret"] = SandboxSecret,
+        // E5: sample bank details only (no real account), the way production gets them from environment variables.
+        ["Commerce:BankTransfer:AccountHolder"] = BankAccountHolder,
+        ["Commerce:BankTransfer:BankName"] = "Example Bank (test)",
+        ["Commerce:BankTransfer:Iban"] = "XX00TEST0000000000000000",
         ["Releases:DatabaseInitialization"] = Initialization,
         ["Support:DatabaseInitialization"] = Initialization,
         ["Content:DatabaseInitialization"] = Initialization,

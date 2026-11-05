@@ -74,7 +74,7 @@ export class StatusBadge {
     )
       return 'ok';
     if (
-      ['PendingPayment', 'Pending', 'Suspended', 'Open', 'New', 'Draft', 'InReview'].includes(value)
+      ['PendingPayment', 'PendingVerification', 'Pending', 'Suspended', 'Open', 'New', 'Draft', 'InReview'].includes(value)
     )
       return 'warn';
     if (['Expired', 'Revoked', 'Cancelled', 'Failed'].includes(value)) return 'bad';

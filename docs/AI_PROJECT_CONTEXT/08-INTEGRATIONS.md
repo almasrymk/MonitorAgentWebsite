@@ -36,6 +36,13 @@ No shared database. Contract tests in this repo are the OpenAPI snapshot of **th
 
 Paymob and Stripe are named in ADR-008 and the launch checklist. There is no class for them.
 
+**Bank transfer (E5, not a gateway):** the buyer sees the account from `Commerce:BankTransfer` (environment variables
+only, empty in the repository) and the order number as the transfer reference, then reports the reference on their
+receipt (`POST /api/v1/orders/{id}/bank-transfer`). The order moves to `PendingVerification`; nothing is invoiced or
+issued until finance approves (`POST /api/v1/admin/orders/{id}/bank-transfer/approve`) or rejects it (`.../reject`,
+back to `PendingPayment`). Purchases and renewals use the same flow. A reference pays one order only, across bank
+transfers and staff manual payments. Uploading a receipt image is not implemented: the buyer adds a free-text note.
+
 ## Email
 
 `IEmailSender` → `SmtpEmailSender` (`System.Net.Mail.SmtpClient`). Configuration `Email:Provider=Smtp`, `Email:Smtp:Host`, `Port`, `EnableSsl`, `UserName`, `Password`, `From`. Missing provider throws at startup. Development compose points SMTP at Mailpit (`localhost:1025`, UI port 8025).

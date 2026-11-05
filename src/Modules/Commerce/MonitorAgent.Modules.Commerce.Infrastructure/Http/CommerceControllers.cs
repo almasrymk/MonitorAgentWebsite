@@ -15,6 +15,8 @@ public sealed record PlaceRenewalRequest(Guid LicenseId);
 public sealed record RefundRequest(string Reference, decimal Amount, string? Reason);
 public sealed record PayRequest(string Provider);
 public sealed record ManualPaymentRequest(string Reference);
+public sealed record BankTransferRequest(string Reference, string? Note);
+public sealed record RejectTransferRequest(string Reason);
 
 /// <summary>The signed-in company's orders and invoices. Owners and billing members only.</summary>
 [ApiController]
@@ -46,6 +48,18 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType<CheckoutDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Pay(Guid orderId, PayRequest request, CancellationToken ct) =>
         (await dispatcher.SendAsync(new PayOrderCommand(orderId, request.Provider), ct)).ToActionResult();
+
+    /// <summary>E5: the bank account and the reference (the order number) to write on the transfer.</summary>
+    [HttpGet("orders/{orderId:guid}/bank-transfer")]
+    [ProducesResponseType<BankTransferInstructionsDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> BankTransfer(Guid orderId, CancellationToken ct) =>
+        (await dispatcher.QueryAsync(new GetBankTransferInstructionsQuery(orderId), ct)).ToActionResult();
+
+    /// <summary>E5: reports a transfer. The order waits for staff to check it; the license is issued only after approval.</summary>
+    [HttpPost("orders/{orderId:guid}/bank-transfer")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> SubmitBankTransfer(Guid orderId, BankTransferRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new SubmitBankTransferCommand(orderId, request.Reference, request.Note), ct)).ToActionResult();
 
     [HttpPost("orders/{orderId:guid}/cancel")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -110,6 +124,18 @@ public sealed class AdminOrdersController(IDispatcher dispatcher) : ControllerBa
     [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> ManualPayment(Guid orderId, ManualPaymentRequest request, CancellationToken ct) =>
         (await dispatcher.SendAsync(new RecordManualPaymentCommand(orderId, request.Reference), ct)).ToActionResult();
+
+    /// <summary>E5: the reported bank transfer is on the statement. Pays the order and issues or renews the license.</summary>
+    [HttpPost("{orderId:guid}/bank-transfer/approve")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ApproveTransfer(Guid orderId, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new ApproveBankTransferCommand(orderId), ct)).ToActionResult();
+
+    /// <summary>E5: the reported bank transfer was not found. The order waits for payment again.</summary>
+    [HttpPost("{orderId:guid}/bank-transfer/reject")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> RejectTransfer(Guid orderId, RejectTransferRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new RejectBankTransferCommand(orderId, request.Reason), ct)).ToActionResult();
 
     /// <summary>INT-019: records money given back outside the website. The license is not suspended automatically.</summary>
     [HttpPost("{orderId:guid}/refund")]

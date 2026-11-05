@@ -226,6 +226,10 @@ namespace MonitorAgent.Modules.Commerce.Infrastructure.Persistence.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
 
+                    b.Property<string>("CustomerNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("FailureReason")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -243,6 +247,7 @@ namespace MonitorAgent.Modules.Commerce.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Status")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");

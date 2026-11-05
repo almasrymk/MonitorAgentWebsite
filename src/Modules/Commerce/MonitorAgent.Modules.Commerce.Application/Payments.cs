@@ -253,7 +253,7 @@ internal sealed class RecordManualPaymentHandler(ICommerceStore store, AfterPaym
         for (var attempt = 1; ; attempt++)
         {
             if (await store.OrderAsync(command.OrderId, ct) is not { } order) return CommerceErrors.OrderNotFound;
-            if (order.Status == OrderStatus.PendingPayment && await store.OrderForPaymentAsync("manual", command.Reference.Trim(), ct) is { } other && other.Id != order.Id)
+            if (order.Status == OrderStatus.PendingPayment && await BankTransfers.ReferenceUsedElsewhereAsync(store, order, command.Reference.Trim(), ct))
                 return CommerceErrors.PaymentReferenceUsed;
             var recorded = order.RecordManualPayment(command.Reference, clock.GetUtcNow());
             if (recorded.IsFailure) return recorded.Error!;

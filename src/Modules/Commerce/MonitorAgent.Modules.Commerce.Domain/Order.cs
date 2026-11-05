@@ -2,8 +2,11 @@ using MonitorAgent.SharedKernel;
 
 namespace MonitorAgent.Modules.Commerce.Domain;
 
-/// <summary>Refunded (INT-019): the whole amount went back to the buyer. A partial refund leaves the status as it was.</summary>
-public enum OrderStatus { PendingPayment, Paid, Fulfilled, Cancelled, Refunded }
+/// <summary>
+/// Refunded (INT-019): the whole amount went back to the buyer. A partial refund leaves the status as it was.
+/// PendingVerification (E5): the buyer says they paid by bank transfer; nothing is issued until staff approve it.
+/// </summary>
+public enum OrderStatus { PendingPayment, Paid, Fulfilled, Cancelled, Refunded, PendingVerification }
 /// <summary>Purchase starts a new subscription and license; Renewal (INT-018) extends the subscription of an issued license.</summary>
 public enum OrderKind { Purchase, Renewal }
 public enum PaymentStatus { Pending, Succeeded, Failed }
@@ -30,6 +33,8 @@ public sealed class Payment : Entity
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; internal set; }
     public string? FailureReason { get; internal set; }
+    /// <summary>E5: what the buyer wrote when submitting a bank transfer (sender, bank, date). Never shown to other companies.</summary>
+    public string? CustomerNote { get; internal set; }
 }
 
 public sealed record OrderPaid(Guid OrderId, string OrderNumber, Guid CompanyId, decimal Amount, string Currency) : DomainEvent;
@@ -117,6 +122,14 @@ public sealed class Order : AggregateRoot
         }
 
         payment.Status = PaymentStatus.Succeeded;
+        if (Status == OrderStatus.PendingVerification && SubmittedTransfer is { } transfer)
+        {
+            // E5: a card payment that was already under way completed first; the reported transfer is not needed.
+            transfer.Status = PaymentStatus.Failed;
+            transfer.FailureReason = "Paid online instead.";
+            transfer.CompletedAt = at;
+            Status = OrderStatus.PendingPayment;
+        }
         if (Status != OrderStatus.PendingPayment) return false;
         MarkPaid(payment.Provider, at);
         return true;
@@ -143,6 +156,71 @@ public sealed class Order : AggregateRoot
         };
         _payments.Add(payment);
         MarkPaid("manual", at);
+        return Result.Success();
+    }
+
+    /// <summary>E5: the provider name of a bank transfer the buyer reports and staff verify.</summary>
+    public const string BankTransfer = "bank-transfer";
+
+    /// <summary>The pending bank transfer the buyer submitted, if the order is waiting for staff.</summary>
+    public Payment? SubmittedTransfer =>
+        _payments.LastOrDefault(p => p.Provider == BankTransfer && p.Status == PaymentStatus.Pending);
+
+    /// <summary>
+    /// E5: the buyer reports a bank transfer with the reference printed on their bank's receipt. The order waits for
+    /// staff (PendingVerification); nothing is paid or issued yet. Submitting the same reference again is a no-op, and
+    /// a reference staff rejected before can be submitted again once corrected at the bank.
+    /// </summary>
+    public Result SubmitBankTransfer(string reference, string? note, DateTimeOffset at)
+    {
+        reference = Guard.NotEmpty(reference, "Payment reference", 100);
+        note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (note is { Length: > 500 }) throw new DomainException(Error.Validation("NOTE_TOO_LONG", "The note can be at most 500 characters."));
+        if (Status == OrderStatus.PendingVerification)
+            return SubmittedTransfer?.ProviderReference == reference ? Result.Success() : CommerceErrors.TransferAlreadySubmitted;
+        if (Status != OrderStatus.PendingPayment) return CommerceErrors.NotPayable;
+
+        var payment = _payments.SingleOrDefault(p => p.Provider == BankTransfer && p.ProviderReference == reference);
+        if (payment is null)
+        {
+            payment = new Payment(BankTransfer, Total, Currency, at) { ProviderReference = reference };
+            _payments.Add(payment);
+        }
+        else
+        {
+            // Rejected before: the same transfer is looked at again.
+            payment.Status = PaymentStatus.Pending;
+            payment.FailureReason = null;
+            payment.CompletedAt = null;
+        }
+        payment.CustomerNote = note;
+        Status = OrderStatus.PendingVerification;
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// E5: staff saw the money on the bank statement. Only now is the order paid (and then fulfilled by the caller).
+    /// Returns false when this transfer was already approved, so a double click never pays twice.
+    /// </summary>
+    public Result<bool> ApproveBankTransfer(DateTimeOffset at)
+    {
+        if (Status is OrderStatus.Paid or OrderStatus.Fulfilled && PaidVia == BankTransfer) return false;
+        if (Status != OrderStatus.PendingVerification || SubmittedTransfer is not { } payment) return CommerceErrors.NothingToVerify;
+        payment.Status = PaymentStatus.Succeeded;
+        payment.CompletedAt = at;
+        MarkPaid(BankTransfer, at);
+        return true;
+    }
+
+    /// <summary>E5: staff could not find the transfer. The order can be paid again, by any method.</summary>
+    public Result RejectBankTransfer(string reason, DateTimeOffset at)
+    {
+        if (Status != OrderStatus.PendingVerification || SubmittedTransfer is not { } payment) return CommerceErrors.NothingToVerify;
+        reason = Guard.NotEmpty(reason, "Reason", 200);
+        payment.Status = PaymentStatus.Failed;
+        payment.FailureReason = reason;
+        payment.CompletedAt = at;
+        Status = OrderStatus.PendingPayment;
         return Result.Success();
     }
 

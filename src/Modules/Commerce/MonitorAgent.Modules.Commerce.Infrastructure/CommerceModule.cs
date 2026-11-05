@@ -19,6 +19,9 @@ public sealed class CommerceModuleOptions
     public int FulfillmentRetrySeconds { get; set; } = 60;
 
     public SandboxGatewayOptions Sandbox { get; set; } = new();
+
+    /// <summary>E5: the bank account buyers transfer to. Empty in the repository; set through environment variables.</summary>
+    public BankTransferOptions BankTransfer { get; set; } = new();
 }
 
 public static class CommerceModule
@@ -27,6 +30,7 @@ public static class CommerceModule
     {
         var options = configuration.GetSection("Commerce").Get<CommerceModuleOptions>() ?? new CommerceModuleOptions();
         services.AddSingleton(options);
+        services.AddSingleton(options.BankTransfer);
 
         services.AddDbContext<CommerceDb>(db => db.UseSqlServer(configuration.GetConnectionString("Default"),
             sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", CommerceDb.Schema)));

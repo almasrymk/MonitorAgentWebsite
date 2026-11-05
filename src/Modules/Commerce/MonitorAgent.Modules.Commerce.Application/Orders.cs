@@ -9,7 +9,9 @@ using MonitorAgent.SharedKernel;
 
 namespace MonitorAgent.Modules.Commerce.Application;
 
-public sealed record PaymentDto(Guid Id, string Provider, decimal Amount, string Currency, PaymentStatus Status, DateTimeOffset CreatedAt, string? FailureReason);
+/// <summary><paramref name="Reference"/> and <paramref name="Note"/> are shown for bank transfers and manual payments only.</summary>
+public sealed record PaymentDto(Guid Id, string Provider, decimal Amount, string Currency, PaymentStatus Status, DateTimeOffset CreatedAt, string? FailureReason,
+    string? Reference = null, string? Note = null);
 public sealed record OrderDto(Guid Id, string Number, string ProductName, string PlanName, decimal Total, string Currency, OrderStatus Status,
     DateTimeOffset PlacedAt, DateTimeOffset? PaidAt, string? LicenseNumber, IReadOnlyList<PaymentDto> Payments, Guid? CompanyId = null,
     string? CompanyName = null, OrderKind Kind = OrderKind.Purchase, Guid? RenewsGrantId = null, decimal RefundedAmount = 0);
@@ -42,7 +44,8 @@ internal sealed class PayOrderValidator : AbstractValidator<PayOrderCommand>
 internal static class OrderMapping
 {
     public static OrderDto ToDto(this Order o) => new(o.Id, o.Number, o.ProductName, o.PlanName, o.Total, o.Currency, o.Status, o.PlacedAt, o.PaidAt,
-        o.LicenseNumber, o.Payments.OrderBy(p => p.CreatedAt).Select(p => new PaymentDto(p.Id, p.Provider, p.Amount, p.Currency, p.Status, p.CreatedAt, p.FailureReason)).ToList(),
+        o.LicenseNumber, o.Payments.OrderBy(p => p.CreatedAt).Select(p => new PaymentDto(p.Id, p.Provider, p.Amount, p.Currency, p.Status, p.CreatedAt, p.FailureReason,
+            p.Provider is "manual" or Order.BankTransfer ? p.ProviderReference : null, p.CustomerNote)).ToList(),
         Kind: o.Kind, RenewsGrantId: o.RenewsGrantId, RefundedAmount: o.RefundedAmount);
 
     public static InvoiceDto ToDto(this Invoice i) => new(i.Id, i.Number, i.OrderId, i.CompanyName, i.Description, i.Amount, i.Currency, i.IssuedAt);

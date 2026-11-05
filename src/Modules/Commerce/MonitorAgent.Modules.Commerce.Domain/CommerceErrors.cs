@@ -15,6 +15,12 @@ public static class CommerceErrors
     public static readonly Error RefundTooLarge = Error.Validation("REFUND_TOO_LARGE", "A refund must be more than zero and at most what is left of the amount paid.");
     public static readonly Error RefundReferenceUsed = Error.Conflict("REFUND_REFERENCE_USED", "This refund reference was already recorded for another order or amount.");
     public static readonly Error NotCancellable = Error.Conflict("ORDER_NOT_CANCELLABLE", "Only unpaid orders can be cancelled.");
+    /// <summary>E5: the order already waits for staff to check another transfer reference.</summary>
+    public static readonly Error TransferAlreadySubmitted = Error.Conflict("PAYMENT_ALREADY_SUBMITTED", "A bank transfer for this order is already waiting to be checked.");
+    /// <summary>E5: approve or reject was asked for an order with no bank transfer waiting.</summary>
+    public static readonly Error NothingToVerify = Error.Conflict("NO_PAYMENT_TO_VERIFY", "This order has no bank transfer waiting to be checked.");
+    /// <summary>E5: bank details are not configured, so the website does not offer bank transfer.</summary>
+    public static readonly Error BankTransferUnavailable = Error.Unavailable("BANK_TRANSFER_UNAVAILABLE", "Bank transfer isn't available right now. Choose another way to pay or contact us.");
     public static readonly Error InvalidSignature = Error.Unauthorized("INVALID_SIGNATURE", "The payment notification could not be verified.");
     public static readonly Error UnknownProvider = Error.NotFound("UNKNOWN_PAYMENT_PROVIDER", "No such payment provider.");
     public static readonly Error PaymentUnavailable = Error.Unavailable("PAYMENT_UNAVAILABLE", "The payment service can't be reached right now. Try again shortly.");

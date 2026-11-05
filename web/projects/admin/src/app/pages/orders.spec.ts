@@ -84,3 +84,54 @@ describe('OrdersPage refunds', () => {
     expect(api.post).not.toHaveBeenCalled();
   });
 });
+
+describe('OrdersPage bank transfers (E5)', () => {
+  const waiting: Order = {
+    ...base, id: 'o5', number: 'ORD-5', status: 'PendingVerification', paidAt: null, licenseNumber: null, refundedAmount: 0,
+    payments: [{ id: 'p1', provider: 'bank-transfer', amount: 100, currency: 'USD', status: 'Pending', createdAt: base.placedAt,
+      failureReason: null, reference: 'TRF-123', note: 'Sent Monday' }],
+  };
+  type TransferPage = Page & { rejectReason: string; startReject(o: Order): void; approve(o: Order): Promise<void>; reject(o: Order): Promise<void> };
+
+  it('shows the reported reference with approve and reject, and nothing for other orders', async () => {
+    const { host } = await create([waiting, base]);
+    const transfer = host.querySelector('[data-testid="transfer"]');
+    expect(transfer?.textContent).toContain('TRF-123');
+    expect(transfer?.textContent).toContain('Sent Monday');
+    expect(buttons(host, 'Approve transfer')).toHaveLength(1);
+    expect(buttons(host, 'Reject')).toHaveLength(1);
+  });
+
+  it('approves only after confirmation and reloads', async () => {
+    const { api, page } = await create([waiting]);
+    api.post.mockResolvedValue({ ...waiting, status: 'Fulfilled' });
+    await (page as TransferPage).approve(waiting);
+    expect(api.post).toHaveBeenCalledWith('/api/v1/admin/orders/o5/bank-transfer/approve', {});
+    expect(page.message()).toBe('Transfer approved for ORD-5. The invoice and license are issued.');
+    expect(api.get).toHaveBeenCalledTimes(2);
+
+    vi.mocked(window.confirm).mockReturnValue(false);
+    api.post.mockClear();
+    await (page as TransferPage).approve(waiting);
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('rejects with the reason the customer will see', async () => {
+    const { api, page } = await create([waiting]);
+    const transferPage = page as TransferPage;
+    transferPage.startReject(waiting);
+    transferPage.rejectReason = ' Not on the statement ';
+    api.post.mockResolvedValue({ ...waiting, status: 'PendingPayment' });
+    await transferPage.reject(waiting);
+    expect(api.post).toHaveBeenCalledWith('/api/v1/admin/orders/o5/bank-transfer/reject', { reason: 'Not on the statement' });
+    expect(page.message()).toBe('Transfer rejected for ORD-5. The order is waiting for payment again.');
+  });
+
+  it('explains an approval that lost a race', async () => {
+    const { api, page } = await create([waiting]);
+    api.post.mockRejectedValue(new ApiError(409, 'NO_PAYMENT_TO_VERIFY', 'x'));
+    await (page as TransferPage).approve(waiting);
+    expect(page.failed()).toBe(true);
+    expect(page.message()).toBe(ADMIN_TEXTS.en['error.NO_PAYMENT_TO_VERIFY']);
+  });
+});

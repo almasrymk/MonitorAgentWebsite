@@ -97,7 +97,14 @@ export interface LicenseDetails {
   devices: Device[];
 }
 
-export type OrderStatus = 'PendingPayment' | 'Paid' | 'Fulfilled' | 'Cancelled' | 'Refunded';
+export type OrderStatus =
+  | 'PendingPayment'
+  | 'Paid'
+  | 'Fulfilled'
+  | 'Cancelled'
+  | 'Refunded'
+  /** E5: the buyer reported a bank transfer; staff check it before anything is issued. */
+  | 'PendingVerification';
 export type PaymentStatus = 'Pending' | 'Succeeded' | 'Failed';
 
 export interface Payment {
@@ -108,6 +115,23 @@ export interface Payment {
   status: PaymentStatus;
   createdAt: string;
   failureReason: string | null;
+  /** Bank transfers and manual payments only: the reference on the transfer. */
+  reference?: string | null;
+  /** Bank transfers only: what the buyer wrote when reporting it. */
+  note?: string | null;
+}
+
+/** E5: where to send a bank transfer. The reference is the order number. */
+export interface BankTransferInstructions {
+  reference: string;
+  amount: number;
+  currency: string;
+  accountHolder: string;
+  bankName: string | null;
+  accountNumber: string | null;
+  iban: string | null;
+  swift: string | null;
+  instructions: string | null;
 }
 
 export interface Order {

@@ -68,8 +68,11 @@ public sealed class CommerceDb(DbContextOptions<CommerceDb> options) : DbContext
             p.Property(x => x.ProviderReference).HasMaxLength(100);
             p.Property(x => x.Amount).HasPrecision(18, 2);
             p.Property(x => x.Currency).HasMaxLength(3);
-            p.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            // E5: approve and reject of the same bank transfer both change this row; the second save fails instead of
+            // leaving a paid order marked unpaid.
+            p.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsConcurrencyToken();
             p.Property(x => x.FailureReason).HasMaxLength(200);
+            p.Property(x => x.CustomerNote).HasMaxLength(500);
             p.Property(x => x.CreatedAt).HasConversion(Utc);
             p.Property(x => x.CompletedAt).HasConversion(NullableUtc);
             p.HasIndex(x => new { x.Provider, x.ProviderReference }).IsUnique().HasFilter("[ProviderReference] IS NOT NULL");

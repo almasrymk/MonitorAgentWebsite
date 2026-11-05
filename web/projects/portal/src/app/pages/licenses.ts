@@ -1,5 +1,5 @@
 import { Component, inject, input, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import {
   Api,
   CatalogPlan,
@@ -330,6 +330,7 @@ export class LicensesPage implements OnInit {
 export class LicensePage implements OnInit {
   readonly id = input.required<string>();
   private readonly api = inject(Api);
+  private readonly router = inject(Router);
   private readonly i18n = inject(I18n);
   protected readonly details = new Loader(() =>
     this.api.get<LicenseDetails>(`/api/v1/licenses/${this.id()}`),
@@ -354,7 +355,7 @@ export class LicensePage implements OnInit {
   protected renew(): Promise<void> {
     return this.act(async () => {
       const order = await this.api.post<Order>('/api/v1/orders/renewals', { licenseId: this.id() });
-      await pay(this.api, order.id);
+      await pay(this.api, this.router, order.id);
     });
   }
 

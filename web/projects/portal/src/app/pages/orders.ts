@@ -8,9 +8,12 @@ import {
   signal,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
 import {
   Api,
+  ApiError,
+  BankTransferInstructions,
   CatalogPlan,
   errorText,
   I18n,
@@ -24,10 +27,16 @@ import {
   WhenPipe,
 } from 'shared';
 
-/** Sends the browser to the provider's hosted payment page for this order. */
-/** Sends the customer to the payment provider for an order that is waiting for payment. */
-export async function pay(api: Api, orderId: string): Promise<void> {
+/**
+ * Sends the customer to pay an order that is waiting for payment: the provider's hosted page when one is configured,
+ * otherwise the order page, which shows the bank transfer details (E5, the same for purchases and renewals).
+ */
+export async function pay(api: Api, router: Router, orderId: string): Promise<void> {
   const providers = await api.get<string[]>('/api/v1/payments/providers');
+  if (providers.length === 0) {
+    await router.navigate(['/orders', orderId]);
+    return;
+  }
   const checkout = await api.post<{ redirectUrl: string }>(`/api/v1/orders/${orderId}/pay`, {
     provider: providers[0],
   });
@@ -100,6 +109,7 @@ export class CheckoutPage implements OnInit {
   readonly plan = input<string>();
   private readonly api = inject(Api);
   private readonly i18n = inject(I18n);
+  private readonly router = inject(Router);
   protected readonly plans = new Loader(() => this.api.get<CatalogPlan[]>('/api/v1/catalog/plans'));
   protected readonly selectedId = signal<string | null>(null);
   protected readonly selected = computed(
@@ -120,7 +130,7 @@ export class CheckoutPage implements OnInit {
     try {
       // The server prices the order from the catalog; the browser only names the plan.
       const order = await this.api.post<Order>('/api/v1/orders', { planId: plan.id });
-      await pay(this.api, order.id);
+      await pay(this.api, this.router, order.id);
     } catch (error) {
       this.error.set(errorText(this.i18n, error));
       this.busy.set(false);
@@ -201,7 +211,7 @@ export class OrdersPage implements OnInit {
 
 @Component({
   selector: 'portal-order',
-  imports: [RouterLink, TranslatePipe, MoneyPipe, WhenPipe, LoadError, Skeleton, StatusBadge],
+  imports: [FormsModule, RouterLink, TranslatePipe, MoneyPipe, WhenPipe, LoadError, Skeleton, StatusBadge],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <p>
@@ -225,6 +235,11 @@ export class OrdersPage implements OnInit {
                   {{ 'order.pending' | t }}
                 </p>
               }
+            }
+            @case ('PendingVerification') {
+              <p class="alert" style="background: var(--warn-bg); color: var(--warn)" data-testid="verifying">
+                {{ 'order.verifying' | t }}
+              </p>
             }
             @case ('Paid') {
               <p class="alert" style="background: var(--warn-bg); color: var(--warn)">
@@ -253,9 +268,11 @@ export class OrdersPage implements OnInit {
               <p class="alert" role="alert">{{ error() }}</p>
             }
             <div class="row" style="margin-top: 1rem">
-              <button class="btn" type="button" (click)="payNow(value)" [disabled]="busy()">
-                {{ 'order.pay' | t }}
-              </button>
+              @if (providers().length) {
+                <button class="btn" type="button" (click)="payNow(value)" [disabled]="busy()">
+                  {{ 'order.pay' | t }}
+                </button>
+              }
               <button
                 class="btn secondary"
                 type="button"
@@ -267,6 +284,50 @@ export class OrdersPage implements OnInit {
             </div>
           }
         </section>
+        @if (value.status === 'PendingPayment' && transfer(); as bank) {
+          <section class="card stack" aria-labelledby="transfer-title" data-testid="bank-transfer">
+            <h2 id="transfer-title">{{ 'order.transfer.title' | t }}</h2>
+            <p class="muted">{{ 'order.transfer.lead' | t }}</p>
+            <dl class="dl">
+              <dt>{{ 'order.transfer.reference' | t }}</dt>
+              <dd class="mono" data-testid="transfer-reference">{{ bank.reference }}</dd>
+              <dt>{{ 'order.transfer.amount' | t }}</dt>
+              <dd>{{ bank.amount | money: bank.currency }}</dd>
+              <dt>{{ 'order.transfer.holder' | t }}</dt>
+              <dd>{{ bank.accountHolder }}</dd>
+              @if (bank.bankName) {
+                <dt>{{ 'order.transfer.bank' | t }}</dt>
+                <dd>{{ bank.bankName }}</dd>
+              }
+              @if (bank.accountNumber) {
+                <dt>{{ 'order.transfer.account' | t }}</dt>
+                <dd class="mono">{{ bank.accountNumber }}</dd>
+              }
+              @if (bank.iban) {
+                <dt>{{ 'order.transfer.iban' | t }}</dt>
+                <dd class="mono">{{ bank.iban }}</dd>
+              }
+              @if (bank.swift) {
+                <dt>{{ 'order.transfer.swift' | t }}</dt>
+                <dd class="mono">{{ bank.swift }}</dd>
+              }
+            </dl>
+            @if (bank.instructions) {
+              <p>{{ bank.instructions }}</p>
+            }
+            <form class="stack" (ngSubmit)="submitTransfer(value)">
+              <label for="transfer-ref">{{ 'order.transfer.yourReference' | t }}</label>
+              <input id="transfer-ref" name="transferReference" required maxlength="100" [(ngModel)]="transferReference" />
+              <label for="transfer-note">{{ 'order.transfer.note' | t }}</label>
+              <input id="transfer-note" name="transferNote" maxlength="500" [(ngModel)]="transferNote" />
+              <div class="row">
+                <button class="btn" type="submit" [disabled]="busy() || !transferReference.trim()">
+                  {{ 'order.transfer.submit' | t }}
+                </button>
+              </div>
+            </form>
+          </section>
+        }
         @if (value.payments.length) {
           <section class="card table-wrap" aria-labelledby="payments-title">
             <h2 id="payments-title">{{ 'order.payments' | t }}</h2>
@@ -277,7 +338,12 @@ export class OrdersPage implements OnInit {
                     <td>{{ payment.createdAt | when: true }}</td>
                     <td>{{ payment.amount | money: payment.currency }}</td>
                     <td><ma-status [value]="payment.status" prefix="order.payment." /></td>
-                    <td>{{ payment.failureReason ?? '' }}</td>
+                    <td>
+                      @if (payment.reference) {
+                        <span class="mono">{{ 'order.payment.reference' | t: { reference: payment.reference } }}</span>
+                      }
+                      {{ payment.failureReason ?? '' }}
+                    </td>
                   </tr>
                 }
               </tbody>
@@ -292,9 +358,16 @@ export class OrderPage implements OnInit {
   readonly id = input.required<string>();
   private readonly api = inject(Api);
   private readonly i18n = inject(I18n);
+  private readonly router = inject(Router);
   protected readonly order = new Loader(() => this.api.get<Order>(`/api/v1/orders/${this.id()}`));
   protected readonly busy = signal(false);
   protected readonly error = signal('');
+  /** Online payment providers; none means bank transfer only. */
+  protected readonly providers = signal<string[]>([]);
+  /** E5: the bank account to pay into, or null when bank transfer is not offered. */
+  protected readonly transfer = signal<BankTransferInstructions | null>(null);
+  protected transferReference = '';
+  protected transferNote = '';
 
   constructor() {
     // While the provider confirms and the license is issued, check again every few seconds (for up to five minutes).
@@ -310,11 +383,36 @@ export class OrderPage implements OnInit {
   }
 
   ngOnInit(): void {
-    void this.order.load();
+    void this.order.load().then(() => this.loadPaymentOptions());
+  }
+
+  private async loadPaymentOptions(): Promise<void> {
+    if (this.order.value()?.status !== 'PendingPayment') return;
+    this.providers.set(await this.api.get<string[]>('/api/v1/payments/providers').catch(() => []));
+    try {
+      this.transfer.set(await this.api.get<BankTransferInstructions>(`/api/v1/orders/${this.id()}/bank-transfer`));
+    } catch (error) {
+      // Not configured (BANK_TRANSFER_UNAVAILABLE): the section is simply not shown.
+      if (!(error instanceof ApiError)) throw error;
+      this.transfer.set(null);
+    }
   }
 
   protected async payNow(order: Order): Promise<void> {
-    await this.act(() => pay(this.api, order.id), true);
+    await this.act(() => pay(this.api, this.router, order.id), true);
+  }
+
+  /** E5: reports the transfer. Staff check it; nothing is issued until they approve. */
+  protected async submitTransfer(order: Order): Promise<void> {
+    await this.act(async () => {
+      await this.api.post<Order>(`/api/v1/orders/${order.id}/bank-transfer`, {
+        reference: this.transferReference.trim(),
+        note: this.transferNote.trim() || null,
+      });
+      this.transferReference = '';
+      this.transferNote = '';
+      await this.order.load(true);
+    });
   }
 
   protected async cancel(order: Order): Promise<void> {
