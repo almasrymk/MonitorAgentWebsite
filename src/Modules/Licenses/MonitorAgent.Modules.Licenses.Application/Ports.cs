@@ -68,8 +68,12 @@ internal interface ILicensingPlatform
 /// </summary>
 internal interface IMonitorCloud
 {
-    Task<Guid> RegisterTenantAsync(Guid licensingCustomerId, string name, CancellationToken ct);
+    /// <param name="owner">The company owner, invited by Monitor Cloud as the first Administrator (Cloud ADR 0018).</param>
+    Task<Guid> RegisterTenantAsync(Guid licensingCustomerId, string name, MonitorTenantOwner? owner, CancellationToken ct);
 }
+
+/// <summary>The person Monitor Cloud invites as a new tenant's first Administrator.</summary>
+public sealed record MonitorTenantOwner(string Email, string FullName);
 
 internal interface ILicenseStore
 {

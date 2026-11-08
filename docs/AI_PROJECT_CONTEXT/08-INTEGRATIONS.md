@@ -62,3 +62,19 @@ Anonymous GET of manifest bytes and signature. The private signing key stays in 
 ## Not integrated
 
 No Stripe/Paymob SDK, no blob storage SDK, no SMS, no Slack, no queue (Rabbit/Azure Service Bus), no OpenTelemetry exporter in the API project (health and `ILogger` only). Observability expectations are written in `docs/operations/monitoring.md` and were not re-verified against a running collector.
+
+## Monitor Cloud (tenant registration, INT-011 / INT-030)
+
+**What:** after a staff-approved order is fulfilled, `Fulfillment.EnsureMonitorTenantAsync` registers the company's
+Licensing customer as a Monitor Cloud tenant (`POST api/v1/platform/tenants/registrations`, idempotent per customer)
+and names the company owner (`ownerEmail`, `ownerName`). Monitor Cloud invites that owner once as the tenant's first
+Administrator (Cloud ADR 0018); the owner accepts the e-mailed link and signs in to the Cloud dashboard.
+
+**Auth (Cloud ADR 0023):** a service client with the scope `tenants.provision`, created on the Cloud server with
+`MonitorCloud.Api service-client create website --scope tenants.provision`. The Website exchanges it at
+`api/v1/auth/client-token` for a 15-minute token, reuses the token until a minute before expiry and signs in again on a 401.
+
+**Configuration:** `Licenses:Monitor:BaseUrl`, `ClientId`, `ClientSecret` (secret store or environment variables, never
+the repo), `TimeoutSeconds`. `ServiceEmail`/`ServicePassword` are a deprecated fallback used only while `ClientId` is
+empty; after switching, remove them and deactivate that Cloud user. Outside Development the host throws if `BaseUrl` is
+not an absolute URI.

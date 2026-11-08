@@ -239,11 +239,12 @@ public sealed class FakeMonitorCloud : IMonitorCloud
 {
     public ConcurrentDictionary<Guid, Guid> Tenants { get; } = new();
     public List<string> Names { get; } = [];
+    public List<MonitorTenantOwner?> Owners { get; } = [];
 
     /// <summary>Name of the next call that should fail as if Monitor Cloud were down.</summary>
     public string? FailNext { get; set; }
 
-    public Task<Guid> RegisterTenantAsync(Guid licensingCustomerId, string name, CancellationToken ct)
+    public Task<Guid> RegisterTenantAsync(Guid licensingCustomerId, string name, MonitorTenantOwner? owner, CancellationToken ct)
     {
         if (FailNext == nameof(RegisterTenantAsync))
         {
@@ -252,6 +253,7 @@ public sealed class FakeMonitorCloud : IMonitorCloud
         }
 
         Names.Add(name);
+        Owners.Add(owner);
         return Task.FromResult(Tenants.GetOrAdd(licensingCustomerId, _ => Guid.NewGuid()));
     }
 }

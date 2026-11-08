@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using MonitorAgent.Modules.Licenses.Application;
 using MonitorAgent.Modules.Licenses.Infrastructure.Persistence;
 
 namespace MonitorAgent.Tests.Api;
@@ -111,6 +112,10 @@ public class LicensesTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal(customerId, tenantCustomerId);
         Assert.Equal(namesBefore + 1, factory.MonitorCloud.Names.Count);
         Assert.Equal("Acme", factory.MonitorCloud.Names[^1]);
+        // INT-011: the company owner is named so Monitor Cloud invites them as the first Administrator.
+        var owner = Assert.IsType<MonitorTenantOwner>(factory.MonitorCloud.Owners[^1]);
+        Assert.Contains("@", owner.Email, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrWhiteSpace(owner.FullName));
     }
 
     [Fact]

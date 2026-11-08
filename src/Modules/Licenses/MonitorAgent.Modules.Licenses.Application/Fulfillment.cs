@@ -123,7 +123,10 @@ internal sealed class FulfillLicenseHandler(
         var link = await store.LinkForAsync(companyId, ct) ?? throw new InvalidOperationException("Customer link disappeared.");
         if (link.MonitorTenantId is not null) return;
         var company = await companies.FindAsync(companyId, ct) ?? throw new InvalidOperationException("Company disappeared.");
-        link.MonitorRegistered(await monitor.RegisterTenantAsync(customerId, company.Name, ct));
+        // INT-011: the buyer becomes the tenant's first Administrator through Monitor Cloud's invitation e-mail.
+        var owner = await users.FindAsync(company.OwnerUserId, ct);
+        var tenantOwner = owner is null || string.IsNullOrWhiteSpace(owner.Email) ? null : new MonitorTenantOwner(owner.Email, string.IsNullOrWhiteSpace(owner.FullName) ? owner.Email : owner.FullName);
+        link.MonitorRegistered(await monitor.RegisterTenantAsync(customerId, company.Name, tenantOwner, ct));
         await store.SaveAsync(ct);
     }
 
