@@ -475,6 +475,15 @@
       },
       "CompanySubscriptionDto": {
         "properties": {
+          "activeDevices": {
+            "default": 0,
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
           "endDate": {
             "format": "date-time",
             "type": [
@@ -485,6 +494,22 @@
           "id": {
             "format": "uuid",
             "type": "string"
+          },
+          "maxDevices": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ]
+          },
+          "overCapacitySince": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "planCode": {
             "type": "string"

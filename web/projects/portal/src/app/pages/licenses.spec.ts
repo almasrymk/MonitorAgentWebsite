@@ -185,3 +185,22 @@ describe('LicensesPage paid upgrade (INT-014)', () => {
     expect(host.querySelector('[data-testid="upgrade-quote"]')).toBeNull();
   });
 });
+
+describe('LicensesPage over capacity (B4)', () => {
+  it('shows the device usage and what to do when over the plan limit', async () => {
+    const api = setUp('Owner');
+    api.get.mockImplementation((path: string) => {
+      if (path === '/api/v1/company') return Promise.resolve({ myRole: 'Owner' });
+      if (path === '/api/v1/licenses/subscription')
+        return Promise.resolve([{ ...subscription, scheduledPlanId: null, activeDevices: 5, maxDevices: 3, overCapacitySince: '2026-11-08T10:00:00Z' }]);
+      if (path === '/api/v1/catalog/plans') return Promise.resolve(plans);
+      if (path === '/api/v1/licenses') return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    });
+    const { host } = await render(LicensesPage);
+    expect(host.querySelector('[data-testid="device-usage"]')?.textContent).toContain('5 of 3');
+    const alert = host.querySelector('[data-testid="over-capacity"]')?.textContent ?? '';
+    expect(alert).toContain('deactivate one');
+    expect(alert).toContain('upgrade');
+  });
+});

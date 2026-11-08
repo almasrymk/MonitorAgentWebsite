@@ -17,6 +17,9 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
     public ConcurrentDictionary<Guid, string> SubscriptionStatuses { get; } = new();
     /// <summary>INT-014: a fixed term end for a subscription; otherwise a full term from now.</summary>
     public ConcurrentDictionary<Guid, DateTimeOffset> SubscriptionEnds { get; } = new();
+
+    /// <summary>B4: subscriptions LicensingPlatform reports as over capacity, with the active device count.</summary>
+    public ConcurrentDictionary<Guid, int> OverCapacity { get; } = new();
     public ConcurrentDictionary<Guid, (PlatformLicense License, string Key, List<PlatformDevice> Devices)> Licenses { get; } = new();
 
     /// <summary>Name of the next call that should fail as if LicensingPlatform were down.</summary>
@@ -109,7 +112,9 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
         {
             var plan = Plan(s.Value.PlanId);
             return new PlatformSubscription(s.Key, customerId, plan.Id, plan.Code, plan.Name, SubscriptionStatuses.GetValueOrDefault(s.Key, "Active"),
-                DateTimeOffset.UtcNow, SubscriptionEnds.TryGetValue(s.Key, out var end) ? end : DateTimeOffset.UtcNow.AddDays(plan.DurationDays ?? 365), 1);
+                DateTimeOffset.UtcNow, SubscriptionEnds.TryGetValue(s.Key, out var end) ? end : DateTimeOffset.UtcNow.AddDays(plan.DurationDays ?? 365), 1,
+                OverCapacity.TryGetValue(s.Key, out var active) ? active : 1, plan.MaxActivations,
+                OverCapacity.ContainsKey(s.Key) ? DateTimeOffset.UtcNow.AddHours(-1) : null);
         }).ToList();
         return Task.FromResult(list);
     }

@@ -6,8 +6,9 @@ using MonitorAgent.SharedKernel;
 namespace MonitorAgent.Modules.Licenses.Application;
 
 /// <param name="ScheduledPlanId">INT-017: the plan the next paid renewal moves to, if a change is scheduled.</param>
+/// <param name="OverCapacitySince">B4: set while more devices are active than <paramref name="MaxDevices"/>; new devices can't be activated.</param>
 public sealed record CompanySubscriptionDto(Guid Id, Guid PlanId, string PlanCode, string PlanName, string Status, DateTimeOffset StartDate, DateTimeOffset? EndDate,
-    Guid? ScheduledPlanId = null);
+    Guid? ScheduledPlanId = null, int ActiveDevices = 0, int? MaxDevices = null, DateTimeOffset? OverCapacitySince = null);
 public sealed record IssuedDeviceLicenseDto(Guid LicenseId, string LicenseNumber, string ProductKey);
 public sealed record ChangePlanRequest(Guid PlanId);
 
@@ -120,7 +121,7 @@ internal sealed class ListMySubscriptionsHandler(CompanyScope scope, ILicensingP
         return await LicensingCall.Run<IReadOnlyList<CompanySubscriptionDto>>(async () =>
             (await platform.SubscriptionsOfAsync(customerId, ct)).Where(s => s.CustomerId == customerId)
                 .Select(s => new CompanySubscriptionDto(s.Id, s.PlanId, s.PlanCode, s.PlanName, s.Status, s.StartDate, s.EndDate,
-                    scheduled.TryGetValue(s.Id, out var planId) ? planId : null)).ToList());
+                    scheduled.TryGetValue(s.Id, out var planId) ? planId : null, s.ActiveDevices, s.MaxDevices, s.OverCapacitySince)).ToList());
     }
 }
 

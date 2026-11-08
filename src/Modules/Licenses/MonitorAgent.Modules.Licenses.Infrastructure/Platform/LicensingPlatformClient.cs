@@ -108,7 +108,8 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
     {
         var page = await GetAsync<Paged<SubscriptionBody>>($"api/v1/subscriptions?customerId={customerId}&page=1&pageSize=50", ct);
         return (page?.Items ?? []).Select(s => new PlatformSubscription(
-            s.Id, s.CustomerId, s.PlanId, s.PlanName, s.PlanName, s.Status.ToString(), s.StartDate, s.EndDate, s.Version)).ToList();
+            s.Id, s.CustomerId, s.PlanId, s.PlanName, s.PlanName, s.Status.ToString(), s.StartDate, s.EndDate, s.Version,
+            s.ActiveDevices, s.MaxDevices, s.OverCapacitySince)).ToList();
     }
 
     public Task ChangePlanAsync(Guid subscriptionId, Guid planId, CancellationToken ct) =>
@@ -270,7 +271,8 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
     private sealed record LicenseDetailsBody(LicenseBody License, IReadOnlyList<ActivationBody> Activations);
     private sealed record IssuedLicenseBody(LicenseBody License, string ProductKey);
     private enum SubscriptionStatus { Trial = 1, Active = 2, Suspended = 3, Cancelled = 4, Expired = 5 }
-    private sealed record SubscriptionBody(Guid Id, Guid CustomerId, Guid PlanId, string PlanName, SubscriptionStatus Status, DateTimeOffset StartDate, DateTimeOffset? EndDate, int Version);
+    private sealed record SubscriptionBody(Guid Id, Guid CustomerId, Guid PlanId, string PlanName, SubscriptionStatus Status, DateTimeOffset StartDate, DateTimeOffset? EndDate, int Version,
+        int ActiveDevices = 0, int? MaxDevices = null, DateTimeOffset? OverCapacitySince = null);
 }
 
 /// <summary>The service account's current token, shared by every request (handlers themselves are recycled).</summary>

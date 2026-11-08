@@ -18,7 +18,8 @@ public sealed record PlatformIssuedLicense(PlatformLicense License, string Produ
 
 public sealed record PlatformSubscription(
     Guid Id, Guid CustomerId, Guid PlanId, string PlanCode, string PlanName, string Status,
-    DateTimeOffset StartDate, DateTimeOffset? EndDate, int Version);
+    DateTimeOffset StartDate, DateTimeOffset? EndDate, int Version,
+    int ActiveDevices = 0, int? MaxDevices = null, DateTimeOffset? OverCapacitySince = null);
 
 /// <summary>A trial code for the Agent (shown once), when it stops working and how long the trial runs.</summary>
 public sealed record PlatformTrialGrant(string TrialCode, DateTimeOffset ExpiresAt, string ProductCode, int TrialDays);

@@ -31,6 +31,11 @@ interface CompanySubscription {
   endDate: string | null;
   /** A cheaper plan that takes effect at the next renewal (INT-018). */
   scheduledPlanId?: string | null;
+  /** B4: devices in use across the subscription and the plan's limit (null = unlimited). */
+  activeDevices?: number;
+  maxDevices?: number | null;
+  /** B4: set while more devices are active than the plan allows. */
+  overCapacitySince?: string | null;
 }
 
 /** INT-014: the prorated price of a dearer plan for the rest of the term. */
@@ -66,6 +71,16 @@ interface UpgradeQuote {
           <strong>{{ subscription.planName }}</strong>
           <ma-status [value]="subscription.status" />
         </p>
+        @if (subscription.maxDevices) {
+          <p class="muted" data-testid="device-usage">
+            {{ 'licenses.deviceUsage' | t: { active: subscription.activeDevices ?? 0, max: subscription.maxDevices } }}
+          </p>
+        }
+        @if (subscription.overCapacitySince) {
+          <p class="alert" role="alert" data-testid="over-capacity">
+            {{ 'licenses.overCapacity' | t: { active: subscription.activeDevices ?? 0, max: subscription.maxDevices ?? 0 } }}
+          </p>
+        }
         @if (subscription.scheduledPlanId) {
           <p class="muted" data-testid="scheduled-change">
             {{ 'licenses.scheduled' | t: { plan: planName(subscription.scheduledPlanId), date: (subscription.endDate | when) } }}

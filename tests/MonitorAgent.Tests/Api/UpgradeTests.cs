@@ -192,4 +192,21 @@ public class UpgradeTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal("PLUS", await PlanCodeAsync(buyer));
         Assert.Single(factory.Platform.ChangePlanCalls, c => c.SubscriptionId == subscriptionId);
     }
+
+    [Fact]
+    public async Task An_over_capacity_subscription_shows_its_usage_to_the_company()
+    {
+        // B4: LicensingPlatform marks it; the portal shows the usage and the two ways out (deactivate or upgrade).
+        var buyer = await BuyerAsync();
+        var (_, subscriptionId, _) = await StandardAsync(buyer);
+        factory.Platform.OverCapacity[subscriptionId] = 5;
+
+        var subscription = Assert.Single((await JsonAsync(await buyer.Client.GetAsync("/api/v1/licenses/subscription"))).EnumerateArray());
+
+        Assert.Equal(5, subscription.GetProperty("activeDevices").GetInt32());
+        Assert.Equal(3, subscription.GetProperty("maxDevices").GetInt32());
+        Assert.NotEqual(JsonValueKind.Null, subscription.GetProperty("overCapacitySince").ValueKind);
+        // Upgrading is still offered (the way out besides deactivating a device).
+        Assert.True((await QuoteAsync(buyer, subscriptionId, FakeLicensingPlatform.Plus.Id)).IsSuccessStatusCode);
+    }
 }
