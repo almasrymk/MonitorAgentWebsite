@@ -20,6 +20,12 @@ public static class LicensesErrors
     public static readonly Error NotRenewable = Error.Conflict("LICENSE_NOT_RENEWABLE", "This license can't be renewed. A revoked license needs a new order.");
     /// <summary>INT-014: moving to a dearer plan in the middle of a term needs a paid upgrade order.</summary>
     public static readonly Error UpgradeRequiresPayment = Error.Conflict("PLAN_UPGRADE_REQUIRES_PAYMENT", "Moving to a higher plan needs a paid upgrade. A cheaper plan can be scheduled for your next renewal.");
+    /// <summary>INT-014: only a dearer plan of the same product, in the same currency, is an upgrade.</summary>
+    public static readonly Error NotAnUpgrade = Error.Validation("UPGRADE_NOT_HIGHER", "Only a higher-priced plan of the same product, in the same currency, can be bought as an upgrade. A cheaper plan can be scheduled for your next renewal.");
+    /// <summary>INT-014: less than one full day is left, so the upgrade is bought with the renewal instead.</summary>
+    public static readonly Error UpgradeTermEnding = Error.Conflict("UPGRADE_TERM_ENDING", "Your term ends within a day. Schedule the plan and renew instead.");
+    /// <summary>INT-014: a perpetual plan, a plan no longer on sale or a subscription that is not active can't be prorated.</summary>
+    public static readonly Error NotUpgradable = Error.Conflict("UPGRADE_NOT_AVAILABLE", "This subscription can't be upgraded online. Contact us and we will change it for you.");
     public static readonly Error SamePlan = Error.Conflict("SUBSCRIPTION_SAME_PLAN", "Subscription is already on this plan.");
     /// <summary>B5: this account already started its trial (one per account and product).</summary>
     public static readonly Error TrialAlreadyUsed = Error.Conflict("TRIAL_ALREADY_USED", "You have already used your free trial. Buy a plan to keep monitoring.");

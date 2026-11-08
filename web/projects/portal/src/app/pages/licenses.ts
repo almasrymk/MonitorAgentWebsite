@@ -2,6 +2,7 @@ import { Component, inject, input, OnInit, signal, ChangeDetectionStrategy } fro
 import { Router, RouterLink } from '@angular/router';
 import {
   Api,
+  ApiError,
   CatalogPlan,
   Company,
   Device,
@@ -11,6 +12,7 @@ import {
   LicenseSummary,
   Loader,
   LoadError,
+  MoneyPipe,
   Order,
   Skeleton,
   StatusBadge,
@@ -31,9 +33,20 @@ interface CompanySubscription {
   scheduledPlanId?: string | null;
 }
 
+/** INT-014: the prorated price of a dearer plan for the rest of the term. */
+interface UpgradeQuote {
+  subscriptionId: string;
+  planId: string;
+  planName: string;
+  price: number;
+  currency: string;
+  remainingDays: number;
+  termEndsAt: string;
+}
+
 @Component({
   selector: 'portal-licenses',
-  imports: [RouterLink, TranslatePipe, WhenPipe, LoadError, Skeleton, StatusBadge],
+  imports: [RouterLink, TranslatePipe, WhenPipe, MoneyPipe, LoadError, Skeleton, StatusBadge],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="page-head">
@@ -73,6 +86,17 @@ interface CompanySubscription {
             </select>
           </label>
           <button class="btn" type="button" [disabled]="busy()" (click)="changePlan(subscription)">{{ 'licenses.changePlan' | t }}</button>
+          @if (upgrade(); as quote) {
+            @if (quote.subscriptionId === subscription.id) {
+              <div class="alert" role="status" data-testid="upgrade-quote">
+                <p>
+                  {{ 'licenses.upgradeQuote' | t: { plan: quote.planName, price: (quote.price | money: quote.currency), days: quote.remainingDays, date: (quote.termEndsAt | when) } }}
+                </p>
+                <button class="btn" type="button" [disabled]="busy()" (click)="buyUpgrade(quote)">{{ 'licenses.upgradeBuy' | t }}</button>
+                <button class="btn secondary" type="button" [disabled]="busy()" (click)="upgrade.set(null)">{{ 'licenses.upgradeDismiss' | t }}</button>
+              </div>
+            }
+          }
           <button class="btn secondary" type="button" [disabled]="busy()" (click)="subscriptionAction(subscription, 'suspend')">{{ 'licenses.suspend' | t }}</button>
           <button class="btn secondary" type="button" [disabled]="busy()" (click)="subscriptionAction(subscription, 'resume')">{{ 'licenses.resume' | t }}</button>
           <button class="btn secondary" type="button" [disabled]="busy()" (click)="subscriptionAction(subscription, 'cancel')">{{ 'licenses.cancel' | t }}</button>
@@ -134,6 +158,9 @@ interface CompanySubscription {
 export class LicensesPage implements OnInit {
   private readonly api = inject(Api);
   private readonly i18n = inject(I18n);
+  private readonly router = inject(Router);
+  /** INT-014: shown when the chosen plan is dearer, instead of changing anything for free. */
+  protected readonly upgrade = signal<UpgradeQuote | null>(null);
   protected readonly licenses = new Loader(() =>
     this.api.get<LicenseSummary[]>('/api/v1/licenses'),
   );
@@ -182,9 +209,28 @@ export class LicensesPage implements OnInit {
   }
 
   protected changePlan(subscription: CompanySubscription): Promise<void> {
+    this.upgrade.set(null);
     return this.act(async () => {
-      await this.api.post(`/api/v1/licenses/subscription/${subscription.id}/change-plan`, { planId: this.planId() });
+      try {
+        await this.api.post(`/api/v1/licenses/subscription/${subscription.id}/change-plan`, { planId: this.planId() });
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.code !== 'PLAN_UPGRADE_REQUIRES_PAYMENT') throw error;
+        // A dearer plan is bought as a prorated upgrade; nothing changes until it is paid.
+        const params = new URLSearchParams({ subscriptionId: subscription.id, planId: this.planId() });
+        this.upgrade.set(await this.api.get<UpgradeQuote>(`/api/v1/orders/upgrades/quote?${params}`));
+        this.note.set('');
+        return;
+      }
       this.note.set(this.i18n.t('licenses.updated'));
+    });
+  }
+
+  /** INT-014: places the upgrade order at the quoted price and goes to payment (or to the order for a bank transfer). */
+  protected buyUpgrade(quote: UpgradeQuote): Promise<void> {
+    return this.act(async () => {
+      const order = await this.api.post<Order>('/api/v1/orders/upgrades', { subscriptionId: quote.subscriptionId, planId: quote.planId });
+      this.upgrade.set(null);
+      await pay(this.api, this.router, order.id);
     });
   }
 

@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddScoped<CompanyScope>();
         services.AddScoped<ILicenseFulfillment, LicenseFulfillment>();
         services.AddScoped<ILicenseRenewals, LicenseRenewals>();
+        services.AddScoped<ILicenseUpgrades, LicenseUpgrades>();
         services.AddScoped<IPlanCatalog, PlanCatalog>();
         return services;
     }

@@ -15,6 +15,8 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
     public ConcurrentDictionary<Guid, string> Customers { get; } = new();
     public ConcurrentDictionary<Guid, (Guid CustomerId, Guid PlanId)> Subscriptions { get; } = new();
     public ConcurrentDictionary<Guid, string> SubscriptionStatuses { get; } = new();
+    /// <summary>INT-014: a fixed term end for a subscription; otherwise a full term from now.</summary>
+    public ConcurrentDictionary<Guid, DateTimeOffset> SubscriptionEnds { get; } = new();
     public ConcurrentDictionary<Guid, (PlatformLicense License, string Key, List<PlatformDevice> Devices)> Licenses { get; } = new();
 
     /// <summary>Name of the next call that should fail as if LicensingPlatform were down.</summary>
@@ -107,7 +109,7 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
         {
             var plan = Plan(s.Value.PlanId);
             return new PlatformSubscription(s.Key, customerId, plan.Id, plan.Code, plan.Name, SubscriptionStatuses.GetValueOrDefault(s.Key, "Active"),
-                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddDays(plan.DurationDays ?? 365), 1);
+                DateTimeOffset.UtcNow, SubscriptionEnds.TryGetValue(s.Key, out var end) ? end : DateTimeOffset.UtcNow.AddDays(plan.DurationDays ?? 365), 1);
         }).ToList();
         return Task.FromResult(list);
     }
@@ -124,8 +126,12 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
         if (SubscriptionStatuses.GetValueOrDefault(subscriptionId, "Active") is not ("Active" or "Trial"))
             throw new PlatformRejectedException(409, "SUBSCRIPTION_INVALID_TRANSITION", "This action is not allowed.");
         Subscriptions[subscriptionId] = (subscription.CustomerId, planId);
-        return Task.CompletedTask;
+        ChangePlanCalls.Add((subscriptionId, planId));
+        return Answer(nameof(ChangePlanAsync), true);
     }
+
+    /// <summary>Every plan change LicensingPlatform applied.</summary>
+    public ConcurrentBag<(Guid SubscriptionId, Guid PlanId)> ChangePlanCalls { get; } = [];
 
     /// <summary>Renewals applied, by reference: LicensingPlatform extends a term once per reference.</summary>
     public ConcurrentDictionary<string, Guid> Renewals { get; } = new();

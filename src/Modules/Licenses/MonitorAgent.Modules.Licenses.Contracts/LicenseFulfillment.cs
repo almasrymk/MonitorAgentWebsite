@@ -42,3 +42,25 @@ public interface ILicenseRenewals
     /// subscription moves to it after the term is extended.</param>
     Task<Result<FulfilledLicense>> RenewAsync(Guid companyId, Guid grantId, Guid planId, string orderReference, CancellationToken ct);
 }
+
+/// <summary>
+/// INT-014: the price of moving a subscription to a dearer plan for the rest of its paid term. <see cref="Price"/> is
+/// (new price - current price) x <see cref="RemainingDays"/> / <see cref="TermDays"/>, rounded half away from zero to
+/// two decimals, never below 0.01. Both prices are the catalog's current list prices, in the same currency. No tax is
+/// added or removed: the amount is charged exactly as the catalog prices are published (ADR-020 in docs/adr/README.md).
+/// </summary>
+public sealed record UpgradeOffer(Guid GrantId, Guid SubscriptionId, Guid FromPlanId, Guid PlanId, string ProductName, string FromPlanName,
+    string PlanName, decimal Price, string Currency, int RemainingDays, int TermDays, DateTimeOffset TermEndsAt);
+
+/// <summary>
+/// INT-014: a paid, prorated upgrade. The plan changes only after the order is paid (and, for a bank transfer, approved
+/// by staff); the term end date, the product key and the activated devices stay the same. <see cref="UpgradeAsync"/> is
+/// safe to call again for the same order: a subscription already on the plan counts as upgraded.
+/// </summary>
+public interface ILicenseUpgrades
+{
+    /// <param name="subscriptionId">The LicensingPlatform subscription the portal shows.</param>
+    Task<Result<UpgradeOffer>> QuoteAsync(Guid companyId, Guid subscriptionId, Guid planId, CancellationToken ct);
+
+    Task<Result<FulfilledLicense>> UpgradeAsync(Guid companyId, Guid grantId, Guid planId, string orderReference, CancellationToken ct);
+}

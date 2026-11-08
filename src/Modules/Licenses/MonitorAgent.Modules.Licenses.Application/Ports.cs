@@ -88,6 +88,8 @@ internal interface ILicenseStore
     Task<LicenseGrant?> GrantForOrderAsync(string orderReference, CancellationToken ct);
     Task<LicenseGrant?> GrantAsync(Guid grantId, CancellationToken ct);
     Task<LicenseGrant?> GrantForLicenseAsync(Guid companyId, Guid platformLicenseId, CancellationToken ct);
+    /// <summary>INT-014: every grant of the company on this subscription (the bought one and any issued later), oldest first.</summary>
+    Task<IReadOnlyList<LicenseGrant>> GrantsForSubscriptionAsync(Guid companyId, Guid platformSubscriptionId, CancellationToken ct);
     /// <summary>Issued grants expiring between now and <paramref name="until"/>.</summary>
     Task<IReadOnlyList<LicenseGrant>> ExpiringAsync(DateTimeOffset now, DateTimeOffset until, int take, CancellationToken ct);
     /// <summary>Whether the company holds another issued license on the same plan that lasts longer: then it already renewed.</summary>

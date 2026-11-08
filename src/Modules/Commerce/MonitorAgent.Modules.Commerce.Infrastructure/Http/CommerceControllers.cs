@@ -12,6 +12,7 @@ namespace MonitorAgent.Modules.Commerce.Infrastructure.Http;
 
 public sealed record PlaceOrderRequest(Guid PlanId);
 public sealed record PlaceRenewalRequest(Guid LicenseId);
+public sealed record PlaceUpgradeRequest(Guid SubscriptionId, Guid PlanId);
 public sealed record RefundRequest(string Reference, decimal Amount, string? Reason);
 public sealed record PayRequest(string Provider);
 public sealed record ManualPaymentRequest(string Reference);
@@ -34,6 +35,18 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> PlaceRenewal(PlaceRenewalRequest request, CancellationToken ct) =>
         (await dispatcher.SendAsync(new PlaceRenewalOrderCommand(request.LicenseId), ct)).ToActionResult();
+
+    /// <summary>INT-014: the prorated price of upgrading a subscription to a dearer plan for the rest of its term.</summary>
+    [HttpGet("orders/upgrades/quote")]
+    [ProducesResponseType<UpgradeQuoteDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> UpgradeQuote([FromQuery] Guid subscriptionId, [FromQuery] Guid planId, CancellationToken ct) =>
+        (await dispatcher.QueryAsync(new GetUpgradeQuoteQuery(subscriptionId, planId), ct)).ToActionResult();
+
+    /// <summary>INT-014: an order that upgrades the subscription once it is paid (bank transfers once staff approve them).</summary>
+    [HttpPost("orders/upgrades")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> PlaceUpgrade(PlaceUpgradeRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new PlaceUpgradeOrderCommand(request.SubscriptionId, request.PlanId), ct)).ToActionResult();
 
     [HttpGet("orders")]
     [ProducesResponseType<IReadOnlyList<OrderDto>>(StatusCodes.Status200OK)]

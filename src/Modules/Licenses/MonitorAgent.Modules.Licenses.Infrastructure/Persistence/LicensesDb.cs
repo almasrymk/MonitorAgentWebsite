@@ -78,6 +78,10 @@ internal sealed class LicenseStore(LicensesDb db) : ILicenseStore
     public Task<LicenseGrant?> GrantForLicenseAsync(Guid companyId, Guid platformLicenseId, CancellationToken ct) =>
         db.Grants.SingleOrDefaultAsync(g => g.CompanyId == companyId && g.PlatformLicenseId == platformLicenseId, ct);
 
+    public async Task<IReadOnlyList<LicenseGrant>> GrantsForSubscriptionAsync(Guid companyId, Guid platformSubscriptionId, CancellationToken ct) =>
+        await db.Grants.Where(g => g.CompanyId == companyId && g.PlatformSubscriptionId == platformSubscriptionId)
+            .OrderBy(g => g.CreatedAt).ToListAsync(ct);
+
     public async Task<IReadOnlyList<LicenseGrant>> ExpiringAsync(DateTimeOffset now, DateTimeOffset until, int take, CancellationToken ct) =>
         await db.Grants.Where(g => g.Status == GrantStatus.Issued && g.ExpiresAt > now && g.ExpiresAt <= until)
             .OrderBy(g => g.ExpiresAt).Take(take).ToListAsync(ct);

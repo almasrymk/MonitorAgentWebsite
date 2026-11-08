@@ -2015,6 +2015,23 @@
         ],
         "type": "object"
       },
+      "PlaceUpgradeRequest": {
+        "properties": {
+          "planId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "subscriptionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subscriptionId",
+          "planId"
+        ],
+        "type": "object"
+      },
       "PlanChange": {
         "properties": {
           "planId": {
@@ -2666,6 +2683,72 @@
           "expiresAt",
           "productCode",
           "trialDays"
+        ],
+        "type": "object"
+      },
+      "UpgradeQuoteDto": {
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "fromPlanId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "fromPlanName": {
+            "type": "string"
+          },
+          "planId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "planName": {
+            "type": "string"
+          },
+          "price": {
+            "format": "double",
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "remainingDays": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "subscriptionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "termDays": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "termEndsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subscriptionId",
+          "fromPlanId",
+          "fromPlanName",
+          "planId",
+          "planName",
+          "price",
+          "currency",
+          "remainingDays",
+          "termDays",
+          "termEndsAt"
         ],
         "type": "object"
       },
@@ -6041,6 +6124,102 @@
               "text/plain": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Orders"
+        ]
+      }
+    },
+    "/api/v1/orders/upgrades": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceUpgradeRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceUpgradeRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceUpgradeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Orders"
+        ]
+      }
+    },
+    "/api/v1/orders/upgrades/quote": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "subscriptionId",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "planId",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpgradeQuoteDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpgradeQuoteDto"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpgradeQuoteDto"
                 }
               }
             },

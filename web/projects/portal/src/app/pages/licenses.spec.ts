@@ -144,3 +144,44 @@ describe('LicensesPage free trial (B5)', () => {
     expect(host.textContent).toContain('You have already used your free trial');
   });
 });
+
+describe('LicensesPage paid upgrade (INT-014)', () => {
+  it('shows the prorated quote for a dearer plan and pays for the upgrade order', async () => {
+    const api = setUp('Owner');
+    const quote = {
+      subscriptionId: 's1', planId: 'p-max', planName: 'Max', price: 240, currency: 'EGP', remainingDays: 73, termEndsAt: '2027-01-01T00:00:00Z',
+    };
+    api.get.mockImplementation((path: string) => {
+      if (path === '/api/v1/company') return Promise.resolve({ myRole: 'Owner' });
+      if (path === '/api/v1/licenses/subscription') return Promise.resolve([{ ...subscription, scheduledPlanId: null }]);
+      if (path === '/api/v1/catalog/plans') return Promise.resolve([...plans, { id: 'p-max', name: 'Max' }]);
+      if (path === '/api/v1/licenses') return Promise.resolve([]);
+      if (path === '/api/v1/payments/providers') return Promise.resolve([]);
+      if (path.startsWith('/api/v1/orders/upgrades/quote?')) return Promise.resolve(quote);
+      return Promise.resolve(undefined);
+    });
+    api.post.mockImplementation((path: string) => {
+      if (path.endsWith('/change-plan')) return Promise.reject(new ApiError(409, 'PLAN_UPGRADE_REQUIRES_PAYMENT', 'needs payment'));
+      if (path === '/api/v1/orders/upgrades') return Promise.resolve({ id: 'o9' });
+      return Promise.resolve(undefined);
+    });
+    const { fixture, host } = await render(LicensesPage);
+    const select = host.querySelector('select') as HTMLSelectElement;
+    select.value = 'p-max';
+    select.dispatchEvent(new Event('change'));
+
+    button(host, 'Change plan')!.click();
+    await settle(fixture);
+
+    expect(api.get).toHaveBeenCalledWith('/api/v1/orders/upgrades/quote?subscriptionId=s1&planId=p-max');
+    const text = host.querySelector('[data-testid="upgrade-quote"]')?.textContent ?? '';
+    expect(text).toContain('Max');
+    expect(text).toContain('73 days');
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+
+    button(host, 'Pay for the upgrade')!.click();
+    await settle(fixture);
+    expect(api.post).toHaveBeenCalledWith('/api/v1/orders/upgrades', { subscriptionId: 's1', planId: 'p-max' });
+    expect(host.querySelector('[data-testid="upgrade-quote"]')).toBeNull();
+  });
+});

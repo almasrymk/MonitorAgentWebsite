@@ -7,8 +7,11 @@ namespace MonitorAgent.Modules.Commerce.Domain;
 /// PendingVerification (E5): the buyer says they paid by bank transfer; nothing is issued until staff approve it.
 /// </summary>
 public enum OrderStatus { PendingPayment, Paid, Fulfilled, Cancelled, Refunded, PendingVerification }
-/// <summary>Purchase starts a new subscription and license; Renewal (INT-018) extends the subscription of an issued license.</summary>
-public enum OrderKind { Purchase, Renewal }
+/// <summary>
+/// Purchase starts a new subscription and license; Renewal (INT-018) extends the subscription of an issued license;
+/// Upgrade (INT-014) moves that subscription to a dearer plan for the rest of its term, at a prorated price.
+/// </summary>
+public enum OrderKind { Purchase, Renewal, Upgrade }
 public enum PaymentStatus { Pending, Succeeded, Failed }
 
 /// <summary>One try at paying an order through a provider's hosted checkout.</summary>
@@ -63,7 +66,7 @@ public sealed class Order : AggregateRoot
     public string? PaidVia { get; private set; }
     public string? LicenseNumber { get; private set; }
     public OrderKind Kind { get; private set; }
-    /// <summary>For a renewal: the license grant (Licenses module) whose subscription the payment extends.</summary>
+    /// <summary>For a renewal or an upgrade: the license grant (Licenses module) whose subscription the payment extends or upgrades.</summary>
     public Guid? RenewsGrantId { get; private set; }
     /// <summary>INT-019: money given back so far. Never more than <see cref="Total"/>.</summary>
     public decimal RefundedAmount { get; private set; }
@@ -90,6 +93,22 @@ public sealed class Order : AggregateRoot
         order.RenewsGrantId = grantId;
         return order;
     }
+
+    /// <summary>
+    /// INT-014: an order that upgrades the subscription behind <paramref name="grantId"/> to <paramref name="planId"/>
+    /// at the prorated <paramref name="total"/> quoted now. The plan changes only once the order is paid.
+    /// </summary>
+    public static Order PlaceUpgrade(string number, Guid companyId, Guid placedBy, Guid grantId, Guid planId, string productName, string planName,
+        decimal total, string currency, DateTimeOffset at)
+    {
+        var order = Place(number, companyId, placedBy, planId, productName, planName, total, currency, at);
+        order.Kind = OrderKind.Upgrade;
+        order.RenewsGrantId = grantId;
+        return order;
+    }
+
+    /// <summary>Not yet paid or still waiting for staff to check a transfer: the order could still be paid.</summary>
+    public bool IsOpen => Status is OrderStatus.PendingPayment or OrderStatus.PendingVerification;
 
     public Result<Payment> StartPayment(string provider, DateTimeOffset at)
     {

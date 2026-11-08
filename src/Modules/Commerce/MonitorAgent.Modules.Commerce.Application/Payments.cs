@@ -90,7 +90,7 @@ internal sealed class ListOrdersValidator : AbstractValidator<ListOrdersQuery>
 /// What happens once an order is paid: ledger line, invoice, then the license. The buyer gets a receipt email once the
 /// payment is saved and another once the license is issued. Emails are best effort: the portal shows the same thing.
 /// </summary>
-internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirectory companies, ILicenseFulfillment licenses, ILicenseRenewals renewals, IUserDirectory users,
+internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirectory companies, ILicenseFulfillment licenses, ILicenseRenewals renewals, ILicenseUpgrades upgrades, IUserDirectory users,
     IEmailSender email, PortalLinks links, TimeProvider clock, ILogger<AfterPayment> logger)
 {
     private Invoice? _invoice;
@@ -117,9 +117,12 @@ internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirecto
     /// <summary>Best effort: a failure leaves the order Paid, and <see cref="FulfillPaidOrdersCommand"/> retries it.</summary>
     public async Task FulfilAsync(Order order, CancellationToken ct)
     {
-        var fulfilled = order.Kind == OrderKind.Renewal
-            ? await renewals.RenewAsync(order.CompanyId, order.RenewsGrantId!.Value, order.PlanId, order.Number, ct)
-            : await licenses.FulfillAsync(order.CompanyId, order.PlanId, order.Number, ct);
+        var fulfilled = order.Kind switch
+        {
+            OrderKind.Renewal => await renewals.RenewAsync(order.CompanyId, order.RenewsGrantId!.Value, order.PlanId, order.Number, ct),
+            OrderKind.Upgrade => await upgrades.UpgradeAsync(order.CompanyId, order.RenewsGrantId!.Value, order.PlanId, order.Number, ct),
+            _ => await licenses.FulfillAsync(order.CompanyId, order.PlanId, order.Number, ct),
+        };
         if (fulfilled.IsFailure) return;
         order.Fulfilled(fulfilled.Value.LicenseNumber);
         try
@@ -131,7 +134,9 @@ internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirecto
             // The license exists; issuing is idempotent per order, so the next retry only records it (and that one emails).
             return;
         }
-        await NotifyAsync(order, buyer => CommerceEmails.LicenseReady(buyer, order.Number, fulfilled.Value.LicenseNumber, links.To("licenses")), ct);
+        await NotifyAsync(order, buyer => order.Kind == OrderKind.Upgrade
+            ? CommerceEmails.Upgraded(buyer, order.Number, order.PlanName, links.To("licenses"))
+            : CommerceEmails.LicenseReady(buyer, order.Number, fulfilled.Value.LicenseNumber, links.To("licenses")), ct);
     }
 
     private async Task NotifyAsync(Order order, Func<string, EmailMessage> message, CancellationToken ct)
@@ -163,6 +168,17 @@ internal static class CommerceEmails
         We received {amount:0.00} {currency} for order {order}. Invoice {invoice} is here, ready to print:
         {link}
         Your license is being issued; we will email you when it is ready.
+        """);
+
+    /// <summary>INT-014: the paid upgrade is applied; same key, same devices, same end date.</summary>
+    public static EmailMessage Upgraded(string to, string order, string plans, string link) => new(to,
+        $"تمت ترقية اشتراكك ({plans}) | Your subscription was upgraded ({plans})",
+        $"""
+        تمت الترقية للطلب {order} ({plans}). مفتاح المنتج والأجهزة المفعّلة وتاريخ الانتهاء زي ما هم:
+        {link}
+
+        Order {order} upgraded your subscription ({plans}). The product key, the activated devices and the end date stay the same:
+        {link}
         """);
 
     public static EmailMessage LicenseReady(string to, string order, string license, string link) => new(to,
