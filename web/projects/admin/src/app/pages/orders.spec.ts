@@ -135,3 +135,33 @@ describe('OrdersPage bank transfers (E5)', () => {
     expect(page.message()).toBe(ADMIN_TEXTS.en['error.NO_PAYMENT_TO_VERIFY']);
   });
 });
+
+describe('OrdersPage disputes (B3)', () => {
+  it('records a dispute with a reason and hides the refund form while it is open', async () => {
+    const { api, fixture, host } = await create([{ ...base, refundedAmount: 0 }]);
+    vi.spyOn(window, 'prompt').mockReturnValue(' Bank recall 4471 ');
+    api.post.mockResolvedValue({ ...base, dispute: 'Open' });
+
+    buttons(host, 'Record dispute')[0].click();
+    await settle(fixture);
+
+    expect(api.post).toHaveBeenCalledWith('/api/v1/admin/orders/o1/dispute', { reason: 'Bank recall 4471' });
+  });
+
+  it('closes an open dispute as lost only with the chargeback reference', async () => {
+    const { api, fixture, host } = await create([{ ...base, dispute: 'Open' }]);
+    expect(buttons(host, 'Record refund')).toHaveLength(0);
+    expect(host.querySelector('[data-testid="dispute"]')?.textContent).toContain('Disputed');
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('');
+    buttons(host, 'Dispute lost')[0].click();
+    await settle(fixture);
+    expect(api.post).not.toHaveBeenCalled();
+
+    prompt.mockReturnValue('CB-42');
+    api.post.mockResolvedValue({ ...base, dispute: 'Lost', status: 'Refunded' });
+    buttons(host, 'Dispute lost')[0].click();
+    await settle(fixture);
+    expect(api.post).toHaveBeenCalledWith('/api/v1/admin/orders/o1/dispute/resolve', { won: false, reference: 'CB-42' });
+    expect(host.textContent).toContain('Decide on the license from the customer page');
+  });
+});

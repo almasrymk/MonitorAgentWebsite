@@ -18,6 +18,8 @@ public sealed record PayRequest(string Provider);
 public sealed record ManualPaymentRequest(string Reference);
 public sealed record BankTransferRequest(string Reference, string? Note);
 public sealed record RejectTransferRequest(string Reason);
+public sealed record OpenDisputeRequest(string Reason);
+public sealed record ResolveDisputeRequest(bool Won, string? Reference);
 
 /// <summary>The signed-in company's orders and invoices. Owners and billing members only.</summary>
 [ApiController]
@@ -155,6 +157,18 @@ public sealed class AdminOrdersController(IDispatcher dispatcher) : ControllerBa
     [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Refund(Guid orderId, RefundRequest request, CancellationToken ct) =>
         (await dispatcher.SendAsync(new RecordRefundCommand(orderId, request.Reference, request.Amount, request.Reason), ct)).ToActionResult();
+
+    /// <summary>B3: a received payment is contested. Holds an unissued license; never suspends an issued one.</summary>
+    [HttpPost("{orderId:guid}/dispute")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> OpenDispute(Guid orderId, OpenDisputeRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new OpenDisputeCommand(orderId, request.Reason), ct)).ToActionResult();
+
+    /// <summary>B3: the dispute ended. Lost records the chargeback; the license is left for staff to decide.</summary>
+    [HttpPost("{orderId:guid}/dispute/resolve")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ResolveDispute(Guid orderId, ResolveDisputeRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new ResolveDisputeCommand(orderId, request.Won, request.Reference), ct)).ToActionResult();
 }
 
 /// <summary>Finance and admins: money received and refunded, from the ledger.</summary>

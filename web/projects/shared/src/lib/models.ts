@@ -151,6 +151,9 @@ export interface Order {
   companyName?: string | null;
   /** Money already returned to the customer (INT-019). */
   refundedAmount?: number;
+  /** B3: a contested payment. */
+  dispute?: 'Open' | 'Won' | 'Lost' | null;
+  disputeReason?: string | null;
 }
 
 export interface Invoice {

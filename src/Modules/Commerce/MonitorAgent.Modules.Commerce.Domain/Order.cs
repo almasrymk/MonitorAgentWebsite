@@ -13,6 +13,11 @@ public enum OrderStatus { PendingPayment, Paid, Fulfilled, Cancelled, Refunded, 
 /// </summary>
 public enum OrderKind { Purchase, Renewal, Upgrade }
 public enum PaymentStatus { Pending, Succeeded, Failed }
+/// <summary>
+/// B3: a payment the payer's bank or the payer contests after it was received. Open holds an unissued license; Lost
+/// means the money was taken back (a chargeback); Won means it stays. The license is never touched automatically.
+/// </summary>
+public enum DisputeStatus { Open, Won, Lost }
 
 /// <summary>One try at paying an order through a provider's hosted checkout.</summary>
 public sealed class Payment : Entity
@@ -71,6 +76,11 @@ public sealed class Order : AggregateRoot
     /// <summary>INT-019: money given back so far. Never more than <see cref="Total"/>.</summary>
     public decimal RefundedAmount { get; private set; }
     public IReadOnlyList<Payment> Payments => _payments;
+    public DisputeStatus? Dispute { get; private set; }
+    public DateTimeOffset? DisputedAt { get; private set; }
+    public string? DisputeReason { get; private set; }
+    /// <summary>The chargeback amount when a dispute was lost.</summary>
+    public decimal ChargedBackAmount { get; private set; }
 
     public static Order Place(string number, Guid companyId, Guid placedBy, Guid planId, string productName, string planName,
         decimal total, string currency, DateTimeOffset at)
@@ -265,6 +275,40 @@ public sealed class Order : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>
+    /// B3: staff record that a received payment is contested (a bank recall, a chargeback notice, a customer claim).
+    /// Nothing is reversed yet; a license not issued yet waits until the dispute is resolved.
+    /// </summary>
+    public Result OpenDispute(string reason, DateTimeOffset at)
+    {
+        if (Status is not (OrderStatus.Paid or OrderStatus.Fulfilled)) return CommerceErrors.NotDisputable;
+        if (Dispute == DisputeStatus.Open) return CommerceErrors.DisputeAlreadyOpen;
+        Dispute = DisputeStatus.Open;
+        DisputedAt = at;
+        DisputeReason = Guard.NotEmpty(reason, "Reason", 200);
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// B3: the dispute ended. Lost: what was not refunded yet was taken back, so the order counts as refunded and the
+    /// returned amount is the chargeback to put in the ledger. Won: the payment stands and fulfilment carries on.
+    /// </summary>
+    public Result<decimal> ResolveDispute(bool won)
+    {
+        if (Dispute != DisputeStatus.Open) return CommerceErrors.NoOpenDispute;
+        if (won)
+        {
+            Dispute = DisputeStatus.Won;
+            return 0m;
+        }
+        Dispute = DisputeStatus.Lost;
+        var taken = Total - RefundedAmount;
+        ChargedBackAmount = taken;
+        RefundedAmount = Total;
+        Status = OrderStatus.Refunded;
+        return taken;
+    }
+
     public Result Cancel()
     {
         if (Status != OrderStatus.PendingPayment) return CommerceErrors.NotCancellable;
@@ -330,7 +374,8 @@ public sealed class Invoice : Entity
     public DateTimeOffset IssuedAt { get; private set; }
 }
 
-public enum LedgerEntryKind { Payment, Refund }
+/// <summary>Chargeback (B3): money the payer's bank took back after a lost dispute. Counted like a refund in the totals.</summary>
+public enum LedgerEntryKind { Payment, Refund, Chargeback }
 
 /// <summary>Money that actually moved. Append-only; the finance reports and the nightly reconciliation read it.</summary>
 public sealed class LedgerEntry : Entity

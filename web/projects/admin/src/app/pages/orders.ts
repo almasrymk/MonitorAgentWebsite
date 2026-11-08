@@ -116,7 +116,12 @@ const pageSize = 25;
                       }}</span>
                     }
                   </td>
-                  <td><ma-status [value]="order.status" prefix="order.status." /></td>
+                  <td>
+                    <ma-status [value]="order.status" prefix="order.status." />
+                    @if (order.dispute) {
+                      <span class="muted" data-testid="dispute">{{ 'orders.dispute.' + order.dispute | t }}</span>
+                    }
+                  </td>
                   <td>{{ order.placedAt | when: true }}</td>
                   <td class="mono">{{ order.licenseNumber ?? '—' }}</td>
                   <td>
@@ -170,7 +175,15 @@ const pageSize = 25;
                         </button>
                       }
                     }
-                    @if (refundable(order)) {
+                    @if (order.dispute === 'Open') {
+                      <div class="row" data-testid="dispute-actions">
+                        <button class="btn secondary" type="button" [disabled]="busy()" (click)="resolveDispute(order, true)">{{ 'orders.disputeWon' | t }}</button>
+                        <button class="btn secondary" type="button" [disabled]="busy()" (click)="resolveDispute(order, false)">{{ 'orders.disputeLost' | t }}</button>
+                      </div>
+                    } @else if ((order.status === 'Paid' || order.status === 'Fulfilled') && !order.dispute) {
+                      <button class="btn secondary" type="button" [disabled]="busy()" (click)="openDispute(order)">{{ 'orders.recordDispute' | t }}</button>
+                    }
+                    @if (refundable(order) && order.dispute !== 'Open') {
                       @if (refunding() === order.id) {
                         <form class="stack" (ngSubmit)="refund(order)" [attr.aria-label]="'orders.refundTitle' | t: { number: order.number }">
                           <p class="muted">{{ 'orders.refundHelp' | t }}</p>
@@ -364,6 +377,31 @@ export class OrdersPage {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  /** B3: a received payment is contested. An unissued license waits; an issued one is not touched. */
+  protected async openDispute(order: Order): Promise<void> {
+    const reason = prompt(this.i18n.t('orders.disputeReason', { number: order.number }))?.trim();
+    if (!reason) return;
+    await this.run(async () => {
+      await this.api.post<Order>(`/api/v1/admin/orders/${order.id}/dispute`, { reason });
+      this.message.set(this.i18n.t('orders.disputeOpened', { number: order.number }));
+    });
+  }
+
+  /** B3: lost records the chargeback (bank reference required); the license stays for staff to decide on the customer page. */
+  protected async resolveDispute(order: Order, won: boolean): Promise<void> {
+    let reference: string | null = null;
+    if (won) {
+      if (!confirm(this.i18n.t('orders.disputeWonConfirm', { number: order.number }))) return;
+    } else {
+      reference = prompt(this.i18n.t('orders.chargebackReference', { number: order.number }))?.trim() || null;
+      if (!reference) return;
+    }
+    await this.run(async () => {
+      await this.api.post<Order>(`/api/v1/admin/orders/${order.id}/dispute/resolve`, { won, reference });
+      this.message.set(this.i18n.t(won ? 'orders.disputeClosedWon' : 'orders.disputeClosedLost', { number: order.number }));
+    });
   }
 
   /** For bank transfers and other payments received outside the website. Issues the invoice and license like a card payment. */

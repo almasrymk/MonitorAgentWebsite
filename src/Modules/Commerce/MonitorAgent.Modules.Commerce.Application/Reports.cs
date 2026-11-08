@@ -44,7 +44,8 @@ internal static class Reports
     public static (DateTimeOffset From, DateTimeOffset Until) Bounds(DateOnly from, DateOnly to) =>
         (new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero), new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero));
 
-    public static decimal Signed(LedgerEntry e) => e.Kind == LedgerEntryKind.Refund ? -e.Amount : e.Amount;
+    /// <summary>Money out (a refund, or a chargeback after a lost dispute) is negative.</summary>
+    public static decimal Signed(LedgerEntry e) => e.Kind is LedgerEntryKind.Refund or LedgerEntryKind.Chargeback ? -e.Amount : e.Amount;
 }
 
 internal sealed class RevenueReportHandler(ICommerceStore store) : IQueryHandler<RevenueReportQuery, Result<RevenueReportDto>>
@@ -60,7 +61,7 @@ internal sealed class RevenueReportHandler(ICommerceStore store) : IQueryHandler
         var totals = lines.GroupBy(l => l.Entry.Currency).OrderBy(g => g.Key).Select(g =>
         {
             var payments = g.Where(l => l.Entry.Kind == LedgerEntryKind.Payment).Sum(l => l.Entry.Amount);
-            var refunds = g.Where(l => l.Entry.Kind == LedgerEntryKind.Refund).Sum(l => l.Entry.Amount);
+            var refunds = g.Where(l => l.Entry.Kind is LedgerEntryKind.Refund or LedgerEntryKind.Chargeback).Sum(l => l.Entry.Amount);
             return new CurrencyTotalDto(g.Key, payments, refunds, payments - refunds, Paid(g), g.Count() - Paid(g));
         }).ToList();
         var byMonth = lines.GroupBy(l => (Month: l.Entry.At.UtcDateTime.ToString("yyyy-MM", CultureInfo.InvariantCulture), l.Entry.Currency))

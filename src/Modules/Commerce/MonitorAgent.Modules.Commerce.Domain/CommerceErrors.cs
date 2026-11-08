@@ -16,6 +16,10 @@ public static class CommerceErrors
     public static readonly Error RefundReferenceUsed = Error.Conflict("REFUND_REFERENCE_USED", "This refund reference was already recorded for another order or amount.");
     /// <summary>INT-014: an unpaid upgrade order for this subscription exists; pay or cancel it first, so nobody pays twice.</summary>
     public static readonly Error UpgradeAlreadyOpen = Error.Conflict("UPGRADE_ALREADY_OPEN", "An upgrade order for this subscription is waiting for payment. Pay or cancel it first.");
+    /// <summary>B3: only a received payment can be disputed.</summary>
+    public static readonly Error NotDisputable = Error.Conflict("ORDER_NOT_DISPUTABLE", "Only a paid order can be disputed.");
+    public static readonly Error DisputeAlreadyOpen = Error.Conflict("DISPUTE_ALREADY_OPEN", "This order already has an open dispute.");
+    public static readonly Error NoOpenDispute = Error.Conflict("NO_OPEN_DISPUTE", "This order has no open dispute.");
     public static readonly Error NotCancellable = Error.Conflict("ORDER_NOT_CANCELLABLE", "Only unpaid orders can be cancelled.");
     /// <summary>E5: the order already waits for staff to check another transfer reference.</summary>
     public static readonly Error TransferAlreadySubmitted = Error.Conflict("PAYMENT_ALREADY_SUBMITTED", "A bank transfer for this order is already waiting to be checked.");

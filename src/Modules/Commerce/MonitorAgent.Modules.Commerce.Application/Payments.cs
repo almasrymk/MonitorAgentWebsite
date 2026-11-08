@@ -67,6 +67,67 @@ internal sealed class RecordRefundHandler(ICommerceStore store, TimeProvider clo
 }
 
 /// <summary>Issues licenses for paid orders whose fulfilment didn't finish (LicensingPlatform was down). Run on a timer.</summary>
+/// <summary>B3: staff record that a received payment is contested. Nothing is reversed and no license is touched.</summary>
+public sealed record OpenDisputeCommand(Guid OrderId, string Reason) : ICommand<Result<OrderDto>>, IAuditedCommand
+{
+    public string AuditAction => "order.dispute-opened";
+    public string AuditTarget => $"order:{OrderId}";
+    public string? AuditDetail => Reason;
+}
+
+/// <summary>
+/// B3: staff close a dispute. Lost records the chargeback in the ledger under <paramref name="Reference"/> (the bank's
+/// reference); the license stays as it is until staff suspend it themselves (admin licenses endpoints).
+/// </summary>
+public sealed record ResolveDisputeCommand(Guid OrderId, bool Won, string? Reference) : ICommand<Result<OrderDto>>, IAuditedCommand
+{
+    public string AuditAction => Won ? "order.dispute-won" : "order.dispute-lost";
+    public string AuditTarget => $"order:{OrderId}";
+    public string? AuditDetail => Reference;
+}
+
+internal sealed class OpenDisputeValidator : AbstractValidator<OpenDisputeCommand>
+{
+    public OpenDisputeValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(200);
+}
+
+internal sealed class ResolveDisputeValidator : AbstractValidator<ResolveDisputeCommand>
+{
+    public ResolveDisputeValidator()
+    {
+        RuleFor(x => x.Reference).NotEmpty().MaximumLength(100).When(x => !x.Won).WithMessage("A lost dispute needs the bank's chargeback reference.");
+        RuleFor(x => x.Reference).MaximumLength(100);
+    }
+}
+
+internal sealed class OpenDisputeHandler(ICommerceStore store, TimeProvider clock) : ICommandHandler<OpenDisputeCommand, Result<OrderDto>>
+{
+    public async Task<Result<OrderDto>> HandleAsync(OpenDisputeCommand command, CancellationToken ct)
+    {
+        if (await store.OrderAsync(command.OrderId, ct) is not { } order) return CommerceErrors.OrderNotFound;
+        var opened = order.OpenDispute(command.Reason, clock.GetUtcNow());
+        if (opened.IsFailure) return opened.Error!;
+        await store.SaveAsync(ct);
+        return order.ToDto();
+    }
+}
+
+internal sealed class ResolveDisputeHandler(ICommerceStore store, AfterPayment after, TimeProvider clock) : ICommandHandler<ResolveDisputeCommand, Result<OrderDto>>
+{
+    public async Task<Result<OrderDto>> HandleAsync(ResolveDisputeCommand command, CancellationToken ct)
+    {
+        if (await store.OrderAsync(command.OrderId, ct) is not { } order) return CommerceErrors.OrderNotFound;
+        var resolved = order.ResolveDispute(command.Won);
+        if (resolved.IsFailure) return resolved.Error!;
+        if (resolved.Value > 0)
+            store.Add(new LedgerEntry(order.Id, LedgerEntryKind.Chargeback, resolved.Value, order.Currency, "manual", command.Reference!.Trim(), clock.GetUtcNow()));
+        await store.SaveAsync(ct);
+        // A won dispute on an order whose license was held: issue it now.
+        if (command.Won && order.Status == OrderStatus.Paid) await after.FulfilAsync(order, ct);
+        return order.ToDto();
+    }
+}
+
 public sealed record FulfillPaidOrdersCommand : ICommand<Result<int>>;
 
 /// <summary>Every company's orders for staff, newest first, with the company named.</summary>
@@ -117,6 +178,8 @@ internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirecto
     /// <summary>Best effort: a failure leaves the order Paid, and <see cref="FulfillPaidOrdersCommand"/> retries it.</summary>
     public async Task FulfilAsync(Order order, CancellationToken ct)
     {
+        // B3: a contested payment issues nothing until staff resolve the dispute.
+        if (order.Dispute == DisputeStatus.Open) return;
         var fulfilled = order.Kind switch
         {
             OrderKind.Renewal => await renewals.RenewAsync(order.CompanyId, order.RenewsGrantId!.Value, order.PlanId, order.Number, ct),

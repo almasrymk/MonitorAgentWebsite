@@ -1,3 +1,4 @@
+using FluentValidation;
 using MonitorAgent.BuildingBlocks.Application;
 using MonitorAgent.Modules.Licenses.Domain;
 using MonitorAgent.SharedKernel;
@@ -324,5 +325,68 @@ internal sealed class RevokeMyLicenseHandler(CompanyScope scope, ILicensingPlatf
     {
         if (await SuspendMyLicenseHandler.DevicesAsync(scope, platform, command.LicenseId, ct) is { } error) return error;
         return await LicensingCall.Run(() => platform.RevokeLicenseAsync(command.LicenseId, null, ct));
+    }
+}
+
+/// <summary>
+/// B3: after a refund or a lost dispute staff decide, explicitly, whether the customer keeps using the license. The
+/// website never suspends one by itself. Each action is audited with the staff member and the reason.
+/// </summary>
+public sealed record StaffSuspendLicenseCommand(Guid CompanyId, Guid LicenseId, string Reason) : ICommand<Result>, IAuditedCommand
+{
+    public string AuditAction => "license.suspended-by-staff";
+    public string AuditTarget => $"license:{LicenseId}";
+    public string? AuditDetail => $"company {CompanyId}: {Reason}";
+}
+
+public sealed record StaffResumeLicenseCommand(Guid CompanyId, Guid LicenseId, string Reason) : ICommand<Result>, IAuditedCommand
+{
+    public string AuditAction => "license.resumed-by-staff";
+    public string AuditTarget => $"license:{LicenseId}";
+    public string? AuditDetail => $"company {CompanyId}: {Reason}";
+}
+
+internal sealed class StaffSuspendLicenseValidator : AbstractValidator<StaffSuspendLicenseCommand>
+{
+    public StaffSuspendLicenseValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(200);
+}
+
+internal sealed class StaffResumeLicenseValidator : AbstractValidator<StaffResumeLicenseCommand>
+{
+    public StaffResumeLicenseValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(200);
+}
+
+internal sealed class StaffSuspendLicenseHandler(ILicenseStore store, ILicensingPlatform platform) : ICommandHandler<StaffSuspendLicenseCommand, Result>
+{
+    public async Task<Result> HandleAsync(StaffSuspendLicenseCommand command, CancellationToken ct)
+    {
+        if (await StaffLicenses.OwnedAsync(store, platform, command.CompanyId, command.LicenseId, ct) is { } error) return error;
+        return await LicensingCall.Run(() => platform.SuspendLicenseAsync(command.LicenseId, command.Reason, byCustomer: false, ct));
+    }
+}
+
+internal sealed class StaffResumeLicenseHandler(ILicenseStore store, ILicensingPlatform platform) : ICommandHandler<StaffResumeLicenseCommand, Result>
+{
+    public async Task<Result> HandleAsync(StaffResumeLicenseCommand command, CancellationToken ct)
+    {
+        if (await StaffLicenses.OwnedAsync(store, platform, command.CompanyId, command.LicenseId, ct) is { } error) return error;
+        return await LicensingCall.Run(() => platform.ResumeLicenseAsync(command.LicenseId, byCustomer: false, ct));
+    }
+}
+
+internal static class StaffLicenses
+{
+    /// <summary>The license must belong to that company's LicensingPlatform customer.</summary>
+    public static async Task<Error?> OwnedAsync(ILicenseStore store, ILicensingPlatform platform, Guid companyId, Guid licenseId, CancellationToken ct)
+    {
+        var link = await store.LinkForAsync(companyId, ct);
+        try
+        {
+            return await CompanyScope.OwnLicenseAsync(platform, link?.PlatformCustomerId, licenseId, ct) is null ? LicensesErrors.LicenseNotFound : null;
+        }
+        catch (PlatformUnavailableException)
+        {
+            return LicensesErrors.PlatformUnavailable;
+        }
     }
 }

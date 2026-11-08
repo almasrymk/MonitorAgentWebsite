@@ -228,6 +228,9 @@ export class CustomersPage {
                   <th scope="col">{{ 'orders.status' | t }}</th>
                   <th scope="col">{{ 'customers.devices' | t }}</th>
                   <th scope="col">{{ 'customers.expires' | t }}</th>
+                  @if (canSeeOrders()) {
+                    <th scope="col"><span class="visually-hidden">{{ 'customers.licenseActions' | t }}</span></th>
+                  }
                 </tr>
               </thead>
               <tbody>
@@ -238,6 +241,15 @@ export class CustomersPage {
                     <td><ma-status [value]="license.status" /></td>
                     <td>{{ license.activeDevices }} / {{ license.maxDevices ?? '∞' }}</td>
                     <td>{{ license.expiresAt | when }}</td>
+                    @if (canSeeOrders()) {
+                      <td>
+                        @if (license.status === 'Suspended') {
+                          <button class="btn secondary" type="button" [disabled]="busy()" (click)="licenseAction(license, 'resume')">{{ 'customers.resumeLicense' | t }}</button>
+                        } @else if (license.status === 'Active') {
+                          <button class="btn secondary" type="button" [disabled]="busy()" (click)="licenseAction(license, 'suspend')">{{ 'customers.suspendLicense' | t }}</button>
+                        }
+                      </td>
+                    }
                   </tr>
                 }
               </tbody>
@@ -366,6 +378,28 @@ export class CustomerPage {
         if (admin) void this.plans.load();
       });
     });
+  }
+
+  /**
+   * B3: after a refund or a lost dispute, finance decides whether the customer keeps the license. Never automatic; the
+   * reason is required and goes into the audit log.
+   */
+  protected async licenseAction(license: LicenseSummary, action: 'suspend' | 'resume'): Promise<void> {
+    const reason = prompt(this.i18n.t(action === 'suspend' ? 'customers.suspendReason' : 'customers.resumeReason', { number: license.licenseNumber }))?.trim();
+    if (!reason) return;
+    this.busy.set(true);
+    this.failed.set(false);
+    this.message.set('');
+    try {
+      await this.api.post(`/api/v1/admin/customers/${this.id()}/licenses/${license.id}/${action}`, { reason });
+      this.message.set(this.i18n.t(action === 'suspend' ? 'customers.licenseSuspended' : 'customers.licenseResumed', { number: license.licenseNumber }));
+      await this.licenses.load(true);
+    } catch (error) {
+      this.failed.set(true);
+      this.message.set(errorText(this.i18n, error));
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   /** For a payment taken outside the website, when there is no order to mark paid. */

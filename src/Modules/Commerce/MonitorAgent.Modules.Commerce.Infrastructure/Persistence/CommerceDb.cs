@@ -51,8 +51,12 @@ public sealed class CommerceDb(DbContextOptions<CommerceDb> options) : DbContext
             o.Property(x => x.PaidVia).HasMaxLength(30);
             o.Property(x => x.LicenseNumber).HasMaxLength(64);
             o.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20).HasDefaultValue(OrderKind.Purchase).HasSentinel((OrderKind)(-1));
+            o.Property(x => x.Dispute).HasConversion<string>().HasMaxLength(10);
+            o.Property(x => x.DisputeReason).HasMaxLength(200);
+            o.Property(x => x.ChargedBackAmount).HasPrecision(18, 2);
             o.Property(x => x.PlacedAt).HasConversion(Utc);
             o.Property(x => x.PaidAt).HasConversion(NullableUtc);
+            o.Property(x => x.DisputedAt).HasConversion(NullableUtc);
             o.HasIndex(x => new { x.CompanyId, x.PlacedAt });
             o.HasIndex(x => x.Status);
             o.HasMany(x => x.Payments).WithOne().HasForeignKey("OrderId").IsRequired().OnDelete(DeleteBehavior.Cascade);

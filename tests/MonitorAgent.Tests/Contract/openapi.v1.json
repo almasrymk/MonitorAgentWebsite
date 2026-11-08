@@ -800,6 +800,9 @@
         ],
         "type": "object"
       },
+      "DisputeStatus": {
+        "type": "integer"
+      },
       "EmailRequest": {
         "properties": {
           "email": {
@@ -1211,6 +1214,17 @@
         ],
         "type": "object"
       },
+      "OpenDisputeRequest": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
       "OpenTicketRequest": {
         "properties": {
           "body": {
@@ -1247,6 +1261,29 @@
           },
           "currency": {
             "type": "string"
+          },
+          "dispute": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DisputeStatus"
+              }
+            ]
+          },
+          "disputeReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "disputedAt": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "id": {
             "format": "uuid",
@@ -2340,6 +2377,24 @@
         ],
         "type": "object"
       },
+      "ResolveDisputeRequest": {
+        "properties": {
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "won": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "won",
+          "reference"
+        ],
+        "type": "object"
+      },
       "RevenueReportDto": {
         "properties": {
           "byMonth": {
@@ -2466,6 +2521,17 @@
         },
         "required": [
           "requiresMfa"
+        ],
+        "type": "object"
+      },
+      "StaffLicenseRequest": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
         ],
         "type": "object"
       },
@@ -3683,6 +3749,110 @@
         ]
       }
     },
+    "/api/v1/admin/customers/{companyId}/licenses/{licenseId}/resume": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "companyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "licenseId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffLicenseRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffLicenseRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffLicenseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "AdminLicenseActions"
+        ]
+      }
+    },
+    "/api/v1/admin/customers/{companyId}/licenses/{licenseId}/suspend": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "companyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "licenseId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffLicenseRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffLicenseRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffLicenseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "AdminLicenseActions"
+        ]
+      }
+    },
     "/api/v1/admin/licenses/grants": {
       "post": {
         "requestBody": {
@@ -3872,6 +4042,126 @@
             "text/json": {
               "schema": {
                 "$ref": "#/components/schemas/RejectTransferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "AdminOrders"
+        ]
+      }
+    },
+    "/api/v1/admin/orders/{orderId}/dispute": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenDisputeRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenDisputeRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenDisputeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "AdminOrders"
+        ]
+      }
+    },
+    "/api/v1/admin/orders/{orderId}/dispute/resolve": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveDisputeRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveDisputeRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveDisputeRequest"
               }
             }
           },
@@ -6990,6 +7280,9 @@
     },
     {
       "name": "AdminCompanyLicenses"
+    },
+    {
+      "name": "AdminLicenseActions"
     },
     {
       "name": "UpdateManifest"
