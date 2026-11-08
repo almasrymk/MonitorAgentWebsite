@@ -20,6 +20,9 @@ public sealed record PlatformSubscription(
     Guid Id, Guid CustomerId, Guid PlanId, string PlanCode, string PlanName, string Status,
     DateTimeOffset StartDate, DateTimeOffset? EndDate, int Version);
 
+/// <summary>A trial code for the Agent (shown once), when it stops working and how long the trial runs.</summary>
+public sealed record PlatformTrialGrant(string TrialCode, DateTimeOffset ExpiresAt, string ProductCode, int TrialDays);
+
 /// <summary>LicensingPlatform refused the call with a client error the caller can act on.</summary>
 public sealed class PlatformRejectedException(int status, string code, string message) : Exception(message)
 {
@@ -55,6 +58,9 @@ internal interface ILicensingPlatform
     Task ResumeSubscriptionAsync(Guid subscriptionId, bool byCustomer, CancellationToken ct);
     Task CancelSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct);
     Task<PlatformIssuedLicense> RegenerateKeyAsync(Guid licenseId, CancellationToken ct);
+
+    /// <summary>B5 (Licensing ADR-016): a single-use trial code for one website account. Needs the API client's trials.grant scope.</summary>
+    Task<PlatformTrialGrant> IssueTrialGrantAsync(string productCode, string reference, CancellationToken ct);
     Task SuspendLicenseAsync(Guid licenseId, string? reason, bool byCustomer, CancellationToken ct);
     Task ResumeLicenseAsync(Guid licenseId, bool byCustomer, CancellationToken ct);
     Task RevokeLicenseAsync(Guid licenseId, string? reason, CancellationToken ct);

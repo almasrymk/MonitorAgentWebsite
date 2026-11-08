@@ -55,6 +55,39 @@ public class LicensesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task A_signed_in_customer_gets_a_trial_code_for_the_agent_once_per_account()
+    {
+        var customer = await CustomerAsync();
+        var before = factory.Platform.TrialGrants.Keys.ToHashSet();
+
+        var response = await customer.PostAsync("/api/v1/licenses/trial", new { });
+        var code = await JsonAsync(response);
+
+        Assert.StartsWith("ltg_", code.GetProperty("trialCode").GetString(), StringComparison.Ordinal);
+        Assert.Equal(14, code.GetProperty("trialDays").GetInt32());
+        Assert.Equal("000001", code.GetProperty("productCode").GetString());
+        Assert.Contains("no-store", response.Headers.CacheControl?.ToString() ?? "", StringComparison.Ordinal);
+        var reference = Assert.Single(factory.Platform.TrialGrants.Keys, k => !before.Contains(k));
+        Assert.StartsWith("website-user:", reference, StringComparison.Ordinal);
+
+        factory.Platform.UsedTrials[reference] = true;
+        var again = await customer.PostAsync("/api/v1/licenses/trial", new { });
+        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+        Assert.Contains("TRIAL_ALREADY_USED", await again.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Trial_codes_need_a_signed_in_customer_and_report_an_outage()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateTestClient().PostAsync("/api/v1/licenses/trial", new { })).StatusCode);
+
+        var customer = await CustomerAsync();
+        factory.Platform.FailNext = nameof(FakeLicensingPlatform.IssueTrialGrantAsync);
+        var down = await customer.PostAsync("/api/v1/licenses/trial", new { });
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, down.StatusCode);
+    }
+
+    [Fact]
     public async Task The_price_list_is_public()
     {
         var plans = await JsonAsync(await factory.CreateTestClient().GetAsync("/api/v1/catalog/plans"));

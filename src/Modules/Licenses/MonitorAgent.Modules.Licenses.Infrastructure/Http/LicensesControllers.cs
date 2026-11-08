@@ -26,6 +26,15 @@ public sealed class CatalogController(IDispatcher dispatcher) : ControllerBase
 [Authorize(Policy = AuthPolicies.Customer)]
 public sealed class MyLicensesController(IDispatcher dispatcher) : ControllerBase
 {
+    /// <summary>B5: a single-use trial code for the Agent (Licensing ADR-016). Shown once; one trial per account.</summary>
+    [HttpPost("trial")]
+    [ProducesResponseType<TrialCodeDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Trial(CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        return (await dispatcher.SendAsync(new StartMyTrialCommand(), ct)).ToActionResult();
+    }
+
     [HttpGet("subscription")]
     [ProducesResponseType<IReadOnlyList<CompanySubscriptionDto>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Subscription(CancellationToken ct) =>

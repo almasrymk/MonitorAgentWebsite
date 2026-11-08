@@ -82,6 +82,14 @@ interface CompanySubscription {
         }
       }
     </section>
+    <section class="card" aria-labelledby="trial-title">
+      <h2 id="trial-title">{{ 'licenses.trialTitle' | t }}</h2>
+      <p class="muted">{{ 'licenses.trialHelp' | t }}</p>
+      @if (trialNote()) {
+        <p class="alert" [class.ok]="!trialFailed()" [attr.role]="trialFailed() ? 'alert' : 'status'" data-testid="trial-code">{{ trialNote() }}</p>
+      }
+      <button class="btn secondary" type="button" [disabled]="busy()" (click)="startTrial()">{{ 'licenses.trialStart' | t }}</button>
+    </section>
     @if (licenses.loading()) {
       <ma-skeleton />
     } @else if (licenses.error()) {
@@ -136,6 +144,8 @@ export class LicensesPage implements OnInit {
   protected readonly note = signal('');
   protected readonly failedNote = signal(false);
   protected readonly busy = signal(false);
+  protected readonly trialNote = signal('');
+  protected readonly trialFailed = signal(false);
   protected readonly canBill = () => this.role() === 'Owner' || this.role() === 'Billing';
   protected readonly canDevices = () => this.role() === 'Owner' || this.role() === 'Technical';
 
@@ -196,6 +206,23 @@ export class LicensesPage implements OnInit {
       await this.api.post(`/api/v1/licenses/subscription/${subscription.id}/${action}`);
       this.note.set(this.i18n.t('licenses.updated'));
     });
+  }
+
+  /** B5: a single-use code the Agent redeems without any shared secret (Licensing ADR-016). */
+  protected async startTrial(): Promise<void> {
+    this.busy.set(true);
+    this.trialFailed.set(false);
+    try {
+      const trial = await this.api.post<{ trialCode: string; expiresAt: string; trialDays: number }>('/api/v1/licenses/trial');
+      this.trialNote.set(
+        this.i18n.t('licenses.trialCode', { code: trial.trialCode, date: new Date(trial.expiresAt).toLocaleString(), days: String(trial.trialDays) }),
+      );
+    } catch (error) {
+      this.trialFailed.set(true);
+      this.trialNote.set(errorText(this.i18n, error));
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   protected issue(subscription: CompanySubscription): Promise<void> {

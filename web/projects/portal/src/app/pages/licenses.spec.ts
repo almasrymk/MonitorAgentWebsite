@@ -113,3 +113,34 @@ describe('LicensePage renewal', () => {
     expect(button(host, 'Renew')).toBeUndefined();
   });
 });
+
+describe('LicensesPage free trial (B5)', () => {
+  it('asks for a trial code and shows it once', async () => {
+    const api = setUp('Owner');
+    api.post.mockImplementation((path: string) =>
+      path === '/api/v1/licenses/trial'
+        ? Promise.resolve({ trialCode: 'ltg_TESTONLYCODE', expiresAt: '2026-11-09T12:00:00Z', productCode: '000001', trialDays: 14 })
+        : Promise.resolve(undefined),
+    );
+    const { fixture, host } = await render(LicensesPage);
+
+    button(host, 'Get a trial code')!.click();
+    await settle(fixture);
+
+    expect(api.post).toHaveBeenCalledWith('/api/v1/licenses/trial');
+    expect(host.querySelector('[data-testid="trial-code"]')?.textContent).toContain('ltg_TESTONLYCODE');
+    expect(host.querySelector('[data-testid="trial-code"]')?.textContent).toContain('14-day trial');
+  });
+
+  it('explains when the account already used its trial', async () => {
+    const api = setUp('Technical');
+    api.post.mockRejectedValue(new ApiError(409, 'TRIAL_ALREADY_USED', 'used'));
+    const { fixture, host } = await render(LicensesPage);
+
+    button(host, 'Get a trial code')!.click();
+    await settle(fixture);
+
+    expect(host.querySelector('[data-testid="trial-code"]')?.getAttribute('role')).toBe('alert');
+    expect(host.textContent).toContain('You have already used your free trial');
+  });
+});

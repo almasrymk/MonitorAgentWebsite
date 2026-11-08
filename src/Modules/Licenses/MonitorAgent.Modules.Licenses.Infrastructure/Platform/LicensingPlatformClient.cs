@@ -135,6 +135,16 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
         return new PlatformIssuedLicense(ToLicense(issued.License), issued.ProductKey);
     }
 
+    public async Task<PlatformTrialGrant> IssueTrialGrantAsync(string productCode, string reference, CancellationToken ct)
+    {
+        var grant = await ReadManagementAsync<TrialGrantBody>("api/v1/licensing/trial-grants", new { productCode, reference }, ct);
+        if (string.IsNullOrWhiteSpace(grant.TrialCode))
+            throw new PlatformUnavailableException("LicensingPlatform sent a trial grant without a code.");
+        return new PlatformTrialGrant(grant.TrialCode, grant.ExpiresAt, grant.ProductCode, grant.TrialDays);
+    }
+
+    private sealed record TrialGrantBody(string TrialCode, DateTimeOffset ExpiresAt, string ProductCode, int TrialDays);
+
     public Task SuspendLicenseAsync(Guid licenseId, string? reason, bool byCustomer, CancellationToken ct) =>
         SendManagementAsync($"api/v1/licenses/{licenseId}/suspend", new { reason, byCustomer }, ct);
 

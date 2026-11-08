@@ -21,5 +21,8 @@ public static class LicensesErrors
     /// <summary>INT-014: moving to a dearer plan in the middle of a term needs a paid upgrade order.</summary>
     public static readonly Error UpgradeRequiresPayment = Error.Conflict("PLAN_UPGRADE_REQUIRES_PAYMENT", "Moving to a higher plan needs a paid upgrade. A cheaper plan can be scheduled for your next renewal.");
     public static readonly Error SamePlan = Error.Conflict("SUBSCRIPTION_SAME_PLAN", "Subscription is already on this plan.");
+    /// <summary>B5: this account already started its trial (one per account and product).</summary>
+    public static readonly Error TrialAlreadyUsed = Error.Conflict("TRIAL_ALREADY_USED", "You have already used your free trial. Buy a plan to keep monitoring.");
+    public static readonly Error TrialUnavailable = Error.NotFound("TRIAL_UNAVAILABLE", "A free trial isn't offered right now.");
     public static readonly Error OrderMismatch = Error.Conflict("ORDER_REFERENCE_REUSED", "This order reference was already used for a different company or plan.");
 }

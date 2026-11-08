@@ -163,6 +163,20 @@ public sealed class FakeLicensingPlatform : ILicensingPlatform
     }
     public Task CancelSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) => SetSubscriptionAsync(subscriptionId, "Cancelled", "Active", "Trial", "Suspended");
 
+    /// <summary>Trial codes by reference; a reference whose trial was used (see <see cref="UsedTrials"/>) is refused like LicensingPlatform.</summary>
+    public ConcurrentDictionary<string, PlatformTrialGrant> TrialGrants { get; } = new();
+    public ConcurrentDictionary<string, bool> UsedTrials { get; } = new();
+
+    public Task<PlatformTrialGrant> IssueTrialGrantAsync(string productCode, string reference, CancellationToken ct)
+    {
+        Trip(nameof(IssueTrialGrantAsync));
+        if (UsedTrials.ContainsKey(reference))
+            throw new PlatformRejectedException(409, "LIC_TRIAL_GRANT_USED", "A trial of this product was already started for this account.");
+        var grant = new PlatformTrialGrant($"ltg_{Guid.NewGuid():N}", DateTimeOffset.UtcNow.AddHours(24), productCode, 14);
+        TrialGrants[reference] = grant;
+        return Task.FromResult(grant);
+    }
+
     public Task<PlatformIssuedLicense> RegenerateKeyAsync(Guid licenseId, CancellationToken ct)
     {
         Trip(nameof(RegenerateKeyAsync));

@@ -2640,6 +2640,35 @@
         ],
         "type": "object"
       },
+      "TrialCodeDto": {
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "trialCode": {
+            "type": "string"
+          },
+          "trialDays": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "trialCode",
+          "expiresAt",
+          "productCode",
+          "trialDays"
+        ],
+        "type": "object"
+      },
       "VersionStatus": {
         "type": "integer"
       }
@@ -5632,6 +5661,35 @@
         "responses": {
           "204": {
             "description": "No Content"
+          }
+        },
+        "tags": [
+          "MyLicenses"
+        ]
+      }
+    },
+    "/api/v1/licenses/trial": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrialCodeDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrialCodeDto"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrialCodeDto"
+                }
+              }
+            },
+            "description": "OK"
           }
         },
         "tags": [

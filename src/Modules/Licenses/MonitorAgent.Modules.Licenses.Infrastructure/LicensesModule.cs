@@ -18,6 +18,8 @@ public sealed class LicensesModuleOptions
     public MonitorCloudOptions Monitor { get; set; } = new();
     /// <summary>How often to look for licenses that need an expiry reminder. 0 turns the reminders off (tests run them directly).</summary>
     public int ExpiryReminderMinutes { get; set; } = 360;
+    /// <summary>B5: the LicensingPlatform product code a website trial code is for (the Agent's <c>Licensing:ProductCode</c>).</summary>
+    public string TrialProductCode { get; set; } = "000001";
 }
 
 public static class LicensesModule
@@ -32,6 +34,7 @@ public static class LicensesModule
         services.AddSingleton(options);
         services.AddSingleton(options.Platform);
         services.AddSingleton(options.Monitor);
+        services.AddSingleton(new TrialOptions(options.TrialProductCode));
 
         services.AddDbContext<LicensesDb>(db => db.UseSqlServer(configuration.GetConnectionString("Default"),
             sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", LicensesDb.Schema)));
