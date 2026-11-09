@@ -31,6 +31,21 @@ public class HostTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task A_safe_correlation_id_is_echoed_and_an_unsafe_one_is_replaced()
+    {
+        using var kept = new HttpRequestMessage(HttpMethod.Get, "/health/live");
+        kept.Headers.Add("X-Correlation-Id", "e2e-trace-42");
+        var response = await _client.SendAsync(kept);
+        Assert.Equal("e2e-trace-42", response.Headers.GetValues("X-Correlation-Id").Single());
+
+        using var forged = new HttpRequestMessage(HttpMethod.Get, "/health/live");
+        forged.Headers.TryAddWithoutValidation("X-Correlation-Id", "bad id <script>");
+        var replaced = (await _client.SendAsync(forged)).Headers.GetValues("X-Correlation-Id").Single();
+        Assert.NotEqual("bad id <script>", replaced);
+        Assert.Matches("^[0-9a-f]{32}$", replaced);
+    }
+
+    [Fact]
     public async Task Unknown_route_returns_problem_details()
     {
         var response = await _client.GetAsync("/api/v1/does-not-exist");

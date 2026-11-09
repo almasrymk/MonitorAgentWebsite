@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MonitorAgent.BuildingBlocks.Application;
+using MonitorAgent.BuildingBlocks.Web;
 using MonitorAgent.Modules.Licenses.Application;
 using MonitorAgent.Modules.Licenses.Infrastructure.Persistence;
 using MonitorAgent.Modules.Licenses.Infrastructure.Platform;
@@ -50,7 +51,8 @@ public static class LicensesModule
                     ? "http://licensing-platform.invalid/" : options.Platform.BaseUrl.TrimEnd('/') + "/");
                 client.Timeout = TimeSpan.FromSeconds(options.Platform.TimeoutSeconds);
             })
-            .AddHttpMessageHandler<LicensingPlatformAuthHandler>();
+            .AddHttpMessageHandler<LicensingPlatformAuthHandler>()
+            .AddCorrelationId();
         services.AddSingleton<ILicensingPlatform, LicensingPlatformClient>();
 
         services.AddSingleton<MonitorTokens>();
@@ -61,7 +63,8 @@ public static class LicensesModule
                     ? "http://monitor-cloud.invalid/" : options.Monitor.BaseUrl.TrimEnd('/') + "/");
                 client.Timeout = TimeSpan.FromSeconds(options.Monitor.TimeoutSeconds);
             })
-            .AddHttpMessageHandler<MonitorCloudAuthHandler>();
+            .AddHttpMessageHandler<MonitorCloudAuthHandler>()
+            .AddCorrelationId();
         services.AddSingleton<IMonitorCloud, MonitorCloudClient>();
         services.AddHostedService<LicensesDbInitializer>();
         services.AddHostedService<ExpiryReminderWorker>();
