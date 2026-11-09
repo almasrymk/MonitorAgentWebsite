@@ -12,26 +12,39 @@ public sealed class MonitorCloudOptions
     public string BaseUrl { get; set; } = "";
 
     /// <summary>
-    /// A Monitor Cloud user for the website. Its role needs platform.tenants.manage.
-    /// The password comes from a secret store, never the repo.
+    /// The website's Monitor Cloud service client (Cloud ADR 0023, INT-030), created on the Cloud server with
+    /// <c>MonitorCloud.Api service-client create website --scope tenants.provision</c>. It can only register customers.
+    /// The secret comes from a secret store, never the repo.
+    /// </summary>
+    public string ClientId { get; set; } = "";
+    public string ClientSecret { get; set; } = "";
+
+    /// <summary>
+    /// Deprecated (INT-030): a Monitor Cloud Platform Admin user and password. Used only while <see cref="ClientId"/> is
+    /// empty; remove both after switching, then deactivate that user in Monitor Cloud.
     /// </summary>
     public string ServiceEmail { get; set; } = "";
     public string ServicePassword { get; set; } = "";
 
+    public bool UsesClient => !string.IsNullOrWhiteSpace(ClientId);
+
     public int TimeoutSeconds { get; set; } = 15;
 }
 
-/// <summary>Registers the website's Licensing customer as a Monitor Cloud tenant. Auth is that platform's user login.</summary>
+/// <summary>
+/// Registers the website's Licensing customer as a Monitor Cloud tenant and names the company owner, whom Monitor Cloud
+/// invites once as the tenant's first Administrator (Cloud ADR 0018). Older Cloud builds ignore the owner fields.
+/// </summary>
 internal sealed class MonitorCloudClient(IHttpClientFactory http) : IMonitorCloud
 {
     public const string HttpClientName = "MonitorCloud";
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerOptions.Web);
 
-    public async Task<Guid> RegisterTenantAsync(Guid licensingCustomerId, string name, CancellationToken ct)
+    public async Task<Guid> RegisterTenantAsync(Guid licensingCustomerId, string name, MonitorTenantOwner? owner, CancellationToken ct)
     {
         var registered = await SendAsync<RegisteredBody>(HttpMethod.Post, "api/v1/platform/tenants/registrations",
-            new { licensingCustomerId, name }, ct);
+            new { licensingCustomerId, name, ownerEmail = owner?.Email, ownerName = owner?.FullName }, ct);
         if (registered.TenantId == Guid.Empty)
             throw new MonitorUnavailableException("Monitor Cloud sent a registration without a tenant id.");
         return registered.TenantId;
@@ -83,7 +96,7 @@ internal sealed class MonitorCloudClient(IHttpClientFactory http) : IMonitorClou
         throw new MonitorUnavailableException($"Monitor Cloud answered {(int)response.StatusCode} {code}.");
     }
 
-    private sealed record RegisteredBody(Guid TenantId, bool Created, string? Status);
+    private sealed record RegisteredBody(Guid TenantId, bool Created, string? Status, string? OwnerInvitation);
 }
 
 /// <summary>The service account's current Monitor Cloud token, shared by every request.</summary>
@@ -95,7 +108,7 @@ internal sealed class MonitorTokens
 }
 
 /// <summary>
-/// Signs in to Monitor Cloud as the website's service user and adds the bearer token to every call. The token is
+/// Signs in to Monitor Cloud with the website's service client (or, deprecated, its service user) and adds the bearer token to every call. The token is
 /// reused until a minute before it expires, and a 401 triggers one fresh sign-in and retry.
 /// </summary>
 internal sealed class MonitorCloudAuthHandler(MonitorCloudOptions options, MonitorTokens tokens, TimeProvider clock) : DelegatingHandler
@@ -122,13 +135,18 @@ internal sealed class MonitorCloudAuthHandler(MonitorCloudOptions options, Monit
 
             var baseUri = new Uri(string.IsNullOrWhiteSpace(options.BaseUrl)
                 ? requestUri.GetLeftPart(UriPartial.Authority) + "/" : options.BaseUrl.TrimEnd('/') + "/");
-            using var login = new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "api/v1/auth/login"))
-            {
-                Content = JsonContent.Create(new { email = options.ServiceEmail, password = options.ServicePassword }),
-            };
+            using var login = options.UsesClient
+                ? new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "api/v1/auth/client-token"))
+                {
+                    Content = JsonContent.Create(new { clientId = options.ClientId, clientSecret = options.ClientSecret }),
+                }
+                : new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "api/v1/auth/login"))
+                {
+                    Content = JsonContent.Create(new { email = options.ServiceEmail, password = options.ServicePassword }),
+                };
             using var response = await base.SendAsync(login, ct);
             if (!response.IsSuccessStatusCode)
-                throw new MonitorUnavailableException($"Monitor Cloud rejected the website's service account ({(int)response.StatusCode}).");
+                throw new MonitorUnavailableException($"Monitor Cloud rejected the website's {(options.UsesClient ? "service client" : "service account")} ({(int)response.StatusCode}).");
             var auth = await response.Content.ReadFromJsonAsync<AuthBody>(JsonSerializerOptions.Web, ct)
                 ?? throw new MonitorUnavailableException("Monitor Cloud sent an empty sign-in response.");
             (tokens.Token, tokens.ExpiresAt) = (auth.AccessToken, auth.ExpiresAt);

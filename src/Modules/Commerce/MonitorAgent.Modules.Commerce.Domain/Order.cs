@@ -2,8 +2,22 @@ using MonitorAgent.SharedKernel;
 
 namespace MonitorAgent.Modules.Commerce.Domain;
 
-public enum OrderStatus { PendingPayment, Paid, Fulfilled, Cancelled }
+/// <summary>
+/// Refunded (INT-019): the whole amount went back to the buyer. A partial refund leaves the status as it was.
+/// PendingVerification (E5): the buyer says they paid by bank transfer; nothing is issued until staff approve it.
+/// </summary>
+public enum OrderStatus { PendingPayment, Paid, Fulfilled, Cancelled, Refunded, PendingVerification }
+/// <summary>
+/// Purchase starts a new subscription and license; Renewal (INT-018) extends the subscription of an issued license;
+/// Upgrade (INT-014) moves that subscription to a dearer plan for the rest of its term, at a prorated price.
+/// </summary>
+public enum OrderKind { Purchase, Renewal, Upgrade }
 public enum PaymentStatus { Pending, Succeeded, Failed }
+/// <summary>
+/// B3: a payment the payer's bank or the payer contests after it was received. Open holds an unissued license; Lost
+/// means the money was taken back (a chargeback); Won means it stays. The license is never touched automatically.
+/// </summary>
+public enum DisputeStatus { Open, Won, Lost }
 
 /// <summary>One try at paying an order through a provider's hosted checkout.</summary>
 public sealed class Payment : Entity
@@ -27,6 +41,8 @@ public sealed class Payment : Entity
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; internal set; }
     public string? FailureReason { get; internal set; }
+    /// <summary>E5: what the buyer wrote when submitting a bank transfer (sender, bank, date). Never shown to other companies.</summary>
+    public string? CustomerNote { get; internal set; }
 }
 
 public sealed record OrderPaid(Guid OrderId, string OrderNumber, Guid CompanyId, decimal Amount, string Currency) : DomainEvent;
@@ -54,7 +70,17 @@ public sealed class Order : AggregateRoot
     public DateTimeOffset? PaidAt { get; private set; }
     public string? PaidVia { get; private set; }
     public string? LicenseNumber { get; private set; }
+    public OrderKind Kind { get; private set; }
+    /// <summary>For a renewal or an upgrade: the license grant (Licenses module) whose subscription the payment extends or upgrades.</summary>
+    public Guid? RenewsGrantId { get; private set; }
+    /// <summary>INT-019: money given back so far. Never more than <see cref="Total"/>.</summary>
+    public decimal RefundedAmount { get; private set; }
     public IReadOnlyList<Payment> Payments => _payments;
+    public DisputeStatus? Dispute { get; private set; }
+    public DateTimeOffset? DisputedAt { get; private set; }
+    public string? DisputeReason { get; private set; }
+    /// <summary>The chargeback amount when a dispute was lost.</summary>
+    public decimal ChargedBackAmount { get; private set; }
 
     public static Order Place(string number, Guid companyId, Guid placedBy, Guid planId, string productName, string planName,
         decimal total, string currency, DateTimeOffset at)
@@ -67,6 +93,32 @@ public sealed class Order : AggregateRoot
             Currency = Guard.NotEmpty(currency, "Currency", 3).ToUpperInvariant(), PlacedAt = at,
         };
     }
+
+    /// <summary>INT-018: an order that renews an issued license at the current price of <paramref name="planId"/>.</summary>
+    public static Order PlaceRenewal(string number, Guid companyId, Guid placedBy, Guid grantId, Guid planId, string productName, string planName,
+        decimal total, string currency, DateTimeOffset at)
+    {
+        var order = Place(number, companyId, placedBy, planId, productName, planName, total, currency, at);
+        order.Kind = OrderKind.Renewal;
+        order.RenewsGrantId = grantId;
+        return order;
+    }
+
+    /// <summary>
+    /// INT-014: an order that upgrades the subscription behind <paramref name="grantId"/> to <paramref name="planId"/>
+    /// at the prorated <paramref name="total"/> quoted now. The plan changes only once the order is paid.
+    /// </summary>
+    public static Order PlaceUpgrade(string number, Guid companyId, Guid placedBy, Guid grantId, Guid planId, string productName, string planName,
+        decimal total, string currency, DateTimeOffset at)
+    {
+        var order = Place(number, companyId, placedBy, planId, productName, planName, total, currency, at);
+        order.Kind = OrderKind.Upgrade;
+        order.RenewsGrantId = grantId;
+        return order;
+    }
+
+    /// <summary>Not yet paid or still waiting for staff to check a transfer: the order could still be paid.</summary>
+    public bool IsOpen => Status is OrderStatus.PendingPayment or OrderStatus.PendingVerification;
 
     public Result<Payment> StartPayment(string provider, DateTimeOffset at)
     {
@@ -99,6 +151,14 @@ public sealed class Order : AggregateRoot
         }
 
         payment.Status = PaymentStatus.Succeeded;
+        if (Status == OrderStatus.PendingVerification && SubmittedTransfer is { } transfer)
+        {
+            // E5: a card payment that was already under way completed first; the reported transfer is not needed.
+            transfer.Status = PaymentStatus.Failed;
+            transfer.FailureReason = "Paid online instead.";
+            transfer.CompletedAt = at;
+            Status = OrderStatus.PendingPayment;
+        }
         if (Status != OrderStatus.PendingPayment) return false;
         MarkPaid(payment.Provider, at);
         return true;
@@ -128,11 +188,125 @@ public sealed class Order : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>E5: the provider name of a bank transfer the buyer reports and staff verify.</summary>
+    public const string BankTransfer = "bank-transfer";
+
+    /// <summary>The pending bank transfer the buyer submitted, if the order is waiting for staff.</summary>
+    public Payment? SubmittedTransfer =>
+        _payments.LastOrDefault(p => p.Provider == BankTransfer && p.Status == PaymentStatus.Pending);
+
+    /// <summary>
+    /// E5: the buyer reports a bank transfer with the reference printed on their bank's receipt. The order waits for
+    /// staff (PendingVerification); nothing is paid or issued yet. Submitting the same reference again is a no-op, and
+    /// a reference staff rejected before can be submitted again once corrected at the bank.
+    /// </summary>
+    public Result SubmitBankTransfer(string reference, string? note, DateTimeOffset at)
+    {
+        reference = Guard.NotEmpty(reference, "Payment reference", 100);
+        note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (note is { Length: > 500 }) throw new DomainException(Error.Validation("NOTE_TOO_LONG", "The note can be at most 500 characters."));
+        if (Status == OrderStatus.PendingVerification)
+            return SubmittedTransfer?.ProviderReference == reference ? Result.Success() : CommerceErrors.TransferAlreadySubmitted;
+        if (Status != OrderStatus.PendingPayment) return CommerceErrors.NotPayable;
+
+        var payment = _payments.SingleOrDefault(p => p.Provider == BankTransfer && p.ProviderReference == reference);
+        if (payment is null)
+        {
+            payment = new Payment(BankTransfer, Total, Currency, at) { ProviderReference = reference };
+            _payments.Add(payment);
+        }
+        else
+        {
+            // Rejected before: the same transfer is looked at again.
+            payment.Status = PaymentStatus.Pending;
+            payment.FailureReason = null;
+            payment.CompletedAt = null;
+        }
+        payment.CustomerNote = note;
+        Status = OrderStatus.PendingVerification;
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// E5: staff saw the money on the bank statement. Only now is the order paid (and then fulfilled by the caller).
+    /// Returns false when this transfer was already approved, so a double click never pays twice.
+    /// </summary>
+    public Result<bool> ApproveBankTransfer(DateTimeOffset at)
+    {
+        if (Status is OrderStatus.Paid or OrderStatus.Fulfilled && PaidVia == BankTransfer) return false;
+        if (Status != OrderStatus.PendingVerification || SubmittedTransfer is not { } payment) return CommerceErrors.NothingToVerify;
+        payment.Status = PaymentStatus.Succeeded;
+        payment.CompletedAt = at;
+        MarkPaid(BankTransfer, at);
+        return true;
+    }
+
+    /// <summary>E5: staff could not find the transfer. The order can be paid again, by any method.</summary>
+    public Result RejectBankTransfer(string reason, DateTimeOffset at)
+    {
+        if (Status != OrderStatus.PendingVerification || SubmittedTransfer is not { } payment) return CommerceErrors.NothingToVerify;
+        reason = Guard.NotEmpty(reason, "Reason", 200);
+        payment.Status = PaymentStatus.Failed;
+        payment.FailureReason = reason;
+        payment.CompletedAt = at;
+        Status = OrderStatus.PendingPayment;
+        return Result.Success();
+    }
+
     public void Fulfilled(string licenseNumber)
     {
         if (Status != OrderStatus.Paid) return;
         LicenseNumber = licenseNumber;
         Status = OrderStatus.Fulfilled;
+    }
+
+    /// <summary>
+    /// INT-019: staff record money given back outside the website (bank transfer, cash). The license is not touched:
+    /// staff decide separately whether to suspend it. A refund of the whole amount before fulfilment also stops the
+    /// license from being issued, because only Paid orders are fulfilled.
+    /// </summary>
+    public Result Refund(decimal amount)
+    {
+        if (Status is not (OrderStatus.Paid or OrderStatus.Fulfilled)) return CommerceErrors.NotRefundable;
+        amount = decimal.Round(amount, 2);
+        if (amount <= 0 || amount > Total - RefundedAmount) return CommerceErrors.RefundTooLarge;
+        RefundedAmount += amount;
+        if (RefundedAmount == Total) Status = OrderStatus.Refunded;
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// B3: staff record that a received payment is contested (a bank recall, a chargeback notice, a customer claim).
+    /// Nothing is reversed yet; a license not issued yet waits until the dispute is resolved.
+    /// </summary>
+    public Result OpenDispute(string reason, DateTimeOffset at)
+    {
+        if (Status is not (OrderStatus.Paid or OrderStatus.Fulfilled)) return CommerceErrors.NotDisputable;
+        if (Dispute == DisputeStatus.Open) return CommerceErrors.DisputeAlreadyOpen;
+        Dispute = DisputeStatus.Open;
+        DisputedAt = at;
+        DisputeReason = Guard.NotEmpty(reason, "Reason", 200);
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// B3: the dispute ended. Lost: what was not refunded yet was taken back, so the order counts as refunded and the
+    /// returned amount is the chargeback to put in the ledger. Won: the payment stands and fulfilment carries on.
+    /// </summary>
+    public Result<decimal> ResolveDispute(bool won)
+    {
+        if (Dispute != DisputeStatus.Open) return CommerceErrors.NoOpenDispute;
+        if (won)
+        {
+            Dispute = DisputeStatus.Won;
+            return 0m;
+        }
+        Dispute = DisputeStatus.Lost;
+        var taken = Total - RefundedAmount;
+        ChargedBackAmount = taken;
+        RefundedAmount = Total;
+        Status = OrderStatus.Refunded;
+        return taken;
     }
 
     public Result Cancel()
@@ -200,7 +374,8 @@ public sealed class Invoice : Entity
     public DateTimeOffset IssuedAt { get; private set; }
 }
 
-public enum LedgerEntryKind { Payment, Refund }
+/// <summary>Chargeback (B3): money the payer's bank took back after a lost dispute. Counted like a refund in the totals.</summary>
+public enum LedgerEntryKind { Payment, Refund, Chargeback }
 
 /// <summary>Money that actually moved. Append-only; the finance reports and the nightly reconciliation read it.</summary>
 public sealed class LedgerEntry : Entity

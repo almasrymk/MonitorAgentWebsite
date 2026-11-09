@@ -11,8 +11,15 @@ using MonitorAgent.Modules.Identity.Contracts;
 namespace MonitorAgent.Modules.Commerce.Infrastructure.Http;
 
 public sealed record PlaceOrderRequest(Guid PlanId);
+public sealed record PlaceRenewalRequest(Guid LicenseId);
+public sealed record PlaceUpgradeRequest(Guid SubscriptionId, Guid PlanId);
+public sealed record RefundRequest(string Reference, decimal Amount, string? Reason);
 public sealed record PayRequest(string Provider);
 public sealed record ManualPaymentRequest(string Reference);
+public sealed record BankTransferRequest(string Reference, string? Note);
+public sealed record RejectTransferRequest(string Reason);
+public sealed record OpenDisputeRequest(string Reason);
+public sealed record ResolveDisputeRequest(bool Won, string? Reference);
 
 /// <summary>The signed-in company's orders and invoices. Owners and billing members only.</summary>
 [ApiController]
@@ -24,6 +31,24 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Place(PlaceOrderRequest request, CancellationToken ct) =>
         (await dispatcher.SendAsync(new PlaceOrderCommand(request.PlanId), ct)).ToActionResult();
+
+    /// <summary>INT-018: renews a license the company holds (keeps its key and devices) once the order is paid.</summary>
+    [HttpPost("orders/renewals")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> PlaceRenewal(PlaceRenewalRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new PlaceRenewalOrderCommand(request.LicenseId), ct)).ToActionResult();
+
+    /// <summary>INT-014: the prorated price of upgrading a subscription to a dearer plan for the rest of its term.</summary>
+    [HttpGet("orders/upgrades/quote")]
+    [ProducesResponseType<UpgradeQuoteDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> UpgradeQuote([FromQuery] Guid subscriptionId, [FromQuery] Guid planId, CancellationToken ct) =>
+        (await dispatcher.QueryAsync(new GetUpgradeQuoteQuery(subscriptionId, planId), ct)).ToActionResult();
+
+    /// <summary>INT-014: an order that upgrades the subscription once it is paid (bank transfers once staff approve them).</summary>
+    [HttpPost("orders/upgrades")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> PlaceUpgrade(PlaceUpgradeRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new PlaceUpgradeOrderCommand(request.SubscriptionId, request.PlanId), ct)).ToActionResult();
 
     [HttpGet("orders")]
     [ProducesResponseType<IReadOnlyList<OrderDto>>(StatusCodes.Status200OK)]
@@ -38,6 +63,18 @@ public sealed class OrdersController(IDispatcher dispatcher) : ControllerBase
     [ProducesResponseType<CheckoutDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Pay(Guid orderId, PayRequest request, CancellationToken ct) =>
         (await dispatcher.SendAsync(new PayOrderCommand(orderId, request.Provider), ct)).ToActionResult();
+
+    /// <summary>E5: the bank account and the reference (the order number) to write on the transfer.</summary>
+    [HttpGet("orders/{orderId:guid}/bank-transfer")]
+    [ProducesResponseType<BankTransferInstructionsDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> BankTransfer(Guid orderId, CancellationToken ct) =>
+        (await dispatcher.QueryAsync(new GetBankTransferInstructionsQuery(orderId), ct)).ToActionResult();
+
+    /// <summary>E5: reports a transfer. The order waits for staff to check it; the license is issued only after approval.</summary>
+    [HttpPost("orders/{orderId:guid}/bank-transfer")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> SubmitBankTransfer(Guid orderId, BankTransferRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new SubmitBankTransferCommand(orderId, request.Reference, request.Note), ct)).ToActionResult();
 
     [HttpPost("orders/{orderId:guid}/cancel")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -102,6 +139,36 @@ public sealed class AdminOrdersController(IDispatcher dispatcher) : ControllerBa
     [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> ManualPayment(Guid orderId, ManualPaymentRequest request, CancellationToken ct) =>
         (await dispatcher.SendAsync(new RecordManualPaymentCommand(orderId, request.Reference), ct)).ToActionResult();
+
+    /// <summary>E5: the reported bank transfer is on the statement. Pays the order and issues or renews the license.</summary>
+    [HttpPost("{orderId:guid}/bank-transfer/approve")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ApproveTransfer(Guid orderId, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new ApproveBankTransferCommand(orderId), ct)).ToActionResult();
+
+    /// <summary>E5: the reported bank transfer was not found. The order waits for payment again.</summary>
+    [HttpPost("{orderId:guid}/bank-transfer/reject")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> RejectTransfer(Guid orderId, RejectTransferRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new RejectBankTransferCommand(orderId, request.Reason), ct)).ToActionResult();
+
+    /// <summary>INT-019: records money given back outside the website. The license is not suspended automatically.</summary>
+    [HttpPost("{orderId:guid}/refund")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Refund(Guid orderId, RefundRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new RecordRefundCommand(orderId, request.Reference, request.Amount, request.Reason), ct)).ToActionResult();
+
+    /// <summary>B3: a received payment is contested. Holds an unissued license; never suspends an issued one.</summary>
+    [HttpPost("{orderId:guid}/dispute")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> OpenDispute(Guid orderId, OpenDisputeRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new OpenDisputeCommand(orderId, request.Reason), ct)).ToActionResult();
+
+    /// <summary>B3: the dispute ended. Lost records the chargeback; the license is left for staff to decide.</summary>
+    [HttpPost("{orderId:guid}/dispute/resolve")]
+    [ProducesResponseType<OrderDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ResolveDispute(Guid orderId, ResolveDisputeRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new ResolveDisputeCommand(orderId, request.Won, request.Reference), ct)).ToActionResult();
 }
 
 /// <summary>Finance and admins: money received and refunded, from the ledger.</summary>

@@ -5,6 +5,10 @@ COPY src/ src/
 RUN dotnet publish src/Host/MonitorAgent.Api/MonitorAgent.Api.csproj -c Release -o /app
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
+# Ubuntu security fixes released after the base image was built (CI fails on fixable HIGH or CRITICAL findings).
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app .
 USER $APP_UID

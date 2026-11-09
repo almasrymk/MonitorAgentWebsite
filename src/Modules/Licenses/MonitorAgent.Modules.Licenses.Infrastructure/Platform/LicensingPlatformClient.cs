@@ -13,11 +13,22 @@ public sealed class LicensingPlatformOptions
     public string BaseUrl { get; set; } = "";
 
     /// <summary>
-    /// A dedicated LicensingPlatform user for the website (ADR-007). Its role needs catalog.read, customers.manage,
-    /// subscriptions.manage and licenses.read/manage. The password comes from a secret store, never the repo.
+    /// E7: the website's LicensingPlatform API client (preferred). Scopes: catalog.read, customers.manage,
+    /// subscriptions.read, subscriptions.manage, licenses.read, licenses.manage. It cannot sign in to the portal or
+    /// administer users, clients or keys; its secret can be rotated or the client disabled without touching a person.
+    /// From a secret store, never the repo.
+    /// </summary>
+    public string ClientId { get; set; } = "";
+    public string ClientSecret { get; set; } = "";
+
+    /// <summary>
+    /// Deprecated (ADR-007): a LicensingPlatform portal user and password. Used only while <see cref="ClientId"/> is
+    /// empty; remove both after switching, then disable that user in LicensingPlatform.
     /// </summary>
     public string ServiceEmail { get; set; } = "";
     public string ServicePassword { get; set; } = "";
+
+    public bool UsesClient => !string.IsNullOrWhiteSpace(ClientId);
 
     public int TimeoutSeconds { get; set; } = 15;
 }
@@ -32,7 +43,7 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
 
     // Mirrors of LicensingPlatform's enums (Licensing.Domain), with its numeric values.
     private enum PlanStatus { Draft = 1, Published = 2, Archived = 3 }
-    private enum PlanKind { Paid = 1, Free = 3 }
+    private enum PlanKind { Paid = 1, Trial = 2, Free = 3 }
     private enum LicenseStatus { Active = 1, Suspended = 2, Revoked = 3, Expired = 4 }
     private enum ActivationStatus { Active = 1, Deactivated = 2 }
 
@@ -53,17 +64,17 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
             .ToList();
     }
 
-    public async Task<Guid> CreateCustomerAsync(string name, string email, CancellationToken ct)
+    public async Task<Guid> CreateCustomerAsync(string name, string email, string externalReference, CancellationToken ct)
     {
         var created = await SendAsync<CustomerDetailsBody>(HttpMethod.Post, "api/v1/customers",
-            new { name, email = string.IsNullOrEmpty(email) ? null : email }, ct);
+            new { name, email = string.IsNullOrEmpty(email) ? null : email, externalReference }, ct);
         return created.Customer.Id;
     }
 
-    public async Task<Guid> StartSubscriptionAsync(Guid customerId, Guid planId, CancellationToken ct)
+    public async Task<Guid> StartSubscriptionAsync(Guid customerId, Guid planId, string externalReference, CancellationToken ct)
     {
         var started = await SendAsync<SubscriptionDetailsBody>(HttpMethod.Post, "api/v1/subscriptions",
-            new { customerId, planId, notes = "Website order" }, ct);
+            new { customerId, planId, notes = "Website order", externalReference }, ct);
         return started.Subscription.Id;
     }
 
@@ -97,17 +108,24 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
     {
         var page = await GetAsync<Paged<SubscriptionBody>>($"api/v1/subscriptions?customerId={customerId}&page=1&pageSize=50", ct);
         return (page?.Items ?? []).Select(s => new PlatformSubscription(
-            s.Id, s.CustomerId, s.PlanId, s.PlanName, s.PlanName, s.Status.ToString(), s.StartDate, s.EndDate, s.Version)).ToList();
+            s.Id, s.CustomerId, s.PlanId, s.PlanName, s.PlanName, s.Status.ToString(), s.StartDate, s.EndDate, s.Version,
+            s.ActiveDevices, s.MaxDevices, s.OverCapacitySince)).ToList();
     }
 
     public Task ChangePlanAsync(Guid subscriptionId, Guid planId, CancellationToken ct) =>
         SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/change-plan", new { planId }, ct);
 
-    public Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) =>
-        SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/suspend", new { reason }, ct);
+    public async Task<DateTimeOffset?> RenewSubscriptionAsync(Guid subscriptionId, string externalReference, CancellationToken ct)
+    {
+        var renewed = await ReadManagementAsync<RenewedBody>($"api/v1/subscriptions/{subscriptionId}/renew", new { externalReference }, ct);
+        return renewed.Subscription.EndDate;
+    }
 
-    public Task ResumeSubscriptionAsync(Guid subscriptionId, CancellationToken ct) =>
-        SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/resume", new { }, ct);
+    public Task SuspendSubscriptionAsync(Guid subscriptionId, string? reason, bool byCustomer, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/suspend", new { reason, byCustomer }, ct);
+
+    public Task ResumeSubscriptionAsync(Guid subscriptionId, bool byCustomer, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/resume", new { byCustomer }, ct);
 
     public Task CancelSubscriptionAsync(Guid subscriptionId, string? reason, CancellationToken ct) =>
         SendManagementAsync($"api/v1/subscriptions/{subscriptionId}/cancel", new { reason }, ct);
@@ -118,17 +136,27 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
         return new PlatformIssuedLicense(ToLicense(issued.License), issued.ProductKey);
     }
 
-    public Task SuspendLicenseAsync(Guid licenseId, string? reason, CancellationToken ct) =>
-        SendManagementAsync($"api/v1/licenses/{licenseId}/suspend", new { reason }, ct);
+    public async Task<PlatformTrialGrant> IssueTrialGrantAsync(string productCode, string reference, CancellationToken ct)
+    {
+        var grant = await ReadManagementAsync<TrialGrantBody>("api/v1/licensing/trial-grants", new { productCode, reference }, ct);
+        if (string.IsNullOrWhiteSpace(grant.TrialCode))
+            throw new PlatformUnavailableException("LicensingPlatform sent a trial grant without a code.");
+        return new PlatformTrialGrant(grant.TrialCode, grant.ExpiresAt, grant.ProductCode, grant.TrialDays);
+    }
 
-    public Task ResumeLicenseAsync(Guid licenseId, CancellationToken ct) =>
-        SendManagementAsync($"api/v1/licenses/{licenseId}/resume", new { }, ct);
+    private sealed record TrialGrantBody(string TrialCode, DateTimeOffset ExpiresAt, string ProductCode, int TrialDays);
+
+    public Task SuspendLicenseAsync(Guid licenseId, string? reason, bool byCustomer, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/licenses/{licenseId}/suspend", new { reason, byCustomer }, ct);
+
+    public Task ResumeLicenseAsync(Guid licenseId, bool byCustomer, CancellationToken ct) =>
+        SendManagementAsync($"api/v1/licenses/{licenseId}/resume", new { byCustomer }, ct);
 
     public Task RevokeLicenseAsync(Guid licenseId, string? reason, CancellationToken ct) =>
         SendManagementAsync($"api/v1/licenses/{licenseId}/revoke", new { reason }, ct);
 
     private static PlatformLicense ToLicense(LicenseBody l) => new(l.Id, l.CustomerId, l.ProductCode, l.PlanCode, l.LicenseNumber,
-        l.ProductKeyPrefix, l.Status.ToString(), l.IssuedAt, l.ExpiresAt, l.MaxActivations, l.ActiveActivations);
+        l.ProductKeyPrefix, l.Status.ToString(), l.IssuedAt, l.ExpiresAt, l.MaxActivations, l.ActiveActivations, l.SubscriptionId);
 
     private async Task<T?> GetAsync<T>(string path, CancellationToken ct) where T : class
     {
@@ -233,14 +261,18 @@ internal sealed class LicensingPlatformClient(IHttpClientFactory http) : ILicens
     private sealed record IdBody(Guid Id);
     private sealed record CustomerDetailsBody(IdBody Customer);
     private sealed record SubscriptionDetailsBody(IdBody Subscription);
+    private sealed record EndDateBody(Guid Id, DateTimeOffset? EndDate);
+    private sealed record RenewedBody(EndDateBody Subscription);
     private sealed record LicenseBody(Guid Id, Guid CustomerId, string ProductCode, string PlanCode, string LicenseNumber,
-        string ProductKeyPrefix, LicenseStatus Status, DateTimeOffset IssuedAt, DateTimeOffset? ExpiresAt, int? MaxActivations, int ActiveActivations);
+        string ProductKeyPrefix, LicenseStatus Status, DateTimeOffset IssuedAt, DateTimeOffset? ExpiresAt, int? MaxActivations, int ActiveActivations,
+        Guid SubscriptionId = default);
     private sealed record ActivationBody(Guid Id, string DeviceId, string? DeviceName, string? AppVersion, ActivationStatus Status,
         DateTimeOffset ActivatedAt, DateTimeOffset? LastHeartbeatAt, string? OperatingSystem, bool Online);
     private sealed record LicenseDetailsBody(LicenseBody License, IReadOnlyList<ActivationBody> Activations);
     private sealed record IssuedLicenseBody(LicenseBody License, string ProductKey);
     private enum SubscriptionStatus { Trial = 1, Active = 2, Suspended = 3, Cancelled = 4, Expired = 5 }
-    private sealed record SubscriptionBody(Guid Id, Guid CustomerId, Guid PlanId, string PlanName, SubscriptionStatus Status, DateTimeOffset StartDate, DateTimeOffset? EndDate, int Version);
+    private sealed record SubscriptionBody(Guid Id, Guid CustomerId, Guid PlanId, string PlanName, SubscriptionStatus Status, DateTimeOffset StartDate, DateTimeOffset? EndDate, int Version,
+        int ActiveDevices = 0, int? MaxDevices = null, DateTimeOffset? OverCapacitySince = null);
 }
 
 /// <summary>The service account's current token, shared by every request (handlers themselves are recycled).</summary>
@@ -281,16 +313,23 @@ internal sealed class LicensingPlatformAuthHandler(LicensingPlatformOptions opti
             // Handlers see absolute URIs only; the login call resolves against the same base as the API calls.
             var baseUri = new Uri(string.IsNullOrWhiteSpace(options.BaseUrl)
                 ? requestUri.GetLeftPart(UriPartial.Authority) + "/" : options.BaseUrl.TrimEnd('/') + "/");
-            using var login = new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "api/v1/auth/login"))
-            {
-                Content = JsonContent.Create(new { email = options.ServiceEmail, password = options.ServicePassword }),
-            };
+            // E7: the scoped API client when configured; the deprecated portal user otherwise.
+            using var login = options.UsesClient
+                ? new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "api/v1/auth/client-token"))
+                {
+                    Content = JsonContent.Create(new { clientId = options.ClientId, clientSecret = options.ClientSecret }),
+                }
+                : new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "api/v1/auth/login"))
+                {
+                    Content = JsonContent.Create(new { email = options.ServiceEmail, password = options.ServicePassword }),
+                };
             using var response = await base.SendAsync(login, ct);
             if (!response.IsSuccessStatusCode)
-                throw new PlatformUnavailableException($"LicensingPlatform rejected the website's service account ({(int)response.StatusCode}).");
+                throw new PlatformUnavailableException($"LicensingPlatform rejected the website's {(options.UsesClient ? "API client" : "service account")} ({(int)response.StatusCode}).");
             var auth = await response.Content.ReadFromJsonAsync<AuthBody>(JsonSerializerOptions.Web, ct)
                 ?? throw new PlatformUnavailableException("LicensingPlatform sent an empty sign-in response.");
-            (tokens.Token, tokens.ExpiresAt) = (auth.AccessToken, auth.ExpiresAt);
+            var expiresAt = auth.ExpiresAt ?? clock.GetUtcNow().AddSeconds(auth.ExpiresIn is > 0 ? auth.ExpiresIn.Value : 600);
+            (tokens.Token, tokens.ExpiresAt) = (auth.AccessToken, expiresAt);
             return auth.AccessToken;
         }
         finally
@@ -299,5 +338,6 @@ internal sealed class LicensingPlatformAuthHandler(LicensingPlatformOptions opti
         }
     }
 
-    private sealed record AuthBody(string AccessToken, DateTimeOffset ExpiresAt);
+    /// <summary>A user sign-in answers expiresAt; a client token answers expiresIn (seconds).</summary>
+    private sealed record AuthBody(string AccessToken, DateTimeOffset? ExpiresAt, int? ExpiresIn);
 }

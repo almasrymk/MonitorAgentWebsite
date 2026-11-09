@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using MonitorAgent.Modules.Licenses.Application;
 using MonitorAgent.Modules.Licenses.Infrastructure.Persistence;
 
 namespace MonitorAgent.Tests.Api;
@@ -51,6 +52,39 @@ public class LicensesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     {
         await JsonAsync(await GrantAsync(company.Id, $"order-{Guid.NewGuid():N}"));
         return (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses")))[0].GetProperty("id").GetGuid();
+    }
+
+    [Fact]
+    public async Task A_signed_in_customer_gets_a_trial_code_for_the_agent_once_per_account()
+    {
+        var customer = await CustomerAsync();
+        var before = factory.Platform.TrialGrants.Keys.ToHashSet();
+
+        var response = await customer.PostAsync("/api/v1/licenses/trial", new { });
+        var code = await JsonAsync(response);
+
+        Assert.StartsWith("ltg_", code.GetProperty("trialCode").GetString(), StringComparison.Ordinal);
+        Assert.Equal(14, code.GetProperty("trialDays").GetInt32());
+        Assert.Equal("000001", code.GetProperty("productCode").GetString());
+        Assert.Contains("no-store", response.Headers.CacheControl?.ToString() ?? "", StringComparison.Ordinal);
+        var reference = Assert.Single(factory.Platform.TrialGrants.Keys, k => !before.Contains(k));
+        Assert.StartsWith("website-user:", reference, StringComparison.Ordinal);
+
+        factory.Platform.UsedTrials[reference] = true;
+        var again = await customer.PostAsync("/api/v1/licenses/trial", new { });
+        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+        Assert.Contains("TRIAL_ALREADY_USED", await again.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Trial_codes_need_a_signed_in_customer_and_report_an_outage()
+    {
+        Assert.Equal(HttpStatusCode.Unauthorized, (await factory.CreateTestClient().PostAsync("/api/v1/licenses/trial", new { })).StatusCode);
+
+        var customer = await CustomerAsync();
+        factory.Platform.FailNext = nameof(FakeLicensingPlatform.IssueTrialGrantAsync);
+        var down = await customer.PostAsync("/api/v1/licenses/trial", new { });
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, down.StatusCode);
     }
 
     [Fact]
@@ -111,6 +145,10 @@ public class LicensesTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal(customerId, tenantCustomerId);
         Assert.Equal(namesBefore + 1, factory.MonitorCloud.Names.Count);
         Assert.Equal("Acme", factory.MonitorCloud.Names[^1]);
+        // INT-011: the company owner is named so Monitor Cloud invites them as the first Administrator.
+        var owner = Assert.IsType<MonitorTenantOwner>(factory.MonitorCloud.Owners[^1]);
+        Assert.Contains("@", owner.Email, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrWhiteSpace(owner.FullName));
     }
 
     [Fact]
@@ -158,6 +196,56 @@ public class LicensesTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         await JsonAsync(await GrantAsync(company.Id, "order-outage"));
         Assert.Equal(subscriptionsBefore + 1, factory.Platform.Subscriptions.Count);
+        Assert.Single((await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses"))).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task A_lost_issue_answer_gets_the_same_license_a_new_key_instead_of_a_second_license()
+    {
+        // INT-016: LicensingPlatform issued the license but the answer never arrived (a timeout after it committed).
+        var company = await CompanyAsync();
+        var licensesBefore = factory.Platform.Licenses.Count;
+        factory.Platform.LoseAnswerOf = nameof(FakeLicensingPlatform.IssueLicenseAsync);
+
+        Assert.Equal("LICENSING_UNAVAILABLE", await TestClient.ErrorCodeAsync(await GrantAsync(company.Id, "order-lost-issue")));
+        Assert.Equal(licensesBefore + 1, factory.Platform.Licenses.Count);
+
+        var granted = await JsonAsync(await GrantAsync(company.Id, "order-lost-issue"));
+        Assert.Equal(licensesBefore + 1, factory.Platform.Licenses.Count);
+        var license = Assert.Single((await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses"))).EnumerateArray());
+        Assert.Equal(granted.GetProperty("licenseNumber").GetString(), license.GetProperty("licenseNumber").GetString());
+    }
+
+    [Fact]
+    public async Task Lost_customer_and_subscription_answers_create_each_only_once()
+    {
+        var company = await CompanyAsync();
+        var customersBefore = factory.Platform.Customers.Count;
+        var subscriptionsBefore = factory.Platform.Subscriptions.Count;
+
+        factory.Platform.LoseAnswerOf = nameof(FakeLicensingPlatform.CreateCustomerAsync);
+        Assert.Equal("LICENSING_UNAVAILABLE", await TestClient.ErrorCodeAsync(await GrantAsync(company.Id, "order-lost-steps")));
+        factory.Platform.LoseAnswerOf = nameof(FakeLicensingPlatform.StartSubscriptionAsync);
+        Assert.Equal("LICENSING_UNAVAILABLE", await TestClient.ErrorCodeAsync(await GrantAsync(company.Id, "order-lost-steps")));
+        await JsonAsync(await GrantAsync(company.Id, "order-lost-steps"));
+
+        Assert.Equal(customersBefore + 1, factory.Platform.Customers.Count);
+        Assert.Equal(subscriptionsBefore + 1, factory.Platform.Subscriptions.Count);
+        Assert.Single((await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses"))).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Parallel_fulfilments_of_one_order_issue_one_license()
+    {
+        var company = await CompanyAsync();
+        var issuedBefore = factory.Platform.IssueCalls;
+
+        var answers = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => GrantAsync(company.Id, "order-parallel")));
+
+        Assert.Contains(answers, a => a.IsSuccessStatusCode);
+        Assert.All(answers.Where(a => !a.IsSuccessStatusCode), a => Assert.Equal(HttpStatusCode.ServiceUnavailable, a.StatusCode));
+        Assert.Equal(issuedBefore + 1, factory.Platform.IssueCalls);
+        await JsonAsync(await GrantAsync(company.Id, "order-parallel"));
         Assert.Single((await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses"))).EnumerateArray());
     }
 
@@ -242,17 +330,53 @@ public class LicensesTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task The_owner_cannot_resume_what_the_provider_suspended()
+    {
+        // INT-013: a staff suspension (for example for non-payment) used to be undone from the customer portal.
+        var company = await CompanyAsync();
+        await JsonAsync(await GrantAsync(company.Id, $"order-suspend-{Guid.NewGuid():N}"));
+        var subscriptionId = (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("id").GetGuid();
+        var licenseId = (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses")))[0].GetProperty("id").GetGuid();
+
+        factory.Platform.ProviderSuspendsSubscription(subscriptionId);
+        var refused = await company.Owner.PostAsync($"/api/v1/licenses/subscription/{subscriptionId}/resume");
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal("SUBSCRIPTION_SUSPENDED_BY_PROVIDER", await TestClient.ErrorCodeAsync(refused));
+        Assert.Equal("Suspended", factory.Platform.SubscriptionStatuses[subscriptionId]);
+
+        factory.Platform.ProviderSuspendsLicense(licenseId);
+        Assert.Equal("LICENSE_SUSPENDED_BY_PROVIDER", await TestClient.ErrorCodeAsync(await company.Owner.PostAsync($"/api/v1/licenses/{licenseId}/resume")));
+    }
+
+    [Fact]
+    public async Task The_owner_resumes_what_the_owner_suspended()
+    {
+        var company = await CompanyAsync();
+        await JsonAsync(await GrantAsync(company.Id, $"order-selfsuspend-{Guid.NewGuid():N}"));
+        var subscriptionId = (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("id").GetGuid();
+        var licenseId = (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses")))[0].GetProperty("id").GetGuid();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await company.Owner.PostAsync($"/api/v1/licenses/subscription/{subscriptionId}/suspend")).StatusCode);
+        Assert.True(factory.Platform.SuspendedByCustomer[subscriptionId]);
+        Assert.Equal(HttpStatusCode.NoContent, (await company.Owner.PostAsync($"/api/v1/licenses/subscription/{subscriptionId}/resume")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await company.Owner.PostAsync($"/api/v1/licenses/{licenseId}/suspend")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await company.Owner.PostAsync($"/api/v1/licenses/{licenseId}/resume")).StatusCode);
+        Assert.Equal("Active", factory.Platform.Licenses[licenseId].License.Status);
+    }
+
+    [Fact]
     public async Task The_owner_changes_plan_issues_a_device_license_and_regenerates_its_key()
     {
         var company = await CompanyAsync();
         await JsonAsync(await GrantAsync(company.Id, $"order-manage-{Guid.NewGuid():N}"));
         var subscriptionId = (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("id").GetGuid();
 
-        Assert.Equal(HttpStatusCode.NoContent, (await company.Owner.PostAsync(
-            $"/api/v1/licenses/subscription/{subscriptionId}/change-plan", new { planId = FakeLicensingPlatform.Plus.Id })).StatusCode);
-        Assert.Equal("PLUS", (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("planCode").GetString());
-        Assert.Equal("SUBSCRIPTION_SAME_PLAN", await TestClient.ErrorCodeAsync(await company.Owner.PostAsync(
+        // INT-014: a dearer plan needs payment; the current plan is not a change.
+        Assert.Equal("PLAN_UPGRADE_REQUIRES_PAYMENT", await TestClient.ErrorCodeAsync(await company.Owner.PostAsync(
             $"/api/v1/licenses/subscription/{subscriptionId}/change-plan", new { planId = FakeLicensingPlatform.Plus.Id })));
+        Assert.Equal("STD", (await JsonAsync(await company.Owner.GetAsync("/api/v1/licenses/subscription")))[0].GetProperty("planCode").GetString());
+        Assert.Equal("SUBSCRIPTION_SAME_PLAN", await TestClient.ErrorCodeAsync(await company.Owner.PostAsync(
+            $"/api/v1/licenses/subscription/{subscriptionId}/change-plan", new { planId = FakeLicensingPlatform.Standard.Id })));
 
         var issued = await JsonAsync(await company.Owner.PostAsync($"/api/v1/licenses/subscription/{subscriptionId}/licenses"));
         var licenseId = issued.GetProperty("licenseId").GetGuid();

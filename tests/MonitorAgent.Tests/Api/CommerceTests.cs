@@ -47,8 +47,8 @@ public class CommerceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return new Buyer(company.GetProperty("id").GetGuid(), client, email);
     }
 
-    private static async Task<Guid> PlaceAsync(Buyer buyer) =>
-        (await JsonAsync(await buyer.Client.PostAsync("/api/v1/orders", new { planId = PlanId }))).GetProperty("id").GetGuid();
+    private static async Task<Guid> PlaceAsync(Buyer buyer, Guid? planId = null) =>
+        (await JsonAsync(await buyer.Client.PostAsync("/api/v1/orders", new { planId = planId ?? PlanId }))).GetProperty("id").GetGuid();
 
     /// <summary>Starts a sandbox checkout and returns the provider's reference for it.</summary>
     private static async Task<string> CheckoutAsync(Buyer buyer, Guid orderId)
@@ -268,6 +268,305 @@ public class CommerceTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Contains(listed.GetProperty("items").EnumerateArray(), o => o.GetProperty("id").GetGuid() == orderId);
         Assert.Equal(HttpStatusCode.Forbidden,
             (await buyer.Client.PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment", new { reference = "x" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Two_staff_approving_the_same_manual_payment_record_it_once()
+    {
+        // INT-012 (ADR-003): payments are staff-verified at launch. A double click or two finance staff at once must never
+        // create a second ledger line, invoice or license, and the loser gets a clear 409, not a server error.
+        var buyer = await BuyerAsync();
+        var orderId = await PlaceAsync(buyer);
+        var admin = await AdminAsync();
+
+        var answers = await Task.WhenAll(Enumerable.Range(0, 3).Select(i =>
+            admin.PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment", new { reference = $"BANK-TRANSFER-90{i}" })));
+
+        Assert.Single(answers, a => a.StatusCode == HttpStatusCode.OK);
+        foreach (var refused in answers.Where(a => a.StatusCode != HttpStatusCode.OK))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+            Assert.Equal("ORDER_NOT_PAYABLE", await TestClient.ErrorCodeAsync(refused));
+        }
+        Assert.Equal(1, await LicensesOfAsync(buyer));
+        Assert.Single((await JsonAsync(await buyer.Client.GetAsync("/api/v1/invoices"))).EnumerateArray(), i => i.GetProperty("orderId").GetGuid() == orderId);
+        Assert.Equal("ORDER_NOT_PAYABLE", await TestClient.ErrorCodeAsync(
+            await admin.PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment", new { reference = "BANK-TRANSFER-999" })));
+    }
+
+    private async Task<(Guid LicenseId, DateTimeOffset ExpiresAt)> LicensedAsync(Buyer buyer, Guid? planId = null)
+    {
+        var orderId = await PlaceAsync(buyer, planId);
+        await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+        var license = Assert.Single((await JsonAsync(await buyer.Client.GetAsync("/api/v1/licenses"))).EnumerateArray());
+        return (license.GetProperty("id").GetGuid(), license.GetProperty("expiresAt").GetDateTimeOffset());
+    }
+
+    private static async Task<JsonElement> SubscriptionAsync(Buyer buyer) =>
+        Assert.Single((await JsonAsync(await buyer.Client.GetAsync("/api/v1/licenses/subscription"))).EnumerateArray());
+
+    private static Task<HttpResponseMessage> ChangePlanAsync(Buyer buyer, Guid subscriptionId, Guid planId) =>
+        buyer.Client.PostAsync($"/api/v1/licenses/subscription/{subscriptionId}/change-plan", new { planId });
+
+    [Fact]
+    public async Task A_dearer_plan_is_not_applied_without_payment()
+    {
+        // INT-014: changing plan used to upgrade immediately and for free.
+        var buyer = await BuyerAsync();
+        await LicensedAsync(buyer);
+        var subscriptionId = (await SubscriptionAsync(buyer)).GetProperty("id").GetGuid();
+
+        var upgrade = await ChangePlanAsync(buyer, subscriptionId, FakeLicensingPlatform.Plus.Id);
+
+        Assert.Equal(HttpStatusCode.Conflict, upgrade.StatusCode);
+        Assert.Equal("PLAN_UPGRADE_REQUIRES_PAYMENT", await TestClient.ErrorCodeAsync(upgrade));
+        var subscription = await SubscriptionAsync(buyer);
+        Assert.Equal("STD", subscription.GetProperty("planCode").GetString());
+        Assert.Equal(JsonValueKind.Null, subscription.GetProperty("scheduledPlanId").ValueKind);
+    }
+
+    [Fact]
+    public async Task A_cheaper_plan_is_scheduled_and_applied_by_the_paid_renewal()
+    {
+        // INT-017: the downgrade waits for the end of the paid term; the renewal is priced at the new plan and keeps the key.
+        var buyer = await BuyerAsync();
+        var (licenseId, _) = await LicensedAsync(buyer, FakeLicensingPlatform.Plus.Id);
+        var key = factory.Platform.KeyOf(licenseId);
+        var subscriptionId = (await SubscriptionAsync(buyer)).GetProperty("id").GetGuid();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await ChangePlanAsync(buyer, subscriptionId, FakeLicensingPlatform.Standard.Id)).StatusCode);
+        var scheduled = await SubscriptionAsync(buyer);
+        Assert.Equal("PLUS", scheduled.GetProperty("planCode").GetString());
+        Assert.Equal(FakeLicensingPlatform.Standard.Id, scheduled.GetProperty("scheduledPlanId").GetGuid());
+
+        var renewal = await JsonAsync(await buyer.Client.PostAsync("/api/v1/orders/renewals", new { licenseId }));
+        Assert.Equal(1200m, renewal.GetProperty("total").GetDecimal());
+        Assert.Equal("Standard", renewal.GetProperty("planName").GetString());
+        var paid = await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{renewal.GetProperty("id").GetGuid()}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+
+        Assert.Equal("Fulfilled", paid.GetProperty("status").GetString());
+        var after = await SubscriptionAsync(buyer);
+        Assert.Equal("STD", after.GetProperty("planCode").GetString());
+        Assert.Equal(JsonValueKind.Null, after.GetProperty("scheduledPlanId").ValueKind);
+        Assert.Equal(key, factory.Platform.KeyOf(licenseId));
+    }
+
+    [Fact]
+    public async Task A_scheduled_change_whose_renewal_answer_was_lost_is_applied_once()
+    {
+        var buyer = await BuyerAsync();
+        var (licenseId, expiresAt) = await LicensedAsync(buyer, FakeLicensingPlatform.Plus.Id);
+        var subscriptionId = (await SubscriptionAsync(buyer)).GetProperty("id").GetGuid();
+        await ChangePlanAsync(buyer, subscriptionId, FakeLicensingPlatform.Standard.Id);
+        var renewal = await JsonAsync(await buyer.Client.PostAsync("/api/v1/orders/renewals", new { licenseId }));
+        factory.Platform.LoseAnswerOf = nameof(FakeLicensingPlatform.RenewSubscriptionAsync);
+
+        await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{renewal.GetProperty("id").GetGuid()}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+        await using (var scope = factory.Services.CreateAsyncScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<IDispatcher>().SendAsync(new FulfillPaidOrdersCommand())).IsSuccess);
+
+        Assert.Equal("Fulfilled", (await OrderAsync(buyer, renewal.GetProperty("id").GetGuid())).GetProperty("status").GetString());
+        Assert.Equal("STD", (await SubscriptionAsync(buyer)).GetProperty("planCode").GetString());
+        var license = Assert.Single((await JsonAsync(await buyer.Client.GetAsync("/api/v1/licenses"))).EnumerateArray());
+        Assert.Equal(expiresAt.AddDays(365), license.GetProperty("expiresAt").GetDateTimeOffset(), TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task Choosing_the_current_plan_again_cancels_a_scheduled_change()
+    {
+        var buyer = await BuyerAsync();
+        var (licenseId, _) = await LicensedAsync(buyer, FakeLicensingPlatform.Plus.Id);
+        var subscriptionId = (await SubscriptionAsync(buyer)).GetProperty("id").GetGuid();
+        await ChangePlanAsync(buyer, subscriptionId, FakeLicensingPlatform.Standard.Id);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await ChangePlanAsync(buyer, subscriptionId, FakeLicensingPlatform.Plus.Id)).StatusCode);
+
+        Assert.Equal(JsonValueKind.Null, (await SubscriptionAsync(buyer)).GetProperty("scheduledPlanId").ValueKind);
+        Assert.Equal(2400m, (await JsonAsync(await buyer.Client.PostAsync("/api/v1/orders/renewals", new { licenseId }))).GetProperty("total").GetDecimal());
+        Assert.Equal("SUBSCRIPTION_SAME_PLAN", await TestClient.ErrorCodeAsync(await ChangePlanAsync(buyer, subscriptionId, FakeLicensingPlatform.Plus.Id)));
+    }
+
+    [Fact]
+    public async Task Another_company_cannot_schedule_a_plan_change_on_my_subscription()
+    {
+        var buyer = await BuyerAsync();
+        await LicensedAsync(buyer, FakeLicensingPlatform.Plus.Id);
+        var subscriptionId = (await SubscriptionAsync(buyer)).GetProperty("id").GetGuid();
+        var other = await BuyerAsync();
+        await LicensedAsync(other);
+
+        var response = await ChangePlanAsync(other, subscriptionId, FakeLicensingPlatform.Standard.Id);
+
+        Assert.Equal("SUBSCRIPTION_NOT_FOUND", await TestClient.ErrorCodeAsync(response));
+        Assert.Equal(JsonValueKind.Null, (await SubscriptionAsync(buyer)).GetProperty("scheduledPlanId").ValueKind);
+    }
+
+    private async Task<HttpResponseMessage> RefundAsync(Guid orderId, string reference, decimal amount) =>
+        await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{orderId}/refund", new { reference, amount, reason = "customer asked" });
+
+    private async Task<int> RefundLinesAsync(Guid orderId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<CommerceDb>().Ledger.CountAsync(l => l.OrderId == orderId && l.Kind == MonitorAgent.Modules.Commerce.Domain.LedgerEntryKind.Refund);
+    }
+
+    [Fact]
+    public async Task A_full_refund_is_recorded_once_and_marks_the_order_refunded()
+    {
+        // INT-019: refunds used to have a ledger kind but no way to record one.
+        var buyer = await BuyerAsync();
+        var orderId = await PlaceAsync(buyer);
+        await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+        var reference = $"REFUND-{Guid.NewGuid():N}";
+
+        var refunded = await JsonAsync(await RefundAsync(orderId, reference, 1200m));
+        var again = await JsonAsync(await RefundAsync(orderId, reference, 1200m));
+
+        Assert.Equal("Refunded", refunded.GetProperty("status").GetString());
+        Assert.Equal(1200m, again.GetProperty("refundedAmount").GetDecimal());
+        Assert.Equal(1, await RefundLinesAsync(orderId));
+        // The license is left alone: staff suspend it in LicensingPlatform if they decide to.
+        Assert.Equal(1, await LicensesOfAsync(buyer));
+        Assert.Equal("ORDER_NOT_REFUNDABLE", await TestClient.ErrorCodeAsync(await RefundAsync(orderId, $"REFUND-{Guid.NewGuid():N}", 1m)));
+    }
+
+    [Fact]
+    public async Task Partial_refunds_never_add_up_to_more_than_was_paid()
+    {
+        var buyer = await BuyerAsync();
+        var orderId = await PlaceAsync(buyer);
+        Assert.Equal("ORDER_NOT_REFUNDABLE", await TestClient.ErrorCodeAsync(await RefundAsync(orderId, $"REFUND-{Guid.NewGuid():N}", 100m)));
+        await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+
+        var part = await JsonAsync(await RefundAsync(orderId, $"REFUND-{Guid.NewGuid():N}", 200m));
+        Assert.Equal("Fulfilled", part.GetProperty("status").GetString());
+        Assert.Equal(200m, part.GetProperty("refundedAmount").GetDecimal());
+
+        var tooMuch = await RefundAsync(orderId, $"REFUND-{Guid.NewGuid():N}", 1000.01m);
+        Assert.Equal(HttpStatusCode.BadRequest, tooMuch.StatusCode);
+        Assert.Equal("REFUND_TOO_LARGE", await TestClient.ErrorCodeAsync(tooMuch));
+        Assert.Equal("Refunded", (await JsonAsync(await RefundAsync(orderId, $"REFUND-{Guid.NewGuid():N}", 1000m))).GetProperty("status").GetString());
+        Assert.Equal(2, await RefundLinesAsync(orderId));
+    }
+
+    [Fact]
+    public async Task A_refund_reference_cannot_be_reused_for_another_order()
+    {
+        var buyer = await BuyerAsync();
+        var first = await PlaceAsync(buyer);
+        var second = await PlaceAsync(buyer);
+        foreach (var id in new[] { first, second })
+            await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{id}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+        var reference = $"REFUND-{Guid.NewGuid():N}";
+        await JsonAsync(await RefundAsync(first, reference, 100m));
+
+        Assert.Equal("REFUND_REFERENCE_USED", await TestClient.ErrorCodeAsync(await RefundAsync(second, reference, 100m)));
+        Assert.Equal("REFUND_REFERENCE_USED", await TestClient.ErrorCodeAsync(await RefundAsync(first, reference, 50m)));
+        Assert.Equal(0, await RefundLinesAsync(second));
+    }
+
+    [Fact]
+    public async Task A_paid_order_refunded_before_its_license_was_issued_is_never_issued()
+    {
+        var buyer = await BuyerAsync();
+        var orderId = await PlaceAsync(buyer);
+        factory.Platform.FailNext = nameof(FakeLicensingPlatform.CreateCustomerAsync);
+        Assert.Equal("Paid", (await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{orderId}/manual-payment",
+            new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }))).GetProperty("status").GetString());
+
+        await JsonAsync(await RefundAsync(orderId, $"REFUND-{Guid.NewGuid():N}", 1200m));
+        await using (var scope = factory.Services.CreateAsyncScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<IDispatcher>().SendAsync(new FulfillPaidOrdersCommand())).IsSuccess);
+
+        Assert.Equal("Refunded", (await OrderAsync(buyer, orderId)).GetProperty("status").GetString());
+        Assert.Equal(0, await LicensesOfAsync(buyer));
+    }
+
+    [Fact]
+    public async Task A_buyer_cannot_record_a_refund()
+    {
+        var buyer = await BuyerAsync();
+        var orderId = await PlaceAsync(buyer);
+
+        var response = await buyer.Client.PostAsync($"/api/v1/admin/orders/{orderId}/refund", new { reference = "REFUND-SELF", amount = 1200m });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task One_bank_reference_cannot_pay_two_orders()
+    {
+        var buyer = await BuyerAsync();
+        var first = await PlaceAsync(buyer);
+        var second = await PlaceAsync(buyer);
+        var admin = await AdminAsync();
+        var reference = $"BANK-TRANSFER-{Guid.NewGuid():N}";
+        await JsonAsync(await admin.PostAsync($"/api/v1/admin/orders/{first}/manual-payment", new { reference }));
+
+        var reused = await admin.PostAsync($"/api/v1/admin/orders/{second}/manual-payment", new { reference });
+
+        Assert.Equal(HttpStatusCode.Conflict, reused.StatusCode);
+        Assert.Equal("PAYMENT_REFERENCE_USED", await TestClient.ErrorCodeAsync(reused));
+        Assert.Equal("PendingPayment", (await OrderAsync(buyer, second)).GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task A_paid_renewal_extends_the_same_license_and_keeps_its_key()
+    {
+        // INT-018: renewing must not sell a second license (a new key would force every device to activate again).
+        var buyer = await BuyerAsync();
+        var (licenseId, expiresAt) = await LicensedAsync(buyer);
+        var key = factory.Platform.KeyOf(licenseId);
+
+        var renewal = await JsonAsync(await buyer.Client.PostAsync("/api/v1/orders/renewals", new { licenseId }));
+        Assert.Equal("Renewal", renewal.GetProperty("kind").GetString());
+        Assert.Equal(1200m, renewal.GetProperty("total").GetDecimal());
+        var paid = await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{renewal.GetProperty("id").GetGuid()}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+
+        Assert.Equal("Fulfilled", paid.GetProperty("status").GetString());
+        var license = Assert.Single((await JsonAsync(await buyer.Client.GetAsync("/api/v1/licenses"))).EnumerateArray());
+        Assert.Equal(licenseId, license.GetProperty("id").GetGuid());
+        Assert.Equal(expiresAt.AddDays(365), license.GetProperty("expiresAt").GetDateTimeOffset(), TimeSpan.FromSeconds(1));
+        Assert.Equal(key, factory.Platform.KeyOf(licenseId));
+    }
+
+    [Fact]
+    public async Task A_renewal_whose_answer_was_lost_is_applied_once_by_the_retry()
+    {
+        var buyer = await BuyerAsync();
+        var (licenseId, expiresAt) = await LicensedAsync(buyer);
+        var renewal = await JsonAsync(await buyer.Client.PostAsync("/api/v1/orders/renewals", new { licenseId }));
+        factory.Platform.LoseAnswerOf = nameof(FakeLicensingPlatform.RenewSubscriptionAsync);
+
+        var paid = await JsonAsync(await (await AdminAsync()).PostAsync($"/api/v1/admin/orders/{renewal.GetProperty("id").GetGuid()}/manual-payment", new { reference = $"BANK-TRANSFER-{Guid.NewGuid():N}" }));
+        Assert.Equal("Paid", paid.GetProperty("status").GetString());
+        await using (var scope = factory.Services.CreateAsyncScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<IDispatcher>().SendAsync(new FulfillPaidOrdersCommand())).IsSuccess);
+
+        Assert.Equal("Fulfilled", (await OrderAsync(buyer, renewal.GetProperty("id").GetGuid())).GetProperty("status").GetString());
+        var license = Assert.Single((await JsonAsync(await buyer.Client.GetAsync("/api/v1/licenses"))).EnumerateArray());
+        Assert.Equal(expiresAt.AddDays(365), license.GetProperty("expiresAt").GetDateTimeOffset(), TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task Only_the_company_holding_a_license_can_order_its_renewal()
+    {
+        var owner = await BuyerAsync();
+        var (licenseId, _) = await LicensedAsync(owner);
+        var stranger = await BuyerAsync();
+
+        Assert.Equal("LICENSE_NOT_FOUND", await TestClient.ErrorCodeAsync(await stranger.Client.PostAsync("/api/v1/orders/renewals", new { licenseId })));
+        Assert.Equal("LICENSE_NOT_FOUND", await TestClient.ErrorCodeAsync(await owner.Client.PostAsync("/api/v1/orders/renewals", new { licenseId = Guid.NewGuid() })));
+    }
+
+    [Fact]
+    public async Task A_revoked_license_cannot_be_renewed()
+    {
+        var buyer = await BuyerAsync();
+        var (licenseId, _) = await LicensedAsync(buyer);
+        await factory.Platform.RevokeLicenseAsync(licenseId, "test", default);
+
+        Assert.Equal("LICENSE_NOT_RENEWABLE", await TestClient.ErrorCodeAsync(await buyer.Client.PostAsync("/api/v1/orders/renewals", new { licenseId })));
     }
 
     [Fact]

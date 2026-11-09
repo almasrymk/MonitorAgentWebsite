@@ -18,7 +18,7 @@ namespace MonitorAgent.Modules.Licenses.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("licenses")
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -39,6 +39,10 @@ namespace MonitorAgent.Modules.Licenses.Infrastructure.Persistence.Migrations
 
                     b.Property<int?>("ExpiryReminderDays")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("IssueClaimedUntil")
+                        .IsConcurrencyToken()
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("IssuedAt")
                         .HasColumnType("datetime2");
@@ -101,6 +105,30 @@ namespace MonitorAgent.Modules.Licenses.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("CustomerLinks", "licenses");
+                });
+
+            modelBuilder.Entity("MonitorAgent.Modules.Licenses.Domain.ScheduledPlanChange", b =>
+                {
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("RequestedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("SubscriptionId");
+
+                    b.HasIndex("CompanyId");
+
+                    b.ToTable("ScheduledPlanChanges", "licenses");
                 });
 #pragma warning restore 612, 618
         }

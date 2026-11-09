@@ -50,6 +50,25 @@ public sealed class LicenseGrant : AggregateRoot
     public DateTimeOffset? IssuedAt { get; private set; }
     /// <summary>The smallest reminder window (days before expiry) already emailed, so each reminder goes out once.</summary>
     public int? ExpiryReminderDays { get; private set; }
+    /// <summary>
+    /// INT-016: the license step is claimed until this time, so two workers never issue two licenses for one order. It is
+    /// the row's concurrency token: of two claims made at once, only the first save wins.
+    /// </summary>
+    public DateTimeOffset? IssueClaimedUntil { get; private set; }
+
+    /// <summary>How long a claim holds. A worker that stopped mid-way is replaced after it.</summary>
+    public static readonly TimeSpan IssueLease = TimeSpan.FromMinutes(5);
+
+    /// <summary>Claims the license step. False while another worker holds an unexpired claim or the license is issued.</summary>
+    public bool TryClaimIssue(DateTimeOffset now)
+    {
+        if (Status == GrantStatus.Issued || IssueClaimedUntil > now) return false;
+        IssueClaimedUntil = now + IssueLease;
+        return true;
+    }
+
+    /// <summary>Gives the claim back after a failed call, so the next retry does not wait for the lease.</summary>
+    public void ReleaseIssueClaim() => IssueClaimedUntil = null;
 
     /// <summary>Days before expiry when the owner is reminded to renew.</summary>
     public static readonly int[] ReminderWindows = [14, 3];
@@ -66,6 +85,17 @@ public sealed class LicenseGrant : AggregateRoot
     }
 
     public void ReminderSent(int days) => ExpiryReminderDays = days;
+
+    /// <summary>INT-018: the subscription was renewed; the license now lasts until <paramref name="expiresAt"/>.</summary>
+    /// <summary>INT-017: a scheduled plan change was applied when this license's subscription was renewed.</summary>
+    public void MovedToPlan(Guid planId) => PlanId = planId;
+
+    public void Renewed(DateTimeOffset? expiresAt)
+    {
+        if (Status != GrantStatus.Issued) throw new InvalidOperationException("Only an issued license can be renewed.");
+        ExpiresAt = expiresAt;
+        ExpiryReminderDays = null;
+    }
 
     public static LicenseGrant Start(Guid companyId, Guid planId, string orderReference, DateTimeOffset at) => new()
     {
@@ -95,6 +125,7 @@ public sealed class LicenseGrant : AggregateRoot
         ExpiresAt = expiresAt;
         ProtectedProductKey = protectedProductKey;
         IssuedAt = at;
+        IssueClaimedUntil = null;
         Status = GrantStatus.Issued;
         Raise(new LicenseGranted(Id, CompanyId, licenseNumber));
     }

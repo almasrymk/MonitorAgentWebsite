@@ -36,6 +36,13 @@ No shared database. Contract tests in this repo are the OpenAPI snapshot of **th
 
 Paymob and Stripe are named in ADR-008 and the launch checklist. There is no class for them.
 
+**Bank transfer (E5, not a gateway):** the buyer sees the account from `Commerce:BankTransfer` (environment variables
+only, empty in the repository) and the order number as the transfer reference, then reports the reference on their
+receipt (`POST /api/v1/orders/{id}/bank-transfer`). The order moves to `PendingVerification`; nothing is invoiced or
+issued until finance approves (`POST /api/v1/admin/orders/{id}/bank-transfer/approve`) or rejects it (`.../reject`,
+back to `PendingPayment`). Purchases and renewals use the same flow. A reference pays one order only, across bank
+transfers and staff manual payments. Uploading a receipt image is not implemented: the buyer adds a free-text note.
+
 ## Email
 
 `IEmailSender` → `SmtpEmailSender` (`System.Net.Mail.SmtpClient`). Configuration `Email:Provider=Smtp`, `Email:Smtp:Host`, `Port`, `EnableSsl`, `UserName`, `Password`, `From`. Missing provider throws at startup. Development compose points SMTP at Mailpit (`localhost:1025`, UI port 8025).
@@ -55,3 +62,19 @@ Anonymous GET of manifest bytes and signature. The private signing key stays in 
 ## Not integrated
 
 No Stripe/Paymob SDK, no blob storage SDK, no SMS, no Slack, no queue (Rabbit/Azure Service Bus), no OpenTelemetry exporter in the API project (health and `ILogger` only). Observability expectations are written in `docs/operations/monitoring.md` and were not re-verified against a running collector.
+
+## Monitor Cloud (tenant registration, INT-011 / INT-030)
+
+**What:** after a staff-approved order is fulfilled, `Fulfillment.EnsureMonitorTenantAsync` registers the company's
+Licensing customer as a Monitor Cloud tenant (`POST api/v1/platform/tenants/registrations`, idempotent per customer)
+and names the company owner (`ownerEmail`, `ownerName`). Monitor Cloud invites that owner once as the tenant's first
+Administrator (Cloud ADR 0018); the owner accepts the e-mailed link and signs in to the Cloud dashboard.
+
+**Auth (Cloud ADR 0023):** a service client with the scope `tenants.provision`, created on the Cloud server with
+`MonitorCloud.Api service-client create website --scope tenants.provision`. The Website exchanges it at
+`api/v1/auth/client-token` for a 15-minute token, reuses the token until a minute before expiry and signs in again on a 401.
+
+**Configuration:** `Licenses:Monitor:BaseUrl`, `ClientId`, `ClientSecret` (secret store or environment variables, never
+the repo), `TimeoutSeconds`. `ServiceEmail`/`ServicePassword` are a deprecated fallback used only while `ClientId` is
+empty; after switching, remove them and deactivate that Cloud user. Outside Development the host throws if `BaseUrl` is
+not an absolute URI.

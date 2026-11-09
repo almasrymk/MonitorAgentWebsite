@@ -44,12 +44,19 @@ public sealed class CommerceDb(DbContextOptions<CommerceDb> options) : DbContext
             o.Property(x => x.ProductName).HasMaxLength(150);
             o.Property(x => x.PlanName).HasMaxLength(150);
             o.Property(x => x.Total).HasPrecision(18, 2);
+            // A concurrency token: two partial refunds saved at once cannot add up to more than the total.
+            o.Property(x => x.RefundedAmount).HasPrecision(18, 2).IsConcurrencyToken();
             o.Property(x => x.Currency).HasMaxLength(3);
             o.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
             o.Property(x => x.PaidVia).HasMaxLength(30);
             o.Property(x => x.LicenseNumber).HasMaxLength(64);
+            o.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20).HasDefaultValue(OrderKind.Purchase).HasSentinel((OrderKind)(-1));
+            o.Property(x => x.Dispute).HasConversion<string>().HasMaxLength(10);
+            o.Property(x => x.DisputeReason).HasMaxLength(200);
+            o.Property(x => x.ChargedBackAmount).HasPrecision(18, 2);
             o.Property(x => x.PlacedAt).HasConversion(Utc);
             o.Property(x => x.PaidAt).HasConversion(NullableUtc);
+            o.Property(x => x.DisputedAt).HasConversion(NullableUtc);
             o.HasIndex(x => new { x.CompanyId, x.PlacedAt });
             o.HasIndex(x => x.Status);
             o.HasMany(x => x.Payments).WithOne().HasForeignKey("OrderId").IsRequired().OnDelete(DeleteBehavior.Cascade);
@@ -65,8 +72,11 @@ public sealed class CommerceDb(DbContextOptions<CommerceDb> options) : DbContext
             p.Property(x => x.ProviderReference).HasMaxLength(100);
             p.Property(x => x.Amount).HasPrecision(18, 2);
             p.Property(x => x.Currency).HasMaxLength(3);
-            p.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            // E5: approve and reject of the same bank transfer both change this row; the second save fails instead of
+            // leaving a paid order marked unpaid.
+            p.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsConcurrencyToken();
             p.Property(x => x.FailureReason).HasMaxLength(200);
+            p.Property(x => x.CustomerNote).HasMaxLength(500);
             p.Property(x => x.CreatedAt).HasConversion(Utc);
             p.Property(x => x.CompletedAt).HasConversion(NullableUtc);
             p.HasIndex(x => new { x.Provider, x.ProviderReference }).IsUnique().HasFilter("[ProviderReference] IS NOT NULL");
@@ -118,6 +128,8 @@ public sealed class CommerceDb(DbContextOptions<CommerceDb> options) : DbContext
             l.Property(x => x.At).HasConversion(Utc);
             l.HasIndex(x => x.OrderId);
             l.HasIndex(x => x.At);
+            // INT-019: one refund per provider reference, so two staff recording the same refund cannot both save it.
+            l.HasIndex(x => new { x.Provider, x.Reference }).IsUnique().HasFilter("[Kind] = 'Refund'");
         });
     }
 }
@@ -153,6 +165,9 @@ internal sealed class CommerceStore(CommerceDb db) : ICommerceStore
     public void Add(Order order) => db.Orders.Add(order);
     public void Add(ProcessedNotification notification) => db.Notifications.Add(notification);
     public void Add(LedgerEntry entry) => db.Ledger.Add(entry);
+
+    public Task<LedgerEntry?> RefundAsync(string provider, string reference, CancellationToken ct) =>
+        db.Ledger.SingleOrDefaultAsync(l => l.Kind == LedgerEntryKind.Refund && l.Provider == provider && l.Reference == reference, ct);
 
     public async Task<IReadOnlyList<LedgerLine>> LedgerAsync(DateTimeOffset from, DateTimeOffset until, int max, CancellationToken ct) =>
         await db.Ledger.AsNoTracking().Where(l => l.At >= from && l.At < until).OrderBy(l => l.At).Take(max)

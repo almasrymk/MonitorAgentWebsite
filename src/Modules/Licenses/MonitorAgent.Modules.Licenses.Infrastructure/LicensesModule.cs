@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MonitorAgent.BuildingBlocks.Application;
+using MonitorAgent.BuildingBlocks.Web;
 using MonitorAgent.Modules.Licenses.Application;
 using MonitorAgent.Modules.Licenses.Infrastructure.Persistence;
 using MonitorAgent.Modules.Licenses.Infrastructure.Platform;
@@ -18,6 +19,8 @@ public sealed class LicensesModuleOptions
     public MonitorCloudOptions Monitor { get; set; } = new();
     /// <summary>How often to look for licenses that need an expiry reminder. 0 turns the reminders off (tests run them directly).</summary>
     public int ExpiryReminderMinutes { get; set; } = 360;
+    /// <summary>B5: the LicensingPlatform product code a website trial code is for (the Agent's <c>Licensing:ProductCode</c>).</summary>
+    public string TrialProductCode { get; set; } = "000001";
 }
 
 public static class LicensesModule
@@ -26,12 +29,13 @@ public static class LicensesModule
     {
         var options = configuration.GetSection("Licenses").Get<LicensesModuleOptions>() ?? new LicensesModuleOptions();
         if (!environment.IsDevelopment() && !Uri.TryCreate(options.Platform.BaseUrl, UriKind.Absolute, out _))
-            throw new InvalidOperationException("Set Licenses:Platform:BaseUrl, ServiceEmail and ServicePassword.");
+            throw new InvalidOperationException("Set Licenses:Platform:BaseUrl, ClientId and ClientSecret.");
         if (!environment.IsDevelopment() && !Uri.TryCreate(options.Monitor.BaseUrl, UriKind.Absolute, out _))
-            throw new InvalidOperationException("Set Licenses:Monitor:BaseUrl, ServiceEmail and ServicePassword.");
+            throw new InvalidOperationException("Set Licenses:Monitor:BaseUrl, ClientId and ClientSecret.");
         services.AddSingleton(options);
         services.AddSingleton(options.Platform);
         services.AddSingleton(options.Monitor);
+        services.AddSingleton(new TrialOptions(options.TrialProductCode));
 
         services.AddDbContext<LicensesDb>(db => db.UseSqlServer(configuration.GetConnectionString("Default"),
             sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", LicensesDb.Schema)));
@@ -47,7 +51,8 @@ public static class LicensesModule
                     ? "http://licensing-platform.invalid/" : options.Platform.BaseUrl.TrimEnd('/') + "/");
                 client.Timeout = TimeSpan.FromSeconds(options.Platform.TimeoutSeconds);
             })
-            .AddHttpMessageHandler<LicensingPlatformAuthHandler>();
+            .AddHttpMessageHandler<LicensingPlatformAuthHandler>()
+            .AddCorrelationId();
         services.AddSingleton<ILicensingPlatform, LicensingPlatformClient>();
 
         services.AddSingleton<MonitorTokens>();
@@ -58,7 +63,8 @@ public static class LicensesModule
                     ? "http://monitor-cloud.invalid/" : options.Monitor.BaseUrl.TrimEnd('/') + "/");
                 client.Timeout = TimeSpan.FromSeconds(options.Monitor.TimeoutSeconds);
             })
-            .AddHttpMessageHandler<MonitorCloudAuthHandler>();
+            .AddHttpMessageHandler<MonitorCloudAuthHandler>()
+            .AddCorrelationId();
         services.AddSingleton<IMonitorCloud, MonitorCloudClient>();
         services.AddHostedService<LicensesDbInitializer>();
         services.AddHostedService<ExpiryReminderWorker>();

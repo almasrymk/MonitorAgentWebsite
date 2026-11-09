@@ -12,12 +12,16 @@ public class MonitorCloudClientTests
     private sealed class ScriptedCloud : HttpMessageHandler
     {
         public List<(string Method, string Path, string? Bearer)> Calls { get; } = [];
+        public List<string> Bodies { get; } = [];
         public int Logins { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             Calls.Add((request.Method.Method, request.RequestUri!.AbsolutePath, request.Headers.Authorization?.Parameter));
+            Bodies.Add(request.Content is null ? "" : request.Content.ReadAsStringAsync(ct).GetAwaiter().GetResult());
             var path = request.RequestUri!.AbsolutePath;
+            if (path == "/api/v1/auth/client-token")
+                return Task.FromResult(Json($$"""{"accessToken":"token-{{++Logins}}","expiresAt":"2999-01-01T00:00:00Z","tokenType":"Bearer","scopes":["tenants.provision"]}"""));
             if (path == "/api/v1/auth/login")
                 return Task.FromResult(Json($$"""{"accessToken":"token-{{++Logins}}","expiresAt":"2999-01-01T00:00:00Z","refreshToken":"r","user":null}"""));
             if (path == "/api/v1/platform/tenants/registrations" && request.Headers.Authorization?.Parameter == "token-1")
@@ -29,11 +33,8 @@ public class MonitorCloudClientTests
             new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
     }
 
-    [Fact]
-    public async Task Registration_signs_in_once_and_returns_the_tenant()
+    private static IMonitorCloud Client(ScriptedCloud cloud, MonitorCloudOptions options)
     {
-        var cloud = new ScriptedCloud();
-        var options = new MonitorCloudOptions { BaseUrl = "https://cloud.test", ServiceEmail = "site@example.test", ServicePassword = "secret" };
         var services = new ServiceCollection();
         services.AddSingleton(options);
         services.AddSingleton(TimeProvider.System);
@@ -43,14 +44,38 @@ public class MonitorCloudClientTests
             .AddHttpMessageHandler<MonitorCloudAuthHandler>()
             .ConfigurePrimaryHttpMessageHandler(() => cloud);
         services.AddSingleton<IMonitorCloud, MonitorCloudClient>();
-        var client = services.BuildServiceProvider().GetRequiredService<IMonitorCloud>();
+        return services.BuildServiceProvider().GetRequiredService<IMonitorCloud>();
+    }
 
-        var first = await client.RegisterTenantAsync(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "Acme", default);
-        var second = await client.RegisterTenantAsync(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "Acme", default);
+    [Fact]
+    public async Task Registration_with_the_service_client_signs_in_once_and_sends_the_owner()
+    {
+        var cloud = new ScriptedCloud();
+        var client = Client(cloud, new MonitorCloudOptions { BaseUrl = "https://cloud.test", ClientId = "mcs_test", ClientSecret = "TEST-ONLY-secret" });
+        var owner = new MonitorTenantOwner("owner@acme.example", "Acme Owner");
+
+        var first = await client.RegisterTenantAsync(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "Acme", owner, default);
+        var second = await client.RegisterTenantAsync(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "Acme", owner, default);
 
         Assert.Equal(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), first);
         Assert.Equal(first, second);
         Assert.Equal(1, cloud.Logins);
+        Assert.DoesNotContain(cloud.Calls, c => c.Path == "/api/v1/auth/login");
+        Assert.Contains("\"clientId\":\"mcs_test\"", cloud.Bodies[0], StringComparison.Ordinal);
         Assert.Equal(2, cloud.Calls.Count(c => c.Path == "/api/v1/platform/tenants/registrations" && c.Bearer == "token-1"));
+        Assert.Contains("\"ownerEmail\":\"owner@acme.example\"", cloud.Bodies[1], StringComparison.Ordinal);
+        Assert.Contains("\"ownerName\":\"Acme Owner\"", cloud.Bodies[1], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Without_a_client_id_the_deprecated_service_user_still_signs_in()
+    {
+        var cloud = new ScriptedCloud();
+        var client = Client(cloud, new MonitorCloudOptions { BaseUrl = "https://cloud.test", ServiceEmail = "site@example.test", ServicePassword = "TEST-ONLY-password" });
+
+        var tenant = await client.RegisterTenantAsync(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "Acme", null, default);
+
+        Assert.Equal(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), tenant);
+        Assert.Equal("/api/v1/auth/login", cloud.Calls[0].Path);
     }
 }

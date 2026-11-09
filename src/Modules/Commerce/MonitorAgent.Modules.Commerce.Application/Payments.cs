@@ -20,7 +20,114 @@ public sealed record RecordManualPaymentCommand(Guid OrderId, string Reference) 
     public string? AuditDetail => Reference;
 }
 
+/// <summary>
+/// INT-019: staff record a refund paid outside the website. Recording the same reference again for the same order and
+/// amount returns the order unchanged, so a double click or a retry never refunds twice.
+/// </summary>
+public sealed record RecordRefundCommand(Guid OrderId, string Reference, decimal Amount, string? Reason) : ICommand<Result<OrderDto>>, IAuditedCommand
+{
+    public string AuditAction => "order.refund";
+    public string AuditTarget => $"order:{OrderId}";
+    public string? AuditDetail => $"{Amount} ref {Reference}{(Reason is null ? "" : " - " + Reason)}";
+}
+
+internal sealed class RecordRefundValidator : AbstractValidator<RecordRefundCommand>
+{
+    public RecordRefundValidator()
+    {
+        RuleFor(x => x.Reference).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Amount).GreaterThan(0);
+        RuleFor(x => x.Reason).MaximumLength(200);
+    }
+}
+
+internal sealed class RecordRefundHandler(ICommerceStore store, TimeProvider clock) : ICommandHandler<RecordRefundCommand, Result<OrderDto>>
+{
+    public async Task<Result<OrderDto>> HandleAsync(RecordRefundCommand command, CancellationToken ct)
+    {
+        var reference = command.Reference.Trim();
+        if (await store.OrderAsync(command.OrderId, ct) is not { } order) return CommerceErrors.OrderNotFound;
+        if (await store.RefundAsync("manual", reference, ct) is { } existing)
+            return existing.OrderId == order.Id && existing.Amount == decimal.Round(command.Amount, 2) ? order.ToDto() : CommerceErrors.RefundReferenceUsed;
+
+        var refunded = order.Refund(command.Amount);
+        if (refunded.IsFailure) return refunded.Error!;
+        store.Add(new LedgerEntry(order.Id, LedgerEntryKind.Refund, decimal.Round(command.Amount, 2), order.Currency, "manual", reference, clock.GetUtcNow()));
+        try
+        {
+            await store.SaveAsync(ct);
+        }
+        catch (SaveConflictException)
+        {
+            // Another refund of this order (its row version) or with this reference (unique) saved first: look again.
+            return CommerceErrors.RefundReferenceUsed;
+        }
+        return order.ToDto();
+    }
+}
+
 /// <summary>Issues licenses for paid orders whose fulfilment didn't finish (LicensingPlatform was down). Run on a timer.</summary>
+/// <summary>B3: staff record that a received payment is contested. Nothing is reversed and no license is touched.</summary>
+public sealed record OpenDisputeCommand(Guid OrderId, string Reason) : ICommand<Result<OrderDto>>, IAuditedCommand
+{
+    public string AuditAction => "order.dispute-opened";
+    public string AuditTarget => $"order:{OrderId}";
+    public string? AuditDetail => Reason;
+}
+
+/// <summary>
+/// B3: staff close a dispute. Lost records the chargeback in the ledger under <paramref name="Reference"/> (the bank's
+/// reference); the license stays as it is until staff suspend it themselves (admin licenses endpoints).
+/// </summary>
+public sealed record ResolveDisputeCommand(Guid OrderId, bool Won, string? Reference) : ICommand<Result<OrderDto>>, IAuditedCommand
+{
+    public string AuditAction => Won ? "order.dispute-won" : "order.dispute-lost";
+    public string AuditTarget => $"order:{OrderId}";
+    public string? AuditDetail => Reference;
+}
+
+internal sealed class OpenDisputeValidator : AbstractValidator<OpenDisputeCommand>
+{
+    public OpenDisputeValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(200);
+}
+
+internal sealed class ResolveDisputeValidator : AbstractValidator<ResolveDisputeCommand>
+{
+    public ResolveDisputeValidator()
+    {
+        RuleFor(x => x.Reference).NotEmpty().MaximumLength(100).When(x => !x.Won).WithMessage("A lost dispute needs the bank's chargeback reference.");
+        RuleFor(x => x.Reference).MaximumLength(100);
+    }
+}
+
+internal sealed class OpenDisputeHandler(ICommerceStore store, TimeProvider clock) : ICommandHandler<OpenDisputeCommand, Result<OrderDto>>
+{
+    public async Task<Result<OrderDto>> HandleAsync(OpenDisputeCommand command, CancellationToken ct)
+    {
+        if (await store.OrderAsync(command.OrderId, ct) is not { } order) return CommerceErrors.OrderNotFound;
+        var opened = order.OpenDispute(command.Reason, clock.GetUtcNow());
+        if (opened.IsFailure) return opened.Error!;
+        await store.SaveAsync(ct);
+        return order.ToDto();
+    }
+}
+
+internal sealed class ResolveDisputeHandler(ICommerceStore store, AfterPayment after, TimeProvider clock) : ICommandHandler<ResolveDisputeCommand, Result<OrderDto>>
+{
+    public async Task<Result<OrderDto>> HandleAsync(ResolveDisputeCommand command, CancellationToken ct)
+    {
+        if (await store.OrderAsync(command.OrderId, ct) is not { } order) return CommerceErrors.OrderNotFound;
+        var resolved = order.ResolveDispute(command.Won);
+        if (resolved.IsFailure) return resolved.Error!;
+        if (resolved.Value > 0)
+            store.Add(new LedgerEntry(order.Id, LedgerEntryKind.Chargeback, resolved.Value, order.Currency, "manual", command.Reference!.Trim(), clock.GetUtcNow()));
+        await store.SaveAsync(ct);
+        // A won dispute on an order whose license was held: issue it now.
+        if (command.Won && order.Status == OrderStatus.Paid) await after.FulfilAsync(order, ct);
+        return order.ToDto();
+    }
+}
+
 public sealed record FulfillPaidOrdersCommand : ICommand<Result<int>>;
 
 /// <summary>Every company's orders for staff, newest first, with the company named.</summary>
@@ -44,7 +151,7 @@ internal sealed class ListOrdersValidator : AbstractValidator<ListOrdersQuery>
 /// What happens once an order is paid: ledger line, invoice, then the license. The buyer gets a receipt email once the
 /// payment is saved and another once the license is issued. Emails are best effort: the portal shows the same thing.
 /// </summary>
-internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirectory companies, ILicenseFulfillment licenses, IUserDirectory users,
+internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirectory companies, ILicenseFulfillment licenses, ILicenseRenewals renewals, ILicenseUpgrades upgrades, IUserDirectory users,
     IEmailSender email, PortalLinks links, TimeProvider clock, ILogger<AfterPayment> logger)
 {
     private Invoice? _invoice;
@@ -71,7 +178,14 @@ internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirecto
     /// <summary>Best effort: a failure leaves the order Paid, and <see cref="FulfillPaidOrdersCommand"/> retries it.</summary>
     public async Task FulfilAsync(Order order, CancellationToken ct)
     {
-        var fulfilled = await licenses.FulfillAsync(order.CompanyId, order.PlanId, order.Number, ct);
+        // B3: a contested payment issues nothing until staff resolve the dispute.
+        if (order.Dispute == DisputeStatus.Open) return;
+        var fulfilled = order.Kind switch
+        {
+            OrderKind.Renewal => await renewals.RenewAsync(order.CompanyId, order.RenewsGrantId!.Value, order.PlanId, order.Number, ct),
+            OrderKind.Upgrade => await upgrades.UpgradeAsync(order.CompanyId, order.RenewsGrantId!.Value, order.PlanId, order.Number, ct),
+            _ => await licenses.FulfillAsync(order.CompanyId, order.PlanId, order.Number, ct),
+        };
         if (fulfilled.IsFailure) return;
         order.Fulfilled(fulfilled.Value.LicenseNumber);
         try
@@ -83,7 +197,9 @@ internal sealed partial class AfterPayment(ICommerceStore store, ICompanyDirecto
             // The license exists; issuing is idempotent per order, so the next retry only records it (and that one emails).
             return;
         }
-        await NotifyAsync(order, buyer => CommerceEmails.LicenseReady(buyer, order.Number, fulfilled.Value.LicenseNumber, links.To("licenses")), ct);
+        await NotifyAsync(order, buyer => order.Kind == OrderKind.Upgrade
+            ? CommerceEmails.Upgraded(buyer, order.Number, order.PlanName, links.To("licenses"))
+            : CommerceEmails.LicenseReady(buyer, order.Number, fulfilled.Value.LicenseNumber, links.To("licenses")), ct);
     }
 
     private async Task NotifyAsync(Order order, Func<string, EmailMessage> message, CancellationToken ct)
@@ -115,6 +231,17 @@ internal static class CommerceEmails
         We received {amount:0.00} {currency} for order {order}. Invoice {invoice} is here, ready to print:
         {link}
         Your license is being issued; we will email you when it is ready.
+        """);
+
+    /// <summary>INT-014: the paid upgrade is applied; same key, same devices, same end date.</summary>
+    public static EmailMessage Upgraded(string to, string order, string plans, string link) => new(to,
+        $"تمت ترقية اشتراكك ({plans}) | Your subscription was upgraded ({plans})",
+        $"""
+        تمت الترقية للطلب {order} ({plans}). مفتاح المنتج والأجهزة المفعّلة وتاريخ الانتهاء زي ما هم:
+        {link}
+
+        Order {order} upgraded your subscription ({plans}). The product key, the activated devices and the end date stay the same:
+        {link}
         """);
 
     public static EmailMessage LicenseReady(string to, string order, string license, string link) => new(to,
@@ -197,16 +324,34 @@ internal sealed partial class HandlePaymentNotificationHandler(
 internal sealed class RecordManualPaymentHandler(ICommerceStore store, AfterPayment after, TimeProvider clock)
     : ICommandHandler<RecordManualPaymentCommand, Result<OrderDto>>
 {
+    // An invoice-number race with another order's payment is retried; a race on the same order is a clear 409.
+    private const int Attempts = 3;
+
     public async Task<Result<OrderDto>> HandleAsync(RecordManualPaymentCommand command, CancellationToken ct)
     {
-        if (await store.OrderAsync(command.OrderId, ct) is not { } order) return CommerceErrors.OrderNotFound;
-        var recorded = order.RecordManualPayment(command.Reference, clock.GetUtcNow());
-        if (recorded.IsFailure) return recorded.Error!;
-        await after.RecordAsync(order, order.Payments[^1]);
-        await store.SaveAsync(ct);
-        await after.SendReceiptAsync(order, ct);
-        await after.FulfilAsync(order, ct);
-        return order.ToDto();
+        for (var attempt = 1; ; attempt++)
+        {
+            if (await store.OrderAsync(command.OrderId, ct) is not { } order) return CommerceErrors.OrderNotFound;
+            if (order.Status == OrderStatus.PendingPayment && await BankTransfers.ReferenceUsedElsewhereAsync(store, order, command.Reference.Trim(), ct))
+                return CommerceErrors.PaymentReferenceUsed;
+            var recorded = order.RecordManualPayment(command.Reference, clock.GetUtcNow());
+            if (recorded.IsFailure) return recorded.Error!;
+            await after.RecordAsync(order, order.Payments[^1]);
+            try
+            {
+                await store.SaveAsync(ct);
+            }
+            catch (SaveConflictException) when (attempt < Attempts)
+            {
+                // INT-012: another approval of this order (its invoice is unique per order) or of another order (the
+                // invoice counter) saved first. The next pass reloads the order and answers ORDER_NOT_PAYABLE if it is paid.
+                continue;
+            }
+
+            await after.SendReceiptAsync(order, ct);
+            await after.FulfilAsync(order, ct);
+            return order.ToDto();
+        }
     }
 }
 

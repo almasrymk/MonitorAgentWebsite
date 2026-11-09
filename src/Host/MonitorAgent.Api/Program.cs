@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using MonitorAgent.Api.Web;
 using MonitorAgent.BuildingBlocks.Application;
+using MonitorAgent.BuildingBlocks.Web;
 using MonitorAgent.Modules.Audit.Infrastructure;
 using MonitorAgent.Modules.Commerce.Infrastructure;
 using MonitorAgent.Modules.Content.Infrastructure;
@@ -52,7 +53,8 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
     .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [])
     .AllowAnyHeader()
     .AllowAnyMethod()
-    .AllowCredentials()));
+    .AllowCredentials()
+    .WithExposedHeaders(CorrelationId.HeaderName)));
 
 // Behind the reverse proxy (Caddy, App Service, Front Door) the connection comes from the proxy. Trust its
 // X-Forwarded-For/Proto only from the networks listed here, so rate limits, logs and HTTPS see the real visitor.
@@ -79,6 +81,7 @@ builder.Services.AddRateLimiter(options =>
 var app = builder.Build();
 
 if (proxyNetworks.Length > 0) app.UseForwardedHeaders();
+app.UseCorrelationId();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseSecurityHeaders();

@@ -28,7 +28,7 @@ CMD ["node", "server/server.mjs"]
 # fails the build on their fixable CVEs. Bump the versions here when Caddy or Go ship fixes.
 FROM golang:1.27-alpine AS caddy
 RUN go install github.com/caddyserver/xcaddy/cmd/xcaddy@v0.4.5 \
- && xcaddy build v2.11.7 --output /usr/bin/caddy --replace golang.org/x/net=golang.org/x/net@v0.61.0 \
+ && xcaddy build v2.11.7 --output /usr/bin/caddy --replace golang.org/x/net=golang.org/x/net@v0.62.0 \
       --replace github.com/go-jose/go-jose/v4=github.com/go-jose/go-jose/v4@v4.1.6
 
 # The front door: HTTPS, the portal and admin files, and routing to the API and the site.

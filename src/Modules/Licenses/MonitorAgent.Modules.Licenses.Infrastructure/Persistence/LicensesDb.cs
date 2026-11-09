@@ -13,6 +13,7 @@ public sealed class LicensesDb(DbContextOptions<LicensesDb> options) : DbContext
 
     public DbSet<PlatformCustomerLink> Links => Set<PlatformCustomerLink>();
     public DbSet<LicenseGrant> Grants => Set<LicenseGrant>();
+    public DbSet<ScheduledPlanChange> ScheduledPlanChanges => Set<ScheduledPlanChange>();
 
     private static readonly ValueConverter<DateTimeOffset, DateTime> UtcConverter =
         new(v => v.UtcDateTime, v => new DateTimeOffset(DateTime.SpecifyKind(v, DateTimeKind.Utc)));
@@ -46,7 +47,17 @@ public sealed class LicensesDb(DbContextOptions<LicensesDb> options) : DbContext
             g.Property(x => x.CreatedAt).HasConversion(UtcConverter);
             g.Property(x => x.IssuedAt).HasConversion(NullableUtcConverter);
             g.Property(x => x.ExpiresAt).HasConversion(NullableUtcConverter);
+            g.Property(x => x.IssueClaimedUntil).HasConversion(NullableUtcConverter).IsConcurrencyToken();
             g.HasIndex(x => new { x.CompanyId, x.PlatformLicenseId });
+        });
+
+        modelBuilder.Entity<ScheduledPlanChange>(s =>
+        {
+            s.ToTable("ScheduledPlanChanges");
+            s.HasKey(x => x.SubscriptionId);
+            s.Property(x => x.SubscriptionId).ValueGeneratedNever();
+            s.Property(x => x.RequestedAt).HasConversion(UtcConverter);
+            s.HasIndex(x => x.CompanyId);
         });
     }
 }
@@ -61,8 +72,15 @@ internal sealed class LicenseStore(LicensesDb db) : ILicenseStore
     public Task<LicenseGrant?> GrantForOrderAsync(string orderReference, CancellationToken ct) =>
         db.Grants.SingleOrDefaultAsync(g => g.OrderReference == orderReference, ct);
 
+    public Task<LicenseGrant?> GrantAsync(Guid grantId, CancellationToken ct) =>
+        db.Grants.SingleOrDefaultAsync(g => g.Id == grantId, ct);
+
     public Task<LicenseGrant?> GrantForLicenseAsync(Guid companyId, Guid platformLicenseId, CancellationToken ct) =>
         db.Grants.SingleOrDefaultAsync(g => g.CompanyId == companyId && g.PlatformLicenseId == platformLicenseId, ct);
+
+    public async Task<IReadOnlyList<LicenseGrant>> GrantsForSubscriptionAsync(Guid companyId, Guid platformSubscriptionId, CancellationToken ct) =>
+        await db.Grants.Where(g => g.CompanyId == companyId && g.PlatformSubscriptionId == platformSubscriptionId)
+            .OrderBy(g => g.CreatedAt).ToListAsync(ct);
 
     public async Task<IReadOnlyList<LicenseGrant>> ExpiringAsync(DateTimeOffset now, DateTimeOffset until, int take, CancellationToken ct) =>
         await db.Grants.Where(g => g.Status == GrantStatus.Issued && g.ExpiresAt > now && g.ExpiresAt <= until)
@@ -74,7 +92,29 @@ internal sealed class LicenseStore(LicensesDb db) : ILicenseStore
 
     public void Add(LicenseGrant grant) => db.Grants.Add(grant);
 
-    public Task SaveAsync(CancellationToken ct) => db.SaveChangesAsync(ct);
+    public Task<ScheduledPlanChange?> ScheduledChangeAsync(Guid subscriptionId, CancellationToken ct) =>
+        db.ScheduledPlanChanges.SingleOrDefaultAsync(s => s.SubscriptionId == subscriptionId, ct);
+
+    public async Task<IReadOnlyList<ScheduledPlanChange>> ScheduledChangesOfAsync(Guid companyId, CancellationToken ct) =>
+        await db.ScheduledPlanChanges.AsNoTracking().Where(s => s.CompanyId == companyId).ToListAsync(ct);
+
+    public void Add(ScheduledPlanChange change) => db.ScheduledPlanChanges.Add(change);
+
+    public void Remove(ScheduledPlanChange change) => db.ScheduledPlanChanges.Remove(change);
+
+    public async Task SaveAsync(CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            // A unique order reference or a claim (IssueClaimedUntil is a concurrency token) was taken by another request.
+            db.ChangeTracker.Clear();
+            throw new GrantConflictException(ex);
+        }
+    }
 }
 
 internal sealed class DataProtectionKeyProtector(IDataProtectionProvider provider) : IKeyProtector

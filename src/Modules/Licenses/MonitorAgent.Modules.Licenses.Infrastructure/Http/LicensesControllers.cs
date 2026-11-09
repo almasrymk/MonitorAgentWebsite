@@ -26,6 +26,15 @@ public sealed class CatalogController(IDispatcher dispatcher) : ControllerBase
 [Authorize(Policy = AuthPolicies.Customer)]
 public sealed class MyLicensesController(IDispatcher dispatcher) : ControllerBase
 {
+    /// <summary>B5: a single-use trial code for the Agent (Licensing ADR-016). Shown once; one trial per account.</summary>
+    [HttpPost("trial")]
+    [ProducesResponseType<TrialCodeDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Trial(CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        return (await dispatcher.SendAsync(new StartMyTrialCommand(), ct)).ToActionResult();
+    }
+
     [HttpGet("subscription")]
     [ProducesResponseType<IReadOnlyList<CompanySubscriptionDto>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Subscription(CancellationToken ct) =>
@@ -109,6 +118,7 @@ public sealed class MyLicensesController(IDispatcher dispatcher) : ControllerBas
 }
 
 public sealed record GrantRequest(Guid CompanyId, Guid PlanId, string OrderReference);
+public sealed record StaffLicenseRequest(string Reason);
 
 /// <summary>Staff issue a license by hand, for a payment taken outside the website (bank transfer, cash).</summary>
 [ApiController]
@@ -132,4 +142,24 @@ public sealed class AdminCompanyLicensesController(IDispatcher dispatcher) : Con
     [ProducesResponseType<IReadOnlyList<LicenseSummaryDto>>(StatusCodes.Status200OK)]
     public async Task<IActionResult> List(Guid companyId, CancellationToken ct) =>
         (await dispatcher.QueryAsync(new CompanyLicensesQuery(companyId), ct)).ToActionResult();
+}
+
+/// <summary>
+/// B3: finance and admins suspend or resume a customer's license after a refund or a lost dispute. Never automatic;
+/// the reason is required and audited.
+/// </summary>
+[ApiController]
+[Route("api/v1/admin/customers/{companyId:guid}/licenses/{licenseId:guid}")]
+[Authorize(Policy = AuthPolicies.StaffFinance)]
+public sealed class AdminLicenseActionsController(IDispatcher dispatcher) : ControllerBase
+{
+    [HttpPost("suspend")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Suspend(Guid companyId, Guid licenseId, StaffLicenseRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new StaffSuspendLicenseCommand(companyId, licenseId, request.Reason), ct)).ToActionResult();
+
+    [HttpPost("resume")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Resume(Guid companyId, Guid licenseId, StaffLicenseRequest request, CancellationToken ct) =>
+        (await dispatcher.SendAsync(new StaffResumeLicenseCommand(companyId, licenseId, request.Reason), ct)).ToActionResult();
 }
