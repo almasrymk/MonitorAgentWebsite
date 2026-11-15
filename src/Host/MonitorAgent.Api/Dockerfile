@@ -4,7 +4,7 @@ COPY global.json Directory.Build.props Directory.Packages.props .editorconfig ./
 COPY src/ src/
 RUN dotnet publish src/Host/MonitorAgent.Api/MonitorAgent.Api.csproj -c Release -o /app
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
+FROM mcr.microsoft.com/dotnet/aspnet:11.0
 # Ubuntu security fixes released after the base image was built (CI fails on fixable HIGH or CRITICAL findings).
 RUN apt-get update \
     && apt-get upgrade -y --no-install-recommends \
