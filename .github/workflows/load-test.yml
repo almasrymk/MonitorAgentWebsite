@@ -21,7 +21,7 @@ jobs:
           for i in $(seq 1 60); do curl -fsS http://localhost:5200/health/ready && break; sleep 5; done
           curl -fsS http://localhost:5200/health/ready
           grep SANDBOX_SECRET .env | sed 's/^/LOAD_/' >> "$GITHUB_ENV"
-      - uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1 # v1.2.2
+      - uses: grafana/setup-k6-action@c47136d33d365efbeb9ae7266908b5dcf98cdece # v1.3.0
       - name: Run
         run: k6 run -e BASE_URL=http://localhost:5200 -e SANDBOX_SECRET="$LOAD_SANDBOX_SECRET" --summary-export=k6-summary.json tests/load/website.js
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
